@@ -1,0 +1,457 @@
+{
+  "schemaVersion": "1.0.0",
+  "retrievedAt": "2026-09-09T19:49:23.297Z",
+  "sourceBaseUrl": "https://westkitty.github.io/Starsilk_Character_Dossier",
+  "authorityNotice": "Public machine derivative snapshot for Starsilk System Planner. External Compendium remains sole canon authority. Generated planner systems do not become canon.",
+  "locks": {
+    "bloodEclipseDurationYears": 170,
+    "starsilkMaterialAzure": true,
+    "wordstreamerSpelling": "Wordstreamer",
+    "singleTailTiger": true,
+    "prohibitions": [
+      "no-william"
+    ],
+    "summary": [
+      {
+        "lockId": "blood-eclipse-war-170-years",
+        "description": "Blood Eclipse War lasts one hundred seventy years, not seventeen.",
+        "scope": "document",
+        "stableId": null
+      },
+      {
+        "lockId": "no-william",
+        "description": "The rejected/obsolete name 'William' must never appear.",
+        "scope": "document",
+        "stableId": null
+      },
+      {
+        "lockId": "wordstreamer-canonical-spelling",
+        "description": "The deity's canonical name is Wordstreamer; the obsolete internal-capital form WordStreamer must not appear.",
+        "scope": "document",
+        "stableId": null
+      },
+      {
+        "lockId": "dao-right-arm",
+        "description": "Dao's integrated buster/mechanical arm remains on the right.",
+        "scope": "section",
+        "stableId": "dao"
+      },
+      {
+        "lockId": "dao-eyepatch-left",
+        "description": "Dao's eyepatch remains over the left eye.",
+        "scope": "section",
+        "stableId": "dao"
+      },
+      {
+        "lockId": "kail-scarf-covers-mouth",
+        "description": "Kail's red scarf remains over the mouth/throat in ordinary depiction.",
+        "scope": "section",
+        "stableId": "kail"
+      },
+      {
+        "lockId": "kail-no-exposed-mouth",
+        "description": "Kail does not gain an ordinary exposed speaking mouth.",
+        "scope": "section",
+        "stableId": "kail"
+      },
+      {
+        "lockId": "shard-god-single-tail",
+        "description": "Shard-God Tiger has exactly one tail.",
+        "scope": "section",
+        "stableId": "shard-god"
+      },
+      {
+        "lockId": "shard-god-digitigrade",
+        "description": "Shard-God Tiger is digitigrade.",
+        "scope": "section",
+        "stableId": "shard-god"
+      },
+      {
+        "lockId": "shard-god-obsidian",
+        "description": "Shard-God Tiger's body identity remains obsidian.",
+        "scope": "section",
+        "stableId": "shard-god"
+      },
+      {
+        "lockId": "starsilk-material-azure",
+        "description": "Starsilk's material identity remains cyan/azure luminous edges.",
+        "scope": "section",
+        "stableId": "starsilk-material"
+      },
+      {
+        "lockId": "marcel-staff-non-magical",
+        "description": "Marcel's plain wooden staff remains non-magical.",
+        "scope": "section",
+        "stableId": "marcel"
+      },
+      {
+        "lockId": "wordstreaming-living-practice",
+        "description": "Wordstreaming remains a living practice named for the deceased Wordstreamer.",
+        "scope": "section",
+        "stableId": "ontology-horror"
+      },
+      {
+        "lockId": "post-wall-wordstreaming-living",
+        "description": "Post-Wall Drakken still use wordstreaming as a living communication practice.",
+        "scope": "section",
+        "stableId": "beyond-wall"
+      },
+      {
+        "lockId": "post-wall-codec-time-estimate",
+        "description": "Codec estimates roughly 8,560 years have passed since the Blood Eclipse War era.",
+        "scope": "section",
+        "stableId": "beyond-wall"
+      },
+      {
+        "lockId": "modern-drakken-larger-than-humans",
+        "description": "Modern Drakken remain larger than humans while being much smaller than Blood Eclipse War Titans.",
+        "scope": "section",
+        "stableId": "beyond-wall"
+      }
+    ]
+  },
+  "worldsvaultTopology": {
+    "nodeCount": 11,
+    "edgeCount": 6,
+    "nodes": [
+      {
+        "nodeId": "worldsvault",
+        "label": "WorldsVault",
+        "nodeClass": "repository",
+        "identityStatus": "publication-derived",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-worldsvault",
+        "stableId": "cosmic-architecture",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "nodeId": "extinct-template-set",
+        "label": "Thirty extinct-civilization planetary templates",
+        "nodeClass": "template-set",
+        "identityStatus": "publication-derived",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-extinct-template-set",
+        "stableId": "systems",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "nodeId": "partition",
+        "label": "The Partition",
+        "nodeClass": "parallel-reality",
+        "identityStatus": "publication-derived",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-partition",
+        "stableId": "systems",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "nodeId": "siege-wall",
+        "label": "Siege Wall",
+        "nodeClass": "containment-boundary",
+        "identityStatus": "publication-derived",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-siege-wall",
+        "stableId": "cosmic-architecture",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "nodeId": "drakken-domain",
+        "label": "Drakken domain",
+        "nodeClass": "regional-domain",
+        "identityStatus": "publication-derived",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-drakken-domain",
+        "stableId": "chronology",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "nodeId": "mother",
+        "label": "Mother",
+        "nodeClass": "homeworld",
+        "identityStatus": "existing-authored-stable-id",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-mother",
+        "stableId": "systems",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "nodeId": "aureal-nebula",
+        "label": "Aureal Nebula",
+        "nodeClass": "nebula",
+        "identityStatus": "publication-derived",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-aureal-nebula",
+        "stableId": "systems",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "nodeId": "meridian-station",
+        "label": "Meridian Station",
+        "nodeClass": "orbital-station",
+        "identityStatus": "publication-derived",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-meridian-station",
+        "stableId": "cosmic-architecture",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "nodeId": "virgil",
+        "label": "Virgil",
+        "nodeClass": "gas-giant",
+        "identityStatus": "publication-derived",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-virgil",
+        "stableId": "cosmic-architecture",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "nodeId": "hookshot-network",
+        "label": "Hookshot Network",
+        "nodeClass": "travel-infrastructure",
+        "identityStatus": "publication-derived",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-hookshot-network",
+        "stableId": "systems",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "nodeId": "codified-waves",
+        "label": "Codified Waves",
+        "nodeClass": "deployment-doctrine",
+        "identityStatus": "publication-derived",
+        "sourceUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/worldsvault/#node-codified-waves",
+        "stableId": "systems",
+        "unknowns": [
+          "No authored coordinates, distances, directions, route geometry, or complete spatial extent is published for this node.",
+          "The layout field is non-canonical rendering order only and does not state cosmic position.",
+          "Per-node canon status and spoiler level are not authored."
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "edgeId": "contains--worldsvault--extinct-template-set",
+        "source": "worldsvault",
+        "target": "extinct-template-set",
+        "relation": "contains",
+        "relationClass": "direct-authored-topology",
+        "unknowns": [
+          "This direct relation does not establish coordinates, distance, direction, route geometry, extent, chronology, or additional membership.",
+          "Per-edge canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "edgeId": "seeds--extinct-template-set--partition",
+        "source": "extinct-template-set",
+        "target": "partition",
+        "relation": "seeds",
+        "relationClass": "direct-authored-topology",
+        "unknowns": [
+          "This direct relation does not establish coordinates, distance, direction, route geometry, extent, chronology, or additional membership.",
+          "Per-edge canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "edgeId": "contains--siege-wall--drakken-domain",
+        "source": "siege-wall",
+        "target": "drakken-domain",
+        "relation": "contains",
+        "relationClass": "direct-authored-topology",
+        "unknowns": [
+          "This direct relation does not establish coordinates, distance, direction, route geometry, extent, chronology, or additional membership.",
+          "Per-edge canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "edgeId": "located-in--mother--aureal-nebula",
+        "source": "mother",
+        "target": "aureal-nebula",
+        "relation": "located-in",
+        "relationClass": "direct-authored-topology",
+        "unknowns": [
+          "This direct relation does not establish coordinates, distance, direction, route geometry, extent, chronology, or additional membership.",
+          "Per-edge canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "edgeId": "orbits--meridian-station--virgil",
+        "source": "meridian-station",
+        "target": "virgil",
+        "relation": "orbits",
+        "relationClass": "direct-authored-topology",
+        "unknowns": [
+          "This direct relation does not establish coordinates, distance, direction, route geometry, extent, chronology, or additional membership.",
+          "Per-edge canon status and spoiler level are not authored."
+        ]
+      },
+      {
+        "edgeId": "uses--codified-waves--hookshot-network",
+        "source": "codified-waves",
+        "target": "hookshot-network",
+        "relation": "uses",
+        "relationClass": "direct-authored-topology",
+        "unknowns": [
+          "This direct relation does not establish coordinates, distance, direction, route geometry, extent, chronology, or additional membership.",
+          "Per-edge canon status and spoiler level are not authored."
+        ]
+      }
+    ],
+    "unknowns": [
+      "The authored source does not provide a complete cosmic map, coordinates, distances, directions, route geometry, or system extent.",
+      "Thirty WorldsVault template display labels exist in authored source, but they are not all promoted to permanent authored IDs or positioned in a map.",
+      "The existing 136 mentions / observed-xref edges remain a distinct citation graph and are not topology relations."
+    ]
+  },
+  "entities": {
+    "starsilkMaterial": {
+      "stableId": "starsilk-material",
+      "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/starsilk-material/",
+      "palette": [
+        "#03050A",
+        "#07131E",
+        "#0A2A44",
+        "#0CC6FF",
+        "#49E7FF",
+        "#B6F6FF"
+      ],
+      "canonicalNature": [
+        "Literal programmable cosmological substance and medium for repeatable reality Macros.",
+        "Macros are repeatable action-loops embedded into the universe, not metaphorical magic.",
+        "Starsilk itself is not sentient or sapient.",
+        "Death remains final. Starlight and Starsilk may retain data or residue without conscious afterlife.",
+        "Star-dive pull causes irreversible stellar destabilization and black-hole collapse."
+      ],
+      "sourceRef": "src/content/sections/starsilk-material.body.html"
+    },
+    "cosmicArchitecture": {
+      "stableId": "cosmic-architecture",
+      "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/cosmic-architecture/",
+      "structures": [
+        {
+          "id": "worlds-vault",
+          "name": "WorldsVault",
+          "type": "digital-geode",
+          "note": "Oppressive digital geode lit by hyper-luminous azure edges. Stores thirty extinct planetary templates."
+        },
+        {
+          "id": "siege-wall",
+          "name": "Siege Wall",
+          "type": "black-hole-lattice",
+          "note": "Physical view is starless black void absence, not glowing geometric grid."
+        },
+        {
+          "id": "meridian-station",
+          "name": "Meridian Station",
+          "type": "orbital-habitat",
+          "note": "Industrial orbital habitat orbiting gas giant Virgil."
+        },
+        {
+          "id": "virgil",
+          "name": "Virgil",
+          "type": "gas-giant",
+          "note": "Desaturated steel-blue and ash-gray gas giant orbited by Meridian."
+        }
+      ],
+      "drakkenTheses": [
+        "Pyric",
+        "Aqueous",
+        "Telluric",
+        "Aeric",
+        "Umbral"
+      ]
+    },
+    "systems": {
+      "stableId": "systems",
+      "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/systems/",
+      "bloodRingsNote": "Drakken vitrified biospheric atrocity-structures. Gorevault renders feedstock; Ringthroat extrudes toward orbit.",
+      "hookshotNote": "Connection-based travel infrastructure. Ships latch, tension, and move across stabilized manifolds. Not arbitrary teleportation."
+    },
+    "worldsvaultTemplates": {
+      "stableId": "worldsvault-templates",
+      "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/worldsvault-templates/",
+      "namedTemplates": [
+        {
+          "id": "syrrian-iv",
+          "name": "Syrrian IV",
+          "trait": "Ground repels adhesion; airborne islands over an atmospheric sea."
+        },
+        {
+          "id": "cumulon-ii",
+          "name": "Cumulon II",
+          "trait": "Memory-Fluid Archive: rivers of hot liquid memory."
+        },
+        {
+          "id": "altostratus-v",
+          "name": "Altostratus V",
+          "trait": "Electric storms rising from surface."
+        },
+        {
+          "id": "nimbus-iii",
+          "name": "Nimbus III",
+          "trait": "Bioluminescent Biosphere: eternal twilight radiance."
+        },
+        {
+          "id": "mistline-xxvi",
+          "name": "Mistline XXVI",
+          "trait": "Continents visible only as humidity gradients."
+        },
+        {
+          "id": "halitus-xxvii",
+          "name": "Halitus XXVII",
+          "trait": "Cryo-Breathing: frozen oceans exhaling steam clouds."
+        },
+        {
+          "id": "nacreous-vi",
+          "name": "Nacreous VI / XXV",
+          "trait": "Prismatic Memory: iridescent pearl skies raining liquid memory."
+        },
+        {
+          "id": "spindrift-xxiii",
+          "name": "Spindrift XXIII",
+          "trait": "Aeolian Civilization: airborne filament weaving."
+        },
+        {
+          "id": "cirrus-i",
+          "name": "Cirrus I",
+          "trait": "Crystalline Continental: translucent glass continents in sky strata."
+        },
+        {
+          "id": "cirrulite-xxx",
+          "name": "Cirrulite XXX",
+          "trait": "Linguistic Ring: rings of refracted language carved into orbit."
+        }
+      ],
+      "unknownsNotice": "Template layouts are non-canonical rendering orders; spatial coordinates between templates are unauthored."
+    }
+  }
+}

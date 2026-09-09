@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <radialGradient id="void-glow-sm" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0cc6ff" stop-opacity="0.2" />
+      <stop offset="80%" stop-color="#03050a" stop-opacity="1" />
+    </radialGradient>
+  </defs>
+  <rect width="192" height="192" fill="#03050a" rx="36" />
+  <circle cx="96" cy="96" r="85" fill="url(#void-glow-sm)" />
+  <ellipse cx="96" cy="96" rx="80" ry="40" fill="none" stroke="#0cc6ff" stroke-width="1.5" stroke-opacity="0.4" transform="rotate(-25 96 96)" />
+  <circle cx="96" cy="96" r="34" fill="#03050a" stroke="#0cc6ff" stroke-width="2" />
+  <circle cx="96" cy="96" r="32" fill="#000000" />
+  <g transform="rotate(-25 96 96)">
+    <rect x="80" y="60" width="2" height="72" fill="#0cc6ff" />
+    <rect x="84" y="56" width="3" height="80" fill="#49e7ff" />
+    <rect x="90" y="52" width="4" height="88" fill="#0cc6ff" />
+    <rect x="96" y="48" width="2" height="96" fill="#b6f6ff" />
+    <rect x="100" y="52" width="3" height="88" fill="#49e7ff" />
+    <rect x="106" y="58" width="3" height="76" fill="#0cc6ff" />
+    <line x1="60" y1="96" x2="132" y2="96" stroke="#49e7ff" stroke-width="1" stroke-opacity="0.8" />
+  </g>
+</svg>
