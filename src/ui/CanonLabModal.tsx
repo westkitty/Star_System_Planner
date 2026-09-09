@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { CANON_MACROS, CanonMacro } from '../canon/macros';
 import { CANON_MANIFEST } from '../canon/manifest';
 import { CelestialBody } from '../simulation/types';
+import { HoldToConfirmController } from '../interaction/hold-to-confirm';
 import { X, ExternalLink, Sparkles, ShieldAlert } from 'lucide-react';
 
 interface CanonLabModalProps {
@@ -24,45 +25,35 @@ export const CanonLabModal: React.FC<CanonLabModalProps> = ({
   // Hold-to-confirm state for dangerous macros
   const [holdingMacroId, setHoldingMacroId] = useState<string | null>(null);
   const [holdProgress, setHoldProgress] = useState<number>(0);
-  const holdTimerRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
+  const holdControllerRef = useRef<HoldToConfirmController | null>(null);
 
   const startHold = (macro: CanonMacro) => {
     setHoldingMacroId(macro.id);
     setHoldProgress(0);
-    startTimeRef.current = performance.now();
 
-    const duration = macro.holdDurationMs || 1800;
-
-    const tick = () => {
-      const elapsed = performance.now() - startTimeRef.current;
-      const progress = Math.min(1.0, elapsed / duration);
-      setHoldProgress(progress);
-
-      if (progress >= 1.0) {
-        // Complete execution!
-        cancelHold();
+    holdControllerRef.current?.destroy();
+    const ctrl = new HoldToConfirmController({
+      durationMs: macro.holdDurationMs || 1800,
+      onProgress: (p) => setHoldProgress(p),
+      onComplete: () => {
+        setHoldingMacroId(null);
+        setHoldProgress(0);
         onExecuteMacro(macro, selectedBody?.id);
-      } else {
-        holdTimerRef.current = requestAnimationFrame(tick);
-      }
-    };
-
-    holdTimerRef.current = requestAnimationFrame(tick);
+      },
+    });
+    holdControllerRef.current = ctrl;
+    ctrl.startHold();
   };
 
   const cancelHold = () => {
-    if (holdTimerRef.current) {
-      cancelAnimationFrame(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
+    holdControllerRef.current?.cancelHold();
     setHoldingMacroId(null);
     setHoldProgress(0);
   };
 
   useEffect(() => {
     return () => {
-      if (holdTimerRef.current) cancelAnimationFrame(holdTimerRef.current);
+      holdControllerRef.current?.destroy();
     };
   }, []);
 
@@ -174,8 +165,10 @@ export const CanonLabModal: React.FC<CanonLabModalProps> = ({
                       <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-azure)' }}>
                         {macro.label}
                       </div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                        {macro.canonStatus} • Stable ID: <code>{macro.stableId}</code>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
+                        <span style={{ color: '#49e7ff', fontWeight: 600 }}>{macro.plannerClassification}</span>
+                        <span>SOURCE CANON: <code style={{ color: '#94a3b8' }}>{macro.sourceCanonStatus}</code></span>
+                        <span>STABLE ID: <code>{macro.stableId}</code></span>
                       </div>
                     </div>
 
@@ -190,6 +183,12 @@ export const CanonLabModal: React.FC<CanonLabModalProps> = ({
                       <ExternalLink size={11} />
                     </a>
                   </div>
+
+                  {macro.demonstrativeNotice && (
+                    <div style={{ fontSize: '10px', color: '#ffaa00', background: 'rgba(255, 170, 0, 0.1)', padding: '4px 6px', borderRadius: '4px', border: '1px solid rgba(255, 170, 0, 0.3)' }}>
+                      {macro.demonstrativeNotice}
+                    </div>
+                  )}
 
                   <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                     {macro.description}

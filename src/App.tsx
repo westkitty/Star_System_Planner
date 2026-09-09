@@ -3,17 +3,18 @@ import { SceneManager } from './rendering/scene-manager';
 import { SimulationEngine } from './simulation/engine';
 import { PointerManager, PointerToolMode } from './interaction/pointer-manager';
 import { GrabAndThrowController } from './interaction/grab-and-throw';
-import { OrbitLoom } from './interaction/orbit-loom';
+import { OrbitLoom, FittedOrbit } from './interaction/orbit-loom';
 import { FutureClient } from './simulation/future-client';
 import { BranchManager } from './branching/branch-manager';
-import { CelestialBody } from './simulation/types';
+import { CelestialBody, SystemStatus } from './simulation/types';
 import { ScaleMode } from './rendering/scale-transform';
 import { createDemonstrationSystem } from './simulation/presets/demo-system';
 import { createMeridianPreset } from './simulation/presets/meridian-preset';
 import { createBlankSystem } from './simulation/presets/blank-system';
 import { generateSystemSigilSvg } from './persistence/sigil';
-import { saveProjectToDb, SavedSystemProject } from './persistence/db';
+import { saveProjectToDb, loadProjectFromDb } from './persistence/db';
 import { downloadProjectFile, parseAndValidateProjectJson } from './persistence/export-import';
+import { createSerializableProject } from './persistence/serializer';
 import { audioSynth } from './audio/audio-synth';
 import { CanonMacro } from './canon/macros';
 
@@ -26,6 +27,7 @@ import { CanonLabModal } from './ui/CanonLabModal';
 import { CreateBodyModal } from './ui/CreateBodyModal';
 import { EventLedgerModal } from './ui/EventLedgerModal';
 import { BranchCompareModal } from './ui/BranchCompareModal';
+import { OrbitLoomConfirmModal } from './ui/OrbitLoomConfirmModal';
 
 export const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -41,6 +43,7 @@ export const App: React.FC = () => {
 
   // UI State
   const [projectName, setProjectName] = useState('Kallisto Demonstration System');
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>('active');
   const [mode, setMode] = useState<AppMode>('SIMULATE');
   const [activeTool, setActiveTool] = useState<PointerToolMode>('select');
   const [selectedBodyId, setSelectedBodyId] = useState<string | null>(null);
@@ -56,6 +59,9 @@ export const App: React.FC = () => {
   const [eventCount, setEventCount] = useState(0);
   const [sigilSvg, setSigilSvg] = useState('');
 
+  // Orbit Loom pending fitted orbit
+  const [pendingOrbit, setPendingOrbit] = useState<FittedOrbit | null>(null);
+
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCanonLabOpen, setIsCanonLabOpen] = useState(false);
@@ -68,6 +74,61 @@ export const App: React.FC = () => {
 
   // Trigger helper for state sync
   const [, setFrameCount] = useState(0);
+
+  // === STABLE STATE BRIDGE REFS ===
+  // Long-lived persistent callbacks query current state through these refs
+  const activeToolRef = useRef<PointerToolMode>(activeTool);
+  activeToolRef.current = activeTool;
+
+  const isPausedRef = useRef<boolean>(isPaused);
+  isPausedRef.current = isPaused;
+
+  const showFutureRef = useRef<boolean>(showFuture);
+  showFutureRef.current = showFuture;
+
+  const showSensitivityRef = useRef<boolean>(showSensitivity);
+  showSensitivityRef.current = showSensitivity;
+
+  const selectedBodyIdRef = useRef<string | null>(selectedBodyId);
+  selectedBodyIdRef.current = selectedBodyId;
+
+  const projectNameRef = useRef<string>(projectName);
+  projectNameRef.current = projectName;
+
+  const scaleModeRef = useRef<ScaleMode>(scaleMode);
+  scaleModeRef.current = scaleMode;
+
+  const collisionsEnabledRef = useRef<boolean>(collisionsEnabled);
+  collisionsEnabledRef.current = collisionsEnabled;
+
+  const timeScaleRef = useRef<number>(timeScale);
+  timeScaleRef.current = timeScale;
+
+  // Cleanup tool actions on tool switch
+  useEffect(() => {
+    if (activeTool !== 'orbit_loom') {
+      orbitLoomRef.current?.clear();
+      setPendingOrbit(null);
+    }
+    if (activeTool !== 'grab_throw') {
+      grabThrowRef.current?.cancelGrab();
+    }
+    if (activeTool === 'orbit_loom' && orbitLoomRef.current && engineRef.current) {
+      const selected = engineRef.current.bodies.find(b => b.id === selectedBodyIdRef.current);
+      const star = engineRef.current.bodies.find(b => b.type === 'star') || engineRef.current.bodies[0];
+      orbitLoomRef.current.setPrimary(selected?.type === 'star' ? selected : star);
+    }
+  }, [activeTool]);
+
+  // Sensitivity / future toggle reaction
+  useEffect(() => {
+    if (showFuture && futureClientRef.current && engineRef.current) {
+      futureClientRef.current.requestForecast(engineRef.current.bodies, {
+        selectedBodyId: selectedBodyIdRef.current,
+        calculateSensitivity: showSensitivity,
+      });
+    }
+  }, [showFuture, showSensitivity]);
 
   // Initialize System
   useEffect(() => {
@@ -92,11 +153,11 @@ export const App: React.FC = () => {
     // 4. Initialize Grab & Throw
     const grabThrow = new GrabAndThrowController(sceneMgr, {
       onVelocityChanged: (body, _vel) => {
-        // Trigger future prediction on drag
-        if (showFuture && futureClientRef.current) {
+        // Trigger future prediction on drag using fresh state refs
+        if (showFutureRef.current && futureClientRef.current) {
           futureClientRef.current.requestForecast(engine.bodies, {
             selectedBodyId: body.id,
-            calculateSensitivity: showSensitivity,
+            calculateSensitivity: showSensitivityRef.current,
           });
         }
       },
@@ -112,6 +173,12 @@ export const App: React.FC = () => {
           severity: 'info',
         });
         setEventCount(engine.events.length);
+        if (showFutureRef.current && futureClientRef.current) {
+          futureClientRef.current.requestForecast(engine.bodies, {
+            selectedBodyId: body.id,
+            calculateSensitivity: showSensitivityRef.current,
+          });
+        }
       },
     });
     grabThrowRef.current = grabThrow;
@@ -124,12 +191,12 @@ export const App: React.FC = () => {
 
     // 6. Initialize Future Client
     const futureClient = new FutureClient((response) => {
-      // Sync predicted paths to trajectory renderer
+      // Sync predicted paths to trajectory renderer with fresh selectedBodyId check
       for (const [bodyId, points] of Object.entries(response.trajectories)) {
         sceneMgr.trajectoryRenderer.updateBodyTrajectory({
           bodyId,
           points,
-          isSelected: bodyId === selectedBodyId,
+          isSelected: bodyId === selectedBodyIdRef.current,
         });
       }
       if (response.sensitivityFans) {
@@ -146,8 +213,14 @@ export const App: React.FC = () => {
         const normX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         const normY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
 
-        if (activeTool === 'orbit_loom') {
+        const currentTool = activeToolRef.current;
+
+        if (currentTool === 'orbit_loom') {
           pointerMgr.isDrawingOrbit = true;
+          // Ensure appropriate primary is set
+          const selected = engine.bodies.find(b => b.id === selectedBodyIdRef.current);
+          const prim = selected?.type === 'star' ? selected : (engine.bodies.find(b => b.type === 'star') || engine.bodies[0]);
+          if (prim) loom.setPrimary(prim);
           loom.startStroke();
           loom.addStrokePoint(normX, normY);
           return;
@@ -157,16 +230,18 @@ export const App: React.FC = () => {
         const hitBodyId = sceneMgr.raycastBody(normX, normY);
         if (hitBodyId) {
           setSelectedBodyId(hitBodyId);
+          selectedBodyIdRef.current = hitBodyId;
           sceneMgr.setSelectedBody(hitBodyId);
           const b = engine.bodies.find(b => b.id === hitBodyId);
-          if (b && (activeTool === 'grab_throw' || isPaused)) {
+          if (b && (currentTool === 'grab_throw' || isPausedRef.current)) {
             pointerMgr.isManipulatingObject = true;
             grabThrow.startGrab(b);
           }
         } else {
           // Deselect if tapping empty void with select tool
-          if (activeTool === 'select') {
+          if (currentTool === 'select') {
             setSelectedBodyId(null);
+            selectedBodyIdRef.current = null;
             sceneMgr.setSelectedBody(null);
           }
         }
@@ -187,9 +262,9 @@ export const App: React.FC = () => {
           return;
         }
 
-        // Ordinary background drag orbits camera
+        // Ordinary background drag orbits camera using per-pointer delta tracking
         if (e.rawEvent.buttons === 1) {
-          sceneMgr.orbitCamera(-e.rawEvent.movementX * 0.006, -e.rawEvent.movementY * 0.006);
+          sceneMgr.orbitCamera(-e.deltaX * 0.006, -e.deltaY * 0.006);
         }
       },
       onPointerUp: () => {
@@ -198,6 +273,7 @@ export const App: React.FC = () => {
           const fitted = loom.endStroke();
           if (fitted) {
             audioSynth.playOrbitLock();
+            setPendingOrbit(fitted);
           }
         }
         if (pointerMgr.isManipulatingObject) {
@@ -209,6 +285,7 @@ export const App: React.FC = () => {
         pointerMgr.isDrawingOrbit = false;
         pointerMgr.isManipulatingObject = false;
         loom.clear();
+        setPendingOrbit(null);
         grabThrow.cancelGrab();
       },
       onPinchZoom: (factor) => {
@@ -226,6 +303,43 @@ export const App: React.FC = () => {
 
     // Initial render
     sceneMgr.syncBodies(engine.bodies);
+
+    // === STARTUP RESTORE FROM INDEXEDDB ===
+    loadProjectFromDb('system-autosave')
+      .then((saved) => {
+        if (saved && saved.branches && saved.branches.length > 0 && engineRef.current && sceneRef.current) {
+          const activeBranch = saved.branches.find(b => b.id === saved.activeBranchId) || saved.branches[0];
+          if (activeBranch && activeBranch.snapshot) {
+            engineRef.current.restoreSnapshot(activeBranch.snapshot);
+            engineRef.current.events = [...(activeBranch.events || saved.events || [])];
+            engineRef.current.systemStatus = saved.systemStatus || activeBranch.snapshot.systemStatus || 'active';
+            engineRef.current.enableCollisions = saved.simulationSettings?.enableCollisions ?? true;
+            engineRef.current.timeScale = saved.simulationSettings?.timeScale ?? 1.0;
+
+            const bMgr = BranchManager.fromPersisted(saved.branches, saved.activeBranchId);
+            branchManagerRef.current = bMgr;
+            setBranches(bMgr.getAllBranches());
+            setActiveBranchId(bMgr.activeBranchId);
+
+            const pName = saved.projectName || 'Restored System';
+            setProjectName(pName);
+            setSystemStatus(engineRef.current.systemStatus);
+            setScaleMode(saved.visualSettings?.scaleMode || 'readable');
+            sceneRef.current.scaleTransform.setMode(saved.visualSettings?.scaleMode || 'readable');
+            setShowFuture(saved.visualSettings?.showFuture ?? true);
+            setShowSensitivity(saved.visualSettings?.showSensitivity ?? false);
+            setGravityGridVisible(saved.visualSettings?.showGravityGrid ?? false);
+            sceneRef.current.gravityGrid.getMesh().visible = saved.visualSettings?.showGravityGrid ?? false;
+            setCollisionsEnabled(saved.simulationSettings?.enableCollisions ?? true);
+            setTimeScale(saved.simulationSettings?.timeScale ?? 1.0);
+            sceneRef.current.syncBodies(engineRef.current.bodies);
+            setSigilSvg(generateSystemSigilSvg(pName, engineRef.current.bodies));
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Startup restore skipped; proceeding with demonstration system:', err);
+      });
 
     // 8. Master Animation Loop (requestAnimationFrame)
     let animationFrameId: number;
@@ -249,44 +363,36 @@ export const App: React.FC = () => {
       if (frameTicker % 10 === 0) {
         setSimTimeSec(engine.timeSec);
         setEventCount(engine.events.length);
+        setSystemStatus(engine.systemStatus);
         setFrameCount(f => f + 1);
 
         // Periodic future forecast update
-        if (showFuture && futureClientRef.current && !engine.isPaused) {
+        if (showFutureRef.current && futureClientRef.current && !engine.isPaused) {
           futureClientRef.current.requestForecast(engine.bodies, {
             selectedBodyId: sceneMgr.selectedBodyId,
-            calculateSensitivity: showSensitivity,
+            calculateSensitivity: showSensitivityRef.current,
           });
         }
 
-        // Periodic debounced autosave to IndexedDB (every ~300 frames, ~5s)
-        if (frameTicker % 300 === 0 && branchManagerRef.current) {
-          const autoSaveProject: SavedSystemProject = {
-            schemaVersion: '1.0.0',
-            projectId: 'system-autosave',
-            projectName: 'Autosaved System',
-            seed: 42,
-            branches: branchManagerRef.current.getAllBranches(),
-            activeBranchId: branchManagerRef.current.activeBranchId,
-            events: engine.events,
-            simulationSettings: {
-              enableCollisions: engine.enableCollisions,
-              timeScale: engine.timeScale,
+        // Periodic debounced autosave with authoritative active branch checkpointing (~5s)
+        if (frameTicker % 300 === 0 && branchManagerRef.current && engineRef.current && sceneRef.current) {
+          const autoSaveProject = createSerializableProject(
+            projectNameRef.current,
+            branchManagerRef.current,
+            engineRef.current,
+            {
+              scaleMode: scaleModeRef.current,
+              showFuture: showFutureRef.current,
+              showSensitivity: showSensitivityRef.current,
+              showGravityGrid: sceneRef.current.gravityGrid.getMesh().visible,
             },
-            visualSettings: {
-              scaleMode: sceneMgr.scaleTransform.targetMode,
-              showFuture: true,
-              showSensitivity: false,
-              showGravityGrid: sceneMgr.gravityGrid.getMesh().visible,
-            },
-            cameraState: {
-              target: { x: sceneMgr.cameraTarget.x, y: sceneMgr.cameraTarget.y, z: sceneMgr.cameraTarget.z },
+            {
+              target: { x: sceneRef.current.cameraTarget.x, y: sceneRef.current.cameraTarget.y, z: sceneRef.current.cameraTarget.z },
               distance: 250,
-              viewMode: sceneMgr.viewMode,
+              viewMode: sceneRef.current.viewMode,
             },
-            createdAtIso: new Date().toISOString(),
-            updatedAtIso: new Date().toISOString(),
-          };
+            'system-autosave'
+          );
           saveProjectToDb(autoSaveProject).catch(() => {});
         }
       }
@@ -308,74 +414,68 @@ export const App: React.FC = () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
       pointerMgr.destroy();
-      grabThrow.destroy();
       futureClient.destroy();
     };
   }, []);
 
-  // Sync mode changes to tools
-  const handleSetMode = (m: AppMode) => {
-    setMode(m);
-    if (m === 'CANON LAB') {
-      setIsCanonLabOpen(true);
-    } else if (m === 'FORECAST') {
-      setShowFuture(true);
+  // Controls & Action Handlers
+  const handleTogglePause = () => {
+    if (engineRef.current) {
+      engineRef.current.isPaused = !engineRef.current.isPaused;
+      setIsPaused(engineRef.current.isPaused);
+      isPausedRef.current = engineRef.current.isPaused;
+      audioSynth.playTick();
     }
-    audioSynth.playTick();
   };
 
-  // Toggle Scale Mode (True vs. Readable)
+  const handleSetTimeScale = (scale: number) => {
+    if (engineRef.current) {
+      engineRef.current.timeScale = scale;
+      setTimeScale(scale);
+      timeScaleRef.current = scale;
+      audioSynth.playTick();
+    }
+  };
+
   const handleToggleScaleMode = () => {
-    const next: ScaleMode = scaleMode === 'true' ? 'readable' : 'true';
-    setScaleMode(next);
-    sceneRef.current?.scaleTransform.setMode(next);
-    audioSynth.playTick();
+    if (sceneRef.current) {
+      const next = scaleMode === 'readable' ? 'true' : 'readable';
+      sceneRef.current.scaleTransform.setMode(next);
+      setScaleMode(next);
+      scaleModeRef.current = next;
+      audioSynth.playTick();
+    }
   };
 
-  // Toggle Collisions
   const handleToggleCollisions = () => {
     if (engineRef.current) {
       engineRef.current.enableCollisions = !collisionsEnabled;
-      setCollisionsEnabled(!collisionsEnabled);
+      setCollisionsEnabled(engineRef.current.enableCollisions);
+      collisionsEnabledRef.current = engineRef.current.enableCollisions;
       audioSynth.playTick();
     }
   };
 
-  // Toggle Audio
-  const handleToggleAudio = () => {
-    const isNowOn = audioSynth.toggle();
-    setAudioEnabled(isNowOn);
-  };
-
-  // Toggle Gravity Grid
   const handleToggleGravityGrid = () => {
-    const next = !gravityGridVisible;
-    setGravityGridVisible(next);
-    sceneRef.current?.gravityGrid.setVisible(next);
-    audioSynth.playTick();
-  };
-
-  // Time Rate Controls
-  const handleTogglePause = () => {
-    if (engineRef.current) {
-      engineRef.current.isPaused = !isPaused;
-      setIsPaused(!isPaused);
+    if (sceneRef.current) {
+      const next = !gravityGridVisible;
+      sceneRef.current.gravityGrid.getMesh().visible = next;
+      setGravityGridVisible(next);
       audioSynth.playTick();
     }
   };
 
-  const handleSetTimeScale = (rate: number) => {
-    if (engineRef.current) {
-      engineRef.current.timeScale = rate;
-      setTimeScale(rate);
-      audioSynth.playTick();
-    }
+  const handleToggleAudio = () => {
+    const next = !audioEnabled;
+    audioSynth.isEnabled = next;
+    setAudioEnabled(next);
+    if (next) audioSynth.playTick();
   };
 
-  // Branching: Fork Future
+  // Branching: Fork Branch
   const handleForkBranch = () => {
     if (branchManagerRef.current && engineRef.current) {
-      const name = prompt('Name for this causal timeline branch:', `Branch @ ${Math.round(engineRef.current.timeSec)}s`);
+      const name = prompt('Enter name for the new causal branch:', `Branch @ ${Math.round(engineRef.current.timeSec)}s`);
       if (name) {
         const newBranch = branchManagerRef.current.forkBranch(name, engineRef.current);
         setBranches(branchManagerRef.current.getAllBranches());
@@ -390,8 +490,10 @@ export const App: React.FC = () => {
     if (branchManagerRef.current && engineRef.current && sceneRef.current) {
       branchManagerRef.current.switchBranch(id, engineRef.current);
       setActiveBranchId(id);
+      setSystemStatus(engineRef.current.systemStatus);
       sceneRef.current.syncBodies(engineRef.current.bodies);
       setSelectedBodyId(null);
+      selectedBodyIdRef.current = null;
       sceneRef.current.setSelectedBody(null);
       audioSynth.playTick();
     }
@@ -418,7 +520,9 @@ export const App: React.FC = () => {
     engineRef.current.bodies = preset.bodies;
     engineRef.current.belts = preset.belts || [];
     engineRef.current.timeSec = 0;
+    engineRef.current.systemStatus = 'active';
     engineRef.current.events = [];
+    setSystemStatus('active');
 
     // Reset Branch Manager
     const bMgr = new BranchManager(engineRef.current, 'Prime Timeline');
@@ -429,6 +533,7 @@ export const App: React.FC = () => {
     // Update scene
     sceneRef.current.syncBodies(engineRef.current.bodies);
     setSelectedBodyId(null);
+    selectedBodyIdRef.current = null;
     sceneRef.current.setSelectedBody(null);
 
     setProjectName(pName);
@@ -446,6 +551,9 @@ export const App: React.FC = () => {
       } else {
         audioSynth.playTick();
       }
+      setSystemStatus(engineRef.current.systemStatus);
+      // Checkpoint active branch immediately after macro consequence
+      branchManagerRef.current?.checkpointActiveBranch(engineRef.current);
       sceneRef.current.syncBodies(engineRef.current.bodies);
       setEventCount(engineRef.current.events.length);
       setIsCanonLabOpen(false);
@@ -467,46 +575,41 @@ export const App: React.FC = () => {
       position: { x: distKm, y: 0, z: 0 },
       velocity: { x: 0, y: 0, z: star ? Math.sqrt((6.6743e-20 * star.massKg) / distKm) : 25 },
       color: '#38bdf8',
-      canonClassification: 'CANON-INSPIRED SANDBOX',
+      unauthored_in_source: true,
+      sourceCanonStatus: 'unknown',
+      plannerClassification: 'CANON-INSPIRED SANDBOX',
+      sourceCitation: 'WorldsVault Extinct Planetary Template Registry',
       stableId: 'worldsvault-templates',
     };
 
     engineRef.current.addBody(newWorld);
     sceneRef.current.syncBodies(engineRef.current.bodies);
     setSelectedBodyId(newWorld.id);
+    selectedBodyIdRef.current = newWorld.id;
     sceneRef.current.setSelectedBody(newWorld.id);
     audioSynth.playTick();
   };
 
   // Export / Import
   const handleExport = () => {
-    if (!engineRef.current || !branchManagerRef.current) return;
-    const project: SavedSystemProject = {
-      schemaVersion: '1.0.0',
-      projectId: `proj-${Date.now()}`,
-      projectName,
-      seed: 42,
-      branches: branchManagerRef.current.getAllBranches(),
-      activeBranchId,
-      events: engineRef.current.events,
-      simulationSettings: {
-        enableCollisions: collisionsEnabled,
-        timeScale,
-      },
-      visualSettings: {
-        scaleMode,
-        showFuture,
-        showSensitivity,
+    if (!engineRef.current || !branchManagerRef.current || !sceneRef.current) return;
+    const project = createSerializableProject(
+      projectNameRef.current,
+      branchManagerRef.current,
+      engineRef.current,
+      {
+        scaleMode: scaleModeRef.current,
+        showFuture: showFutureRef.current,
+        showSensitivity: showSensitivityRef.current,
         showGravityGrid: gravityGridVisible,
       },
-      cameraState: {
+      {
         target: { x: 0, y: 0, z: 0 },
         distance: 250,
-        viewMode: sceneRef.current?.viewMode || 'inertial',
+        viewMode: sceneRef.current.viewMode,
       },
-      createdAtIso: new Date().toISOString(),
-      updatedAtIso: new Date().toISOString(),
-    };
+      `proj-${Date.now()}`
+    );
     downloadProjectFile(project);
   };
 
@@ -520,28 +623,27 @@ export const App: React.FC = () => {
       const reader = new FileReader();
       reader.onload = (re) => {
         try {
-          const content = re.target?.result as string;
-          const project = parseAndValidateProjectJson(content);
-          // Restore
+          const raw = re.target?.result as string;
+          const project = parseAndValidateProjectJson(raw);
           if (engineRef.current && sceneRef.current) {
-            setProjectName(project.projectName);
             const activeBranch = project.branches.find(b => b.id === project.activeBranchId) || project.branches[0];
             engineRef.current.restoreSnapshot(activeBranch.snapshot);
             engineRef.current.events = [...activeBranch.events];
+            engineRef.current.systemStatus = project.systemStatus || activeBranch.snapshot.systemStatus || 'active';
+            setSystemStatus(engineRef.current.systemStatus);
 
-            const bMgr = new BranchManager(engineRef.current, activeBranch.name);
-            bMgr.branches = new Map(project.branches.map(b => [b.id, b]));
-            bMgr.activeBranchId = project.activeBranchId;
+            const bMgr = BranchManager.fromPersisted(project.branches, project.activeBranchId);
             branchManagerRef.current = bMgr;
-            setBranches(project.branches);
-            setActiveBranchId(project.activeBranchId);
+            setBranches(bMgr.getAllBranches());
+            setActiveBranchId(bMgr.activeBranchId);
 
+            setProjectName(project.projectName);
             sceneRef.current.syncBodies(engineRef.current.bodies);
             setSigilSvg(generateSystemSigilSvg(project.projectName, engineRef.current.bodies));
-            alert('System project successfully loaded.');
+            audioSynth.playTick();
           }
         } catch (err: any) {
-          alert(`Import failed: ${err.message}`);
+          alert(`Failed to import system file: ${err.message}`);
         }
       };
       reader.readAsText(file);
@@ -553,85 +655,63 @@ export const App: React.FC = () => {
 
   return (
     <div className="planner-viewport">
-      {/* 3D Universe Canvas */}
+      {/* 3D WebGL Canvas */}
       <canvas ref={canvasRef} className="universe-canvas" />
 
-      {/* Presentation Mode overlay restoration banner */}
-      {mode === 'PRESENT' && (
-        <div
-          className="presentation-hint"
-          onClick={() => setMode('SIMULATE')}
-          title="Click or tap to restore HUD controls"
-        >
-          PRESENTATION MODE (TAP TO RESTORE HUD)
-        </div>
-      )}
+      {/* Primary HUD Overlay */}
+      <div className="hud-layer">
+        <TopBar
+          projectName={projectName}
+          sigilSvg={sigilSvg}
+          systemStatus={systemStatus}
+          mode={mode}
+          onSetMode={(m) => {
+            setMode(m);
+            if (m === 'CANON LAB') setIsCanonLabOpen(true);
+          }}
+          scaleMode={scaleMode}
+          onToggleScaleMode={handleToggleScaleMode}
+          collisionsEnabled={collisionsEnabled}
+          onToggleCollisions={handleToggleCollisions}
+          audioEnabled={audioEnabled}
+          onToggleAudio={handleToggleAudio}
+          gravityGridVisible={gravityGridVisible}
+          onToggleGravityGrid={handleToggleGravityGrid}
+          onExport={handleExport}
+          onImport={handleImport}
+          onLoadPreset={handleLoadPreset}
+        />
 
-      {/* Main HUD Overlays (Hidden in PRESENT mode) */}
-      {mode !== 'PRESENT' && (
-        <div className="hud-layer">
-          <TopBar
-            projectName={projectName}
-            sigilSvg={sigilSvg}
-            mode={mode}
-            onSetMode={handleSetMode}
-            scaleMode={scaleMode}
-            onToggleScaleMode={handleToggleScaleMode}
-            collisionsEnabled={collisionsEnabled}
-            onToggleCollisions={handleToggleCollisions}
-            audioEnabled={audioEnabled}
-            onToggleAudio={handleToggleAudio}
-            gravityGridVisible={gravityGridVisible}
-            onToggleGravityGrid={handleToggleGravityGrid}
-            onExport={handleExport}
-            onImport={handleImport}
-            onLoadPreset={handleLoadPreset}
-          />
+        {/* Center Canvas Area (Tap void handled by pointer-manager) */}
+        <div style={{ flex: 1, pointerEvents: 'none' }} />
 
-          <ToolRail
-            activeTool={activeTool}
-            onSelectTool={(tool) => {
-              setActiveTool(tool);
-              if (tool === 'orbit_loom') {
-                const star = engineRef.current?.bodies.find(b => b.type === 'star') || engineRef.current?.bodies[0];
-                if (star && orbitLoomRef.current) orbitLoomRef.current.setPrimary(star);
-              }
-            }}
-            showFuture={showFuture}
-            onToggleShowFuture={() => {
-              const next = !showFuture;
-              setShowFuture(next);
-              if (!next) sceneRef.current?.trajectoryRenderer.clearAll();
-            }}
-            showSensitivity={showSensitivity}
-            onToggleShowSensitivity={() => setShowSensitivity(!showSensitivity)}
-            onOpenCreateModal={() => setIsCreateModalOpen(true)}
-            onResetCamera={() => {
-              sceneRef.current?.cameraTarget.set(0, 0, 0);
-              sceneRef.current?.orbitCamera(0, 0);
-            }}
-          />
-
+        {/* Selected Body Inspector */}
+        {selectedBody && (
           <ContextInspector
             selectedBody={selectedBody}
             allBodies={engineRef.current?.bodies || []}
             onUpdateBody={(updated) => {
-              if (engineRef.current) {
+              if (engineRef.current && sceneRef.current) {
                 const idx = engineRef.current.bodies.findIndex(b => b.id === updated.id);
                 if (idx !== -1) {
                   engineRef.current.bodies[idx] = updated;
-                  sceneRef.current?.syncBodies(engineRef.current.bodies);
+                  sceneRef.current.syncBodies(engineRef.current.bodies);
+                  setFrameCount(f => f + 1);
                 }
               }
             }}
             onDeleteBody={(id) => {
-              engineRef.current?.removeBody(id);
-              setSelectedBodyId(null);
-              sceneRef.current?.setSelectedBody(null);
+              if (engineRef.current && sceneRef.current) {
+                engineRef.current.removeBody(id);
+                sceneRef.current.syncBodies(engineRef.current.bodies);
+                setSelectedBodyId(null);
+                selectedBodyIdRef.current = null;
+                sceneRef.current.setSelectedBody(null);
+                audioSynth.playTick();
+              }
             }}
-            onFocusBody={(id) => {
+            onFocusBody={(_id) => {
               if (sceneRef.current) {
-                sceneRef.current.selectedBodyId = id;
                 sceneRef.current.viewMode = 'focus_selected';
               }
             }}
@@ -643,22 +723,108 @@ export const App: React.FC = () => {
               setIsCanonLabOpen(true);
             }}
           />
+        )}
 
-          <TimelineBar
-            timeSec={simTimeSec}
-            timeScale={timeScale}
-            isPaused={isPaused}
-            onTogglePause={handleTogglePause}
-            onSetTimeScale={handleSetTimeScale}
-            branches={branches}
-            activeBranchId={activeBranchId}
-            onSwitchBranch={handleSwitchBranch}
-            onForkBranch={handleForkBranch}
-            onOpenLedger={() => setIsLedgerOpen(true)}
-            onOpenBranchCompare={() => setIsCompareOpen(true)}
-            eventCount={eventCount}
-          />
-        </div>
+        {/* Bottom Timeline Bar */}
+        <TimelineBar
+          timeSec={simTimeSec}
+          timeScale={timeScale}
+          isPaused={isPaused}
+          onTogglePause={handleTogglePause}
+          onSetTimeScale={handleSetTimeScale}
+          branches={branches}
+          activeBranchId={activeBranchId}
+          onSwitchBranch={handleSwitchBranch}
+          onForkBranch={handleForkBranch}
+          onOpenLedger={() => setIsLedgerOpen(true)}
+          onOpenBranchCompare={() => setIsCompareOpen(true)}
+          eventCount={eventCount}
+        />
+      </div>
+
+      {/* Left Vertical Tool Rail */}
+      <ToolRail
+        activeTool={activeTool}
+        onSelectTool={(t) => {
+          setActiveTool(t);
+          audioSynth.playTick();
+        }}
+        showFuture={showFuture}
+        onToggleShowFuture={() => setShowFuture(!showFuture)}
+        showSensitivity={showSensitivity}
+        onToggleShowSensitivity={() => setShowSensitivity(!showSensitivity)}
+        onOpenCreateModal={() => setIsCreateModalOpen(true)}
+        onOpenCanonLab={() => setIsCanonLabOpen(true)}
+        onResetCamera={() => {
+          if (sceneRef.current) {
+            sceneRef.current.viewMode = 'inertial';
+            sceneRef.current.cameraTarget.set(0, 0, 0);
+          }
+        }}
+      />
+
+      {/* Orbit Loom Conic Confirmation Overlay */}
+      {pendingOrbit && (
+        <OrbitLoomConfirmModal
+          fittedOrbit={pendingOrbit}
+          primaryBody={orbitLoomRef.current?.getPrimary() || null}
+          selectedBody={selectedBody}
+          allBodies={engineRef.current?.bodies || []}
+          onApplyToBody={(targetBody) => {
+            if (orbitLoomRef.current && engineRef.current && sceneRef.current) {
+              const prim = orbitLoomRef.current.getPrimary();
+              const success = orbitLoomRef.current.applyToBody(targetBody);
+              if (success && prim) {
+                sceneRef.current.syncBodies(engineRef.current.bodies);
+                audioSynth.playOrbitLock();
+                engineRef.current.events.push({
+                  id: `loom-${Date.now()}`,
+                  timestampSec: engineRef.current.timeSec,
+                  type: 'body_created',
+                  title: `Orbit Fitted: ${targetBody.name}`,
+                  description: `${targetBody.name} assigned to fitted Keplerian orbit around ${prim.name} (a=${(pendingOrbit.semiMajorAxisKm / 149597870.7).toFixed(3)} AU, e=${pendingOrbit.eccentricity.toFixed(3)}).`,
+                  bodyIds: [targetBody.id, prim.id],
+                  severity: 'info',
+                });
+                setEventCount(engineRef.current.events.length);
+                if (showFutureRef.current && futureClientRef.current) {
+                  futureClientRef.current.requestForecast(engineRef.current.bodies, {
+                    selectedBodyId: targetBody.id,
+                    calculateSensitivity: showSensitivityRef.current,
+                  });
+                }
+              }
+            }
+            setPendingOrbit(null);
+          }}
+          onCreateRing={() => {
+            if (orbitLoomRef.current && engineRef.current && sceneRef.current) {
+              const prim = orbitLoomRef.current.getPrimary();
+              const ring = orbitLoomRef.current.commitToRing();
+              if (ring && prim) {
+                if (!prim.rings) prim.rings = [];
+                prim.rings.push(ring);
+                sceneRef.current.syncBodies(engineRef.current.bodies);
+                audioSynth.playOrbitLock();
+                engineRef.current.events.push({
+                  id: `ring-${Date.now()}`,
+                  timestampSec: engineRef.current.timeSec,
+                  type: 'body_created',
+                  title: `Orbital Ring Created around ${prim.name}`,
+                  description: `Engineered orbital ring (${(ring.innerRadiusKm / 1000).toFixed(0)}k - ${(ring.outerRadiusKm / 1000).toFixed(0)}k km) established.`,
+                  bodyIds: [prim.id],
+                  severity: 'info',
+                });
+                setEventCount(engineRef.current.events.length);
+              }
+            }
+            setPendingOrbit(null);
+          }}
+          onCancel={() => {
+            orbitLoomRef.current?.clear();
+            setPendingOrbit(null);
+          }}
+        />
       )}
 
       {/* Modals */}
@@ -670,6 +836,7 @@ export const App: React.FC = () => {
               engineRef.current.addBody(newBody);
               sceneRef.current?.syncBodies(engineRef.current.bodies);
               setSelectedBodyId(newBody.id);
+              selectedBodyIdRef.current = newBody.id;
               sceneRef.current?.setSelectedBody(newBody.id);
             }
           }}
@@ -704,3 +871,4 @@ export const App: React.FC = () => {
     </div>
   );
 };
+export default App;

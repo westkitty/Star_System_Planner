@@ -2,10 +2,10 @@
 
 > A tactile 3D stellar-architecture laboratory engineered first for the Samsung Galaxy Tab S9 and S Pen.
 
-[![Verification](https://img.shields.io/badge/Verification-17%2F17%20Passed-0cc6ff)](file:///Users/andrew/Star_System_Planner/OPERATIONAL_STATE.md)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Zero--Errors-blue)](file:///Users/andrew/Star_System_Planner/tsconfig.json)
-[![PWA](https://img.shields.io/badge/PWA-Offline--First%20IndexedDB-49e7ff)](file:///Users/andrew/Star_System_Planner/src/persistence/db.ts)
-[![Canon Boundary](https://img.shields.io/badge/Canon%20Boundary-Strictly%20Read--Only-crimson)](file:///Users/andrew/Star_System_Planner/CANON_SOURCES.md)
+[![Verification](https://img.shields.io/badge/Verification-23%2F23%20Passed-0cc6ff)](./OPERATIONAL_STATE.md)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Zero--Errors-blue)](./tsconfig.json)
+[![PWA](https://img.shields.io/badge/PWA-Offline--First%20IndexedDB-49e7ff)](./src/persistence/db.ts)
+[![Canon Boundary](https://img.shields.io/badge/Canon%20Boundary-Strictly%20Read--Only-crimson)](./CANON_SOURCES.md)
 
 ---
 

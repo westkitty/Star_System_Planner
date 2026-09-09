@@ -20,80 +20,101 @@
 │     APPLICATION WORKBENCH REPOSITORY (WRITABLE)         │
 │     Repository: westkitty/Star_System_Planner           │
 │     Branch: main                                        │
-│     Directory: /Users/andrew/Star_System_Planner        │
-│     Snapshot: src/canon/snapshot/canon-manifest.json    │
+│     Directory: ./ (Repository Root)                     │
+│     Snapshot: ./src/canon/snapshot/canon-manifest.json  │
 └─────────────────────────────────────────────────────────┘
 ```
 
 The canonical Starsilk Compendium and character dossiers are authored in `westkitty/Starsilk_Character_Dossier`. Under no circumstances should any commit, staging, file modification, or git push be directed from this repository to `Starsilk_Character_Dossier`.
 
 All canon access within `Star_System_Planner` is strictly mediated through:
-1. The local bundled snapshot at [`src/canon/snapshot/canon-manifest.json`](file:///Users/andrew/Star_System_Planner/src/canon/snapshot/canon-manifest.json), ensuring 100% offline functionality.
-2. The read-only sync script [`scripts/refresh-canon.mjs`](file:///Users/andrew/Star_System_Planner/scripts/refresh-canon.mjs) which fetches updated metadata from the public documentation endpoints.
+1. The local bundled snapshot at [`./src/canon/snapshot/canon-manifest.json`](./src/canon/snapshot/canon-manifest.json), ensuring 100% offline functionality.
+2. The read-only sync script [`./scripts/refresh-canon.mjs`](./scripts/refresh-canon.mjs) which fetches updated metadata from the public documentation endpoints.
 
 ---
 
 ## 2. Canonical Machine Endpoints & Hash Locks
 
-The sync script contacts the following public JSON endpoints hosted on GitHub Pages:
+The sync script contacts the following public JSON endpoints hosted on GitHub Pages (`https://westkitty.github.io/Starsilk_Character_Dossier`):
 
 | Endpoint Path | Canonical Asset | Description |
 | :--- | :--- | :--- |
 | `/canon/canon-locks.json` | Hash Locks & Revision Stamps | Content hashes and revision metadata validating dossier freshness. |
 | `/worldsvault/worldsvault.json` | WorldsVault Celestial Registry | Authoritative catalog of known planets, orbital stations, and spatial domains. |
 | `/machine/entities/starsilk-material.json` | Starsilk Material Specification | Physical properties: tensile strength, light refraction, barcode frequency, collapse threshold. |
-| `/machine/rulesets/starsilk-mechanisms.json` | Starsilk Cosmological Ruleset | Operational parameters for Starbinding, Gravitational Siphoning, and Filament Tension. |
+| `/machine/entities/cosmic-architecture.json` | Cosmic Architecture Specification | Architectural mechanics: Siege Wall containment, spatial interdiction zones. |
+| `/machine/entities/systems.json` | System Architectures & Blood Rings | Drakken planetary atrocity structures, vitrified rings, gorevault/ringthroat logic. |
+| `/machine/entities/worldsvault-templates.json` | Archetype Templates | Standard body schemas and classification profiles. |
 
 ### Snapshot Integrity Record
 The bundled snapshot was synchronized and verified:
 - **Timestamp**: `2026-09-09T19:28:00Z`
-- **Output Target**: `src/canon/snapshot/canon-manifest.json`
+- **Output Target**: `./src/canon/snapshot/canon-manifest.json`
 - **Integrity**: Passed schema validation, zero corrupted entries.
 
 ---
 
-## 3. The Unauthored Coordinate Protocol
+## 3. The Unauthored Coordinate Protocol & Honest Canon Status
 
-A foundational tenet of STARSILK SYSTEM PLANNER is **coordinate honesty**:
+A foundational tenet of STARSILK SYSTEM PLANNER is **coordinate and canon honesty**:
 
-> **Rule**: When celestial bodies or stations from the WorldsVault lack precise Keplerian orbital coordinates in canonical literature, the application **MUST NEVER** invent artificial coordinates and present them as established lore.
+> **Rule**: When celestial bodies or stations from the WorldsVault lack precise Keplerian orbital coordinates in canonical literature, the application **MUST NEVER** invent artificial coordinates and present them as established lore. Furthermore, all cosmological mechanisms clearly separate source canon status (`sourceCanonStatus: 'unknown'`) from planner classification (`plannerClassification`).
 
 ### Implementation Pattern
-When loading bodies from the WorldsVault:
+When loading bodies from the WorldsVault or Presets:
 1. If semi-major axis, eccentricity, or parent primary are not authored in canon, the object record is flagged with:
    ```typescript
    {
      id: "meridian-station",
      name: "Meridian Station",
      unauthored_in_source: true,
+     sourceCanonStatus: "unknown",
+     plannerClassification: "CANON-INSPIRED SANDBOX",
      sourceCitation: "WorldsVault Dossier: Meridian Orbital Junction",
      // Placed in default demonstrative sandbox orbit for visual study
    }
    ```
-2. The UI Context Inspector and Canon Lab present a distinctive badge:
-   `[UNAUTHORED COORDINATES - DEMO ORBIT]`
+2. The UI Context Inspector and Canon Lab present distinctive badges:
+   - `[UNAUTHORED COORDINATES - DEMO ORBIT]`
+   - `[SOURCE STATUS: UNKNOWN]`
+   - `[PLANNER: CANON-INSPIRED SANDBOX]` or `[PLANNER: SOURCE-BACKED MECHANIC]`
 3. Any simulated orbital properties are marked as "Demonstrative Sandbox Architecture" rather than "Canonical Ephemeris".
 
 ---
 
-## 4. Source Citations for Cosmological Mechanisms
+## 4. Truthful Source Citations for Cosmological Mechanisms
 
-### Mechanism 1: PULL STARSILK (Gravitational Siphoning & Collapse)
-- **Source Citation**: *Starsilk Material Mechanics, Section 4: Filament Tension and Singularity Triggering.*
-- **Physical Interpretation**: When starsilk filaments woven through a stellar core are pulled taut with critical harmonic tension, gravitational feedback collapses the core into a Kerr-type black hole.
+### Mechanism 1: PULL STARSILK (Gravitational Siphoning & Singularity Collapse)
+- **Source Stable ID**: `starsilk-material`
+- **Source URL**: `https://westkitty.github.io/Starsilk_Character_Dossier/#compendium/starsilk-material`
+- **Source Canon Status**: `unknown`
+- **Planner Classification**: `SOURCE-BACKED MECHANIC`
+- **Physical Interpretation**: When starsilk filaments woven through a stellar core are pulled taut with critical harmonic tension, gravitational feedback collapses the host star into a black hole.
+- **System Consequence**: Sets `systemStatus = 'destroyed_by_starsilk_collapse'`. Irreversible catastrophe event recorded.
 - **Safety Precaution**: UI requires an uninterrupted 1,800ms hold gesture. Releasing prematurely resets progress with zero state mutation.
 
-### Mechanism 2: STARBINDING (Orbital Resonance stabilization)
-- **Source Citation**: *Stellar Weaving Compendium: Harmonic Locking of Planetary Systems.*
-- **Physical Interpretation**: Filament lattices woven between a host star and surrounding planets distribute angular momentum and artificially damp chaotic orbital eccentricities, stabilizing resonance ratios ($2:1$, $3:2$, $5:2$).
+### Mechanism 2: STARBINDING — LOCAL STUDY (Stellar Mass Extraction Study)
+- **Source Stable ID**: `starsilk-material`
+- **Source URL**: `https://westkitty.github.io/Starsilk_Character_Dossier/#compendium/starsilk-material`
+- **Source Canon Status**: `unknown`
+- **Planner Classification**: `SOURCE-BACKED EVENT STUDY`
+- **Demonstrative Notice**: `DEMONSTRATIVE STUDY — LOCAL SYSTEM ABSTRACTION, NOT GALAXY-SCALE CANON EVENT`
+- **Physical Interpretation**: Local sandbox abstraction of simultaneous stellar extraction across all system stars. Sets `systemStatus = 'destroyed_by_starsilk_collapse'`.
 
-### Mechanism 3: BLOOD RINGS (Vitrified Crimson Glass)
-- **Source Citation**: *Dossier: The Shattered Verge & Post-Siege Orbital Rings.*
-- **Physical Interpretation**: Planetesimal remnants vitrified by high-energy stellar cascades create dense crystalline rings characterized by deep red refractive glass particles with high specular albedo.
+### Mechanism 3: CONSTRUCT BLOOD RING (Vitrified Biospheric Atrocity-Structure)
+- **Source Stable ID**: `systems`
+- **Source URL**: `https://westkitty.github.io/Starsilk_Character_Dossier/#compendium/systems`
+- **Source Canon Status**: `unknown`
+- **Planner Classification**: `SOURCE-BACKED STRUCTURE`
+- **Physical Interpretation**: Drakken biospheric atrocity structure rendered via Gorevault and extruded toward orbit via Ringthroat logic. Formed of vitrified deep-crimson reflective scar material.
 
-### Mechanism 4: SIEGE WALL (Spatial Interdiction Zones)
-- **Source Citation**: *Planetary Defense and Interdiction Envelopes, Vol. 2.*
-- **Physical Interpretation**: Artificial spatial exclusion boundaries demarcated by gravity gradient distortion fields, visible in tactical HUD overlays.
+### Mechanism 4: SIEGE WALL — LOCAL SANDBOX STUDY (Spatial Interdiction Study)
+- **Source Stable ID**: `cosmic-architecture`
+- **Source URL**: `https://westkitty.github.io/Starsilk_Character_Dossier/#compendium/cosmic-architecture`
+- **Source Canon Status**: `unknown`
+- **Planner Classification**: `CANON-INSPIRED SANDBOX`
+- **Demonstrative Notice**: `DEMONSTRATIVE GEOMETRY — NODE COUNT AND SPACING ARE NOT CANON`
+- **Physical Interpretation**: Demonstrative study of black hole containment perimeter. Node count (6 nodes at 6 AU) is demonstrative sandbox geometry, not authored canon. Visual rendering represents starless black void absence rather than decorative energy barriers.
 
 ---
 

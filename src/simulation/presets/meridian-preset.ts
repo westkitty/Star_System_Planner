@@ -24,7 +24,10 @@ export function createMeridianPreset(): { bodies: CelestialBody[] } {
     velocity: { x: 0, y: 0, z: 0 },
     fixed: true,
     color: '#ffe0aa',
-    canonClassification: 'CANON EVENT STUDY',
+    sourceCanonStatus: 'unknown',
+    plannerClassification: 'SOURCE-BACKED EVENT STUDY',
+    unauthored_in_source: true,
+    sourceCitation: 'Cosmic Architecture Dossier: Virgil System Stellar Context (Demo Orbit)',
     sourceRef: 'src/content/sections/cosmic-architecture.body.html',
     stableId: 'cosmic-architecture',
   };
@@ -43,7 +46,10 @@ export function createMeridianPreset(): { bodies: CelestialBody[] } {
     velocity: { x: 0, y: 0, z: vVirgil },
     color: '#465666', // Desaturated steel-blue and ash-gray
     atmosphereColor: '#688299',
-    canonClassification: 'CANON STRUCTURE',
+    sourceCanonStatus: 'unknown',
+    plannerClassification: 'SOURCE-BACKED STRUCTURE',
+    unauthored_in_source: true,
+    sourceCitation: 'Cosmic Architecture Dossier: Gas Giant Virgil (Demo Orbit)',
     sourceRef: 'src/content/sections/cosmic-architecture.body.html',
     stableId: 'cosmic-architecture',
   };
@@ -61,7 +67,10 @@ export function createMeridianPreset(): { bodies: CelestialBody[] } {
     position: { x: virgil.position.x + rStation, y: 0, z: virgil.position.z },
     velocity: { x: virgil.velocity.x, y: 0, z: virgil.velocity.z + vStationRel },
     color: '#e5e9f0',
-    canonClassification: 'CANON STRUCTURE',
+    sourceCanonStatus: 'unknown',
+    plannerClassification: 'SOURCE-BACKED STRUCTURE',
+    unauthored_in_source: true,
+    sourceCitation: 'Cosmic Architecture Dossier: Meridian Orbital Habitat (Demo Orbit)',
     sourceRef: 'src/content/sections/cosmic-architecture.body.html',
     stableId: 'meridian-station',
   };

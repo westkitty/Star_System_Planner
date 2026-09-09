@@ -3,7 +3,7 @@ import { SimulationEngine } from '../simulation/engine';
 import { BranchManager } from '../branching/branch-manager';
 import { CelestialBody } from '../simulation/types';
 import { exportProjectToJson, parseAndValidateProjectJson } from '../persistence/export-import';
-import { SavedSystemProject } from '../persistence/db';
+import { createSerializableProject } from '../persistence/serializer';
 
 describe('Branching Engine & Causal Isolation', () => {
   it('preserves branch isolation: mutating bodies in a child branch does not mutate parent branch', () => {
@@ -62,7 +62,7 @@ describe('Branching Engine & Causal Isolation', () => {
     expect(switchedBack).toBe(true);
     expect(branchManager.activeBranchId).toBe('branch-prime');
 
-    // Verify Root Prime remains completely unmutated!
+    // Verify Root Prime remains completely unmutated
     expect(engine.bodies.length).toBe(2);
     expect(engine.bodies.find(b => b.id === 'planet-1')).toBeDefined();
     expect(engine.bodies.find(b => b.id === 'bh-1')).toBeUndefined();
@@ -74,52 +74,108 @@ describe('Branching Engine & Causal Isolation', () => {
     expect(comparison?.bodiesNewInBCount).toBe(1); // bh-1 created in Catastrophe
   });
 
-  it('validates save and import round-trip', () => {
-    const dummyProject: SavedSystemProject = {
-      schemaVersion: '1.0.0',
-      projectId: 'proj-test-123',
-      projectName: 'Test Solar Realm',
-      seed: 99999,
-      branches: [
-        {
-          id: 'branch-prime',
-          name: 'Prime Timeline',
-          parentBranchId: null,
-          forkTimeSec: 0,
-          createdAtIso: new Date().toISOString(),
-          snapshot: {
-            timestampSec: 0,
-            bodies: [
-              {
-                id: 'star-1',
-                name: 'Alpha',
-                type: 'star',
-                massKg: 2e30,
-                radiusKm: 696000,
-                position: { x: 0, y: 0, z: 0 },
-                velocity: { x: 0, y: 0, z: 0 },
-                color: '#ffcc00',
-              },
-            ],
-          },
-          events: [],
-        },
-      ],
-      activeBranchId: 'branch-prime',
-      events: [],
-      simulationSettings: { enableCollisions: true, timeScale: 1.0 },
-      visualSettings: { scaleMode: 'readable', showFuture: true, showSensitivity: false, showGravityGrid: false },
-      cameraState: { target: { x: 0, y: 0, z: 0 }, distance: 250, viewMode: 'inertial' },
-      createdAtIso: new Date().toISOString(),
-      updatedAtIso: new Date().toISOString(),
+  it('guarantees autosave/export checkpoints live active branch without requiring a fork', () => {
+    const star: CelestialBody = {
+      id: 'star-1',
+      name: 'Kallisto',
+      type: 'star',
+      massKg: 2e30,
+      radiusKm: 696000,
+      position: { x: 0, y: 0, z: 0 },
+      velocity: { x: 0, y: 0, z: 0 },
+      color: '#ffcc00',
     };
 
-    const json = exportProjectToJson(dummyProject);
-    const restored = parseAndValidateProjectJson(json);
+    const moon: CelestialBody = {
+      id: 'moon-1',
+      name: 'Thera',
+      type: 'moon',
+      massKg: 7e22,
+      radiusKm: 1700,
+      position: { x: 400000, y: 0, z: 0 },
+      velocity: { x: 0, y: 1.0, z: 0 },
+      color: '#cbd5e1',
+    };
 
-    expect(restored.projectId).toBe('proj-test-123');
-    expect(restored.projectName).toBe('Test Solar Realm');
-    expect(restored.branches[0].snapshot.bodies.length).toBe(1);
-    expect(restored.branches[0].snapshot.bodies[0].name).toBe('Alpha');
+    const engine = new SimulationEngine([star, moon]);
+    const branchManager = new BranchManager(engine, 'Live Active Prime');
+
+    // Mutate moon's position and velocity directly without forking branches
+    const targetMoon = engine.bodies.find(b => b.id === 'moon-1')!;
+    targetMoon.position = { x: 999999, y: 1234, z: -5555 };
+    targetMoon.velocity = { x: 42, y: -17, z: 8 };
+
+    // Serialize using the authoritative serializer
+    const serialized = createSerializableProject(
+      'Authored Lab Experiment',
+      branchManager,
+      engine,
+      { scaleMode: 'readable', showFuture: true, showSensitivity: false, showGravityGrid: false },
+      { target: { x: 0, y: 0, z: 0 }, distance: 250, viewMode: 'inertial' },
+      'test-autosave'
+    );
+
+    // Verify active branch in serialized project matches live mutated engine state
+    const savedActiveBranch = serialized.branches.find(b => b.id === serialized.activeBranchId)!;
+    const savedMoon = savedActiveBranch.snapshot.bodies.find(b => b.id === 'moon-1')!;
+
+    expect(savedMoon.position.x).toBe(999999);
+    expect(savedMoon.position.y).toBe(1234);
+    expect(savedMoon.velocity.x).toBe(42);
+    expect(serialized.projectName).toBe('Authored Lab Experiment');
+
+    // Restore into a fresh engine and branch manager
+    const restoredEngine = new SimulationEngine([]);
+    restoredEngine.restoreSnapshot(savedActiveBranch.snapshot);
+
+    const restoredMoon = restoredEngine.bodies.find(b => b.id === 'moon-1')!;
+    expect(restoredMoon.position.x).toBe(999999);
+    expect(restoredMoon.velocity.x).toBe(42);
+
+    const rehydratedBranchMgr = BranchManager.fromPersisted(serialized.branches, serialized.activeBranchId);
+    expect(rehydratedBranchMgr.activeBranchId).toBe(serialized.activeBranchId);
+    expect(rehydratedBranchMgr.getAllBranches().length).toBe(1);
+  });
+
+  it('preserves systemStatus: destroyed_by_starsilk_collapse across serialization, export, and rehydration', () => {
+    const star: CelestialBody = {
+      id: 'star-1',
+      name: 'Sun',
+      type: 'star',
+      massKg: 2e30,
+      radiusKm: 696000,
+      position: { x: 0, y: 0, z: 0 },
+      velocity: { x: 0, y: 0, z: 0 },
+      color: '#fff',
+    };
+
+    const engine = new SimulationEngine([star]);
+    const branchManager = new BranchManager(engine, 'Pre-Collapse');
+
+    // Trigger catastrophe
+    star.type = 'black_hole';
+    engine.systemStatus = 'destroyed_by_starsilk_collapse';
+
+    const serialized = createSerializableProject(
+      'Destroyed System Archive',
+      branchManager,
+      engine,
+      { scaleMode: 'readable', showFuture: true, showSensitivity: false, showGravityGrid: false },
+      { target: { x: 0, y: 0, z: 0 }, distance: 250, viewMode: 'inertial' },
+      'proj-destroyed'
+    );
+
+    expect(serialized.systemStatus).toBe('destroyed_by_starsilk_collapse');
+    expect(serialized.branches[0].snapshot.systemStatus).toBe('destroyed_by_starsilk_collapse');
+
+    // Round-trip export JSON
+    const json = exportProjectToJson(serialized);
+    const parsed = parseAndValidateProjectJson(json);
+
+    expect(parsed.systemStatus).toBe('destroyed_by_starsilk_collapse');
+
+    const freshEngine = new SimulationEngine([]);
+    freshEngine.restoreSnapshot(parsed.branches[0].snapshot);
+    expect(freshEngine.systemStatus).toBe('destroyed_by_starsilk_collapse');
   });
 });

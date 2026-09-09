@@ -29,14 +29,20 @@ export type PlanetClassification =
   | 'remnant'
   | 'artificial';
 
-export type CanonClassification =
-  | 'CANON MECHANIC'
-  | 'CANON STRUCTURE'
-  | 'CANON EVENT STUDY'
-  | 'CANON OVERLAY'
+export type SystemStatus = 'active' | 'destroyed_by_starsilk_collapse';
+
+export type SourceCanonStatus = 'unknown' | 'canon' | 'development' | 'historical' | 'speculative';
+
+export type PlannerClassification =
+  | 'SOURCE-BACKED MECHANIC'
+  | 'SOURCE-BACKED STRUCTURE'
+  | 'SOURCE-BACKED EVENT STUDY'
   | 'CANON-INSPIRED SANDBOX'
   | 'REFERENCE ONLY'
   | 'NON-CANON SANDBOX';
+
+// Kept for backward compatibility
+export type CanonClassification = PlannerClassification;
 
 export interface RingStructure {
   id: string;
@@ -77,9 +83,13 @@ export interface CelestialBody {
   // Starsilk & Canon metadata
   starsilkBleed?: number; // 0.0 - 1.0 (intensity of azure filament activity)
   isCollapsedSingularity?: boolean;
+  sourceCanonStatus?: SourceCanonStatus;
+  plannerClassification?: PlannerClassification;
   canonClassification?: CanonClassification;
   sourceRef?: string;
   stableId?: string;
+  unauthored_in_source?: boolean;
+  sourceCitation?: string;
 }
 
 export interface AsteroidBelt {
@@ -142,6 +152,7 @@ export interface OsculatingElements {
 
 export interface SimulationSnapshot {
   timestampSec: number;
+  systemStatus?: SystemStatus;
   bodies: CelestialBody[];
   belts?: AsteroidBelt[];
   hookshotRoutes?: HookshotRoute[];

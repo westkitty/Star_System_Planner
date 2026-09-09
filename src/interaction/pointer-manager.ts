@@ -15,6 +15,8 @@ export interface NormalizedPointerEvent {
   pointerType: 'mouse' | 'pen' | 'touch';
   clientX: number;
   clientY: number;
+  deltaX: number;
+  deltaY: number;
   pressure: number;
   isPrimary: boolean;
   rawEvent: PointerEvent;
@@ -35,6 +37,7 @@ export class PointerManager {
 
   // Active pointers tracker
   private activePointers: Map<number, NormalizedPointerEvent> = new Map();
+  private prevPositions: Map<number, { clientX: number; clientY: number }> = new Map();
 
   // Multi-touch tracking
   private prevPinchDistance: number | null = null;
@@ -64,12 +67,14 @@ export class PointerManager {
     this.element.removeEventListener('pointercancel', this.handlePointerCancel);
   }
 
-  private normalize(e: PointerEvent): NormalizedPointerEvent {
+  private normalize(e: PointerEvent, deltaX: number = 0, deltaY: number = 0): NormalizedPointerEvent {
     return {
       pointerId: e.pointerId,
       pointerType: e.pointerType as 'mouse' | 'pen' | 'touch',
       clientX: e.clientX,
       clientY: e.clientY,
+      deltaX,
+      deltaY,
       pressure: e.pressure,
       isPrimary: e.isPrimary,
       rawEvent: e,
@@ -77,7 +82,8 @@ export class PointerManager {
   }
 
   private handlePointerDown = (e: PointerEvent): void => {
-    const norm = this.normalize(e);
+    this.prevPositions.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+    const norm = this.normalize(e, 0, 0);
     this.activePointers.set(e.pointerId, norm);
 
     // If pen or primary pointer, initiate pointer capture
@@ -103,7 +109,12 @@ export class PointerManager {
   };
 
   private handlePointerMove = (e: PointerEvent): void => {
-    const norm = this.normalize(e);
+    const prev = this.prevPositions.get(e.pointerId);
+    const deltaX = prev ? e.clientX - prev.clientX : (e.movementX || 0);
+    const deltaY = prev ? e.clientY - prev.clientY : (e.movementY || 0);
+    this.prevPositions.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+    const norm = this.normalize(e, deltaX, deltaY);
     this.activePointers.set(e.pointerId, norm);
 
     // Check for two-finger pinch zoom / pan
@@ -135,7 +146,12 @@ export class PointerManager {
   };
 
   private handlePointerUp = (e: PointerEvent): void => {
-    const norm = this.normalize(e);
+    const prev = this.prevPositions.get(e.pointerId);
+    const deltaX = prev ? e.clientX - prev.clientX : (e.movementX || 0);
+    const deltaY = prev ? e.clientY - prev.clientY : (e.movementY || 0);
+    this.prevPositions.delete(e.pointerId);
+
+    const norm = this.normalize(e, deltaX, deltaY);
     this.activePointers.delete(e.pointerId);
 
     try {
@@ -153,7 +169,8 @@ export class PointerManager {
   };
 
   private handlePointerCancel = (e: PointerEvent): void => {
-    const norm = this.normalize(e);
+    this.prevPositions.delete(e.pointerId);
+    const norm = this.normalize(e, 0, 0);
     this.activePointers.delete(e.pointerId);
 
     if (this.activePointers.size < 2) {

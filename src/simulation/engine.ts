@@ -10,7 +10,7 @@
  * - Debris particle lifetimes
  */
 
-import { CelestialBody, ConsequenceEvent, SimulationSnapshot, AsteroidBelt, HookshotRoute } from './types';
+import { CelestialBody, ConsequenceEvent, SimulationSnapshot, AsteroidBelt, HookshotRoute, SystemStatus } from './types';
 import { stepVelocityVerlet } from './integrator';
 import { resolveCollisions, CollisionDebrisParticle } from './collisions';
 import { updateBodyTemperatures } from './thermal';
@@ -31,6 +31,7 @@ export class SimulationEngine {
   public timeScale: number = 1.0; // 1x by default
   public isPaused: boolean = false;
   public enableCollisions: boolean = true;
+  public systemStatus: SystemStatus = 'active';
 
   private accumulatorSec: number = 0;
   private readonly fixedStepSec: number = 60.0; // 1 minute fixed physics step
@@ -154,6 +155,7 @@ export class SimulationEngine {
   public createSnapshot(): SimulationSnapshot {
     return {
       timestampSec: this.timeSec,
+      systemStatus: this.systemStatus,
       bodies: JSON.parse(JSON.stringify(this.bodies)),
       belts: JSON.parse(JSON.stringify(this.belts)),
       hookshotRoutes: JSON.parse(JSON.stringify(this.hookshotRoutes)),
@@ -162,6 +164,7 @@ export class SimulationEngine {
 
   public restoreSnapshot(snapshot: SimulationSnapshot): void {
     this.timeSec = snapshot.timestampSec;
+    this.systemStatus = snapshot.systemStatus || 'active';
     this.accumulatorSec = 0;
     this.bodies = JSON.parse(JSON.stringify(snapshot.bodies));
     this.belts = JSON.parse(JSON.stringify(snapshot.belts ?? []));

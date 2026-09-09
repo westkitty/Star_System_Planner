@@ -64,7 +64,13 @@ export const ContextInspector: React.FC<ContextInspectorProps> = ({
           />
           <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: '2px' }}>
             {selectedBody.type} {selectedBody.classification ? `• ${selectedBody.classification}` : ''}
+            {selectedBody.plannerClassification ? ` • ${selectedBody.plannerClassification}` : ''}
           </div>
+          {selectedBody.unauthored_in_source && (
+            <div style={{ fontSize: '9px', color: '#ffaa00', background: 'rgba(255, 170, 0, 0.12)', padding: '2px 6px', borderRadius: '3px', marginTop: '4px', border: '1px solid rgba(255, 170, 0, 0.3)', display: 'inline-block', fontWeight: 600 }}>
+              UNAUTHORED COORDINATES — DEMO ORBIT
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: '4px' }}>

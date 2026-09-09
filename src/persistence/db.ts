@@ -7,7 +7,7 @@
  */
 
 import { TimelineBranch } from '../branching/branch-types';
-import { AsteroidBelt, ConsequenceEvent, HookshotRoute } from '../simulation/types';
+import { AsteroidBelt, ConsequenceEvent, HookshotRoute, SystemStatus } from '../simulation/types';
 
 export interface SavedSystemProject {
   schemaVersion: '1.0.0';
@@ -17,6 +17,7 @@ export interface SavedSystemProject {
   branches: TimelineBranch[];
   activeBranchId: string;
   events: ConsequenceEvent[];
+  systemStatus?: SystemStatus;
   belts?: AsteroidBelt[];
   hookshotRoutes?: HookshotRoute[];
   simulationSettings: {

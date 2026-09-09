@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer, PlusCircle, Compass, GitCommit, Waves, Focus } from 'lucide-react';
+import { MousePointer, PlusCircle, Compass, GitCommit, Waves, Focus, BookOpen } from 'lucide-react';
 import { PointerToolMode } from '../interaction/pointer-manager';
 
 interface ToolRailProps {
@@ -10,6 +10,7 @@ interface ToolRailProps {
   showSensitivity: boolean;
   onToggleShowSensitivity: () => void;
   onOpenCreateModal: () => void;
+  onOpenCanonLab?: () => void;
   onResetCamera: () => void;
 }
 
@@ -21,6 +22,7 @@ export const ToolRail: React.FC<ToolRailProps> = ({
   showSensitivity,
   onToggleShowSensitivity,
   onOpenCreateModal,
+  onOpenCanonLab,
   onResetCamera,
 }) => {
   return (
@@ -74,6 +76,18 @@ export const ToolRail: React.FC<ToolRailProps> = ({
         <Waves size={18} />
         <span>SENSITIVITY</span>
       </button>
+
+      {/* Canon Lab Button */}
+      {onOpenCanonLab && (
+        <button
+          className="tool-button"
+          onClick={onOpenCanonLab}
+          title="Starsilk Canon Lab: Cosmological Mechanisms"
+        >
+          <BookOpen size={18} color="#d4a373" />
+          <span>CANON</span>
+        </button>
+      )}
 
       <div style={{ height: '1px', background: 'var(--border-subtle)', margin: '4px 0' }} />
 

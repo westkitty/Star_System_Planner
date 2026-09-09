@@ -1,12 +1,14 @@
 import React from 'react';
 import { Eye, Volume2, VolumeX, Grid, Download, Upload, Sparkles } from 'lucide-react';
 import { ScaleMode } from '../rendering/scale-transform';
+import { SystemStatus } from '../simulation/types';
 
 export type AppMode = 'BUILD' | 'SIMULATE' | 'FORECAST' | 'CANON LAB' | 'PRESENT';
 
 interface TopBarProps {
   projectName: string;
   sigilSvg: string;
+  systemStatus?: SystemStatus;
   mode: AppMode;
   onSetMode: (m: AppMode) => void;
   scaleMode: ScaleMode;
@@ -25,6 +27,7 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({
   projectName,
   sigilSvg,
+  systemStatus,
   mode,
   onSetMode,
   scaleMode,
@@ -50,7 +53,24 @@ export const TopBar: React.FC<TopBarProps> = ({
         />
         <div>
           <div className="brand-title">STARSILK SYSTEM PLANNER</div>
-          <div className="brand-subtitle">{projectName}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="brand-subtitle">{projectName}</span>
+            {systemStatus === 'destroyed_by_starsilk_collapse' && (
+              <span style={{
+                fontSize: '9px',
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+                color: '#ff4d64',
+                background: 'rgba(136, 0, 16, 0.5)',
+                border: '1px solid #ff4d64',
+                padding: '1px 6px',
+                borderRadius: '3px',
+                textTransform: 'uppercase',
+              }}>
+                SYSTEM DESTROYED
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

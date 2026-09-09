@@ -95,12 +95,32 @@ export class BranchManager {
     return true;
   }
 
-  private saveCurrentState(engine: SimulationEngine): void {
+  /**
+   * Authoritatively checkpoint active branch from live engine state.
+   */
+  public checkpointActiveBranch(engine: SimulationEngine): void {
     const cur = this.branches.get(this.activeBranchId);
     if (cur) {
       cur.snapshot = engine.createSnapshot();
       cur.events = [...engine.events];
     }
+  }
+
+  private saveCurrentState(engine: SimulationEngine): void {
+    this.checkpointActiveBranch(engine);
+  }
+
+  /**
+   * Reconstitute a BranchManager from persisted branch data.
+   */
+  public static fromPersisted(branches: TimelineBranch[], activeBranchId: string): BranchManager {
+    const mgr = Object.create(BranchManager.prototype) as BranchManager;
+    mgr.branches = new Map();
+    for (const b of branches) {
+      mgr.branches.set(b.id, JSON.parse(JSON.stringify(b)));
+    }
+    mgr.activeBranchId = mgr.branches.has(activeBranchId) ? activeBranchId : (branches[0]?.id || 'branch-prime');
+    return mgr;
   }
 
   /**

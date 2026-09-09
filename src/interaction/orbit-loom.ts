@@ -164,7 +164,7 @@ export class OrbitLoom {
 
     // Prevent zero-width or retrograde collapsing
     rMin = Math.max(this.primaryBody.radiusKm * 1.5, rMin);
-    rMax = Math.max(rMin * 1.05, rMax);
+    rMax = Math.max(rMin, rMax);
 
     const a = (rMin + rMax) / 2.0;
     const e = Math.min(0.95, Math.max(0.0, (rMax - rMin) / (rMax + rMin)));
@@ -222,7 +222,7 @@ export class OrbitLoom {
     if (!this.currentFittedOrbit || !this.primaryBody) return;
     this.currentFittedOrbit.periapsisKm = Math.max(this.primaryBody.radiusKm * 1.1, newPeriKm);
     if (this.currentFittedOrbit.periapsisKm > this.currentFittedOrbit.apoapsisKm) {
-      this.currentFittedOrbit.apoapsisKm = this.currentFittedOrbit.periapsisKm * 1.05;
+      this.currentFittedOrbit.apoapsisKm = this.currentFittedOrbit.periapsisKm;
     }
     this.recomputeParameters();
     this.updateFittedVisual();
@@ -233,7 +233,7 @@ export class OrbitLoom {
    */
   public setApoapsis(newApoKm: number): void {
     if (!this.currentFittedOrbit || !this.primaryBody) return;
-    this.currentFittedOrbit.apoapsisKm = Math.max(this.currentFittedOrbit.periapsisKm * 1.01, newApoKm);
+    this.currentFittedOrbit.apoapsisKm = Math.max(this.currentFittedOrbit.periapsisKm, newApoKm);
     this.recomputeParameters();
     this.updateFittedVisual();
   }
@@ -330,6 +330,37 @@ export class OrbitLoom {
     const apoDisp = this.sceneManager.scaleTransform.getDisplayPosition(apoRel);
     this.apoHandleMesh.position.set(apoDisp.x, apoDisp.y, apoDisp.z);
     this.apoHandleMesh.visible = true;
+  }
+
+  public getPrimary(): CelestialBody | null {
+    return this.primaryBody;
+  }
+
+  /**
+   * Commit fitted orbit to a selected celestial body.
+   * Moves body to periapsis, assigns coherent orbital velocity + primary's inertial velocity,
+   * updates primaryId, and clears preview.
+   */
+  public applyToBody(body: CelestialBody): boolean {
+    if (!this.currentFittedOrbit || !this.primaryBody) return false;
+    if (body.id === this.primaryBody.id) return false;
+
+    const orbit = this.currentFittedOrbit;
+    const primVel = this.primaryBody.velocity;
+
+    // Move onto fitted orbit periapsis
+    body.position = { ...orbit.periapsisPositionKm };
+
+    // Coherent inertial velocity: v_inertial = v_primary + v_orbital
+    body.velocity = {
+      x: primVel.x + orbit.periapsisVelocityKmS.x,
+      y: primVel.y + orbit.periapsisVelocityKmS.y,
+      z: primVel.z + orbit.periapsisVelocityKmS.z,
+    };
+
+    body.primaryId = this.primaryBody.id;
+    this.clear();
+    return true;
   }
 
   /**

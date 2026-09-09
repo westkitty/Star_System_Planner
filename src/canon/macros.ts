@@ -3,13 +3,15 @@
  * 
  * Invariants:
  * - Operates as cosmological interventions layered ABOVE ordinary Newtonian physics.
- * - Pulling Starsilk from a star collapses it into a black hole and stamps a catastrophe event.
+ * - Pulling Starsilk from a star collapses it toward a black hole, marks systemStatus as destroyed,
+ *   and stamps an irreversible catastrophe event.
  * - Canceling confirmation leaves simulation completely unmutated.
- * - Siege Wall physical view is starless void absence, not a glowing neon fence.
- * - Blood Rings use vitrified crimson scar material (#4A0006), not ordinary rings.
+ * - Starbinding in planner is a local sandbox study of simultaneous extraction, not the galaxy-scale canon event.
+ * - Siege Wall physical view is starless void absence, not a glowing neon fence; node count and spacing are sandbox geometry.
+ * - Blood Rings use vitrified crimson scar material, not ordinary rings.
  */
 
-import { CelestialBody, ConsequenceEvent, RingStructure } from '../simulation/types';
+import { CelestialBody, ConsequenceEvent, RingStructure, SourceCanonStatus, PlannerClassification } from '../simulation/types';
 import { SimulationEngine } from '../simulation/engine';
 import { getCompendiumUrl } from './manifest';
 
@@ -18,7 +20,10 @@ export interface CanonMacro {
   label: string;
   stableId: string;
   sourceUrl: string;
-  canonStatus: string;
+  sourceCanonStatus: SourceCanonStatus;
+  plannerClassification: PlannerClassification;
+  canonStatus?: string; // backwards compatibility alias for UI
+  demonstrativeNotice?: string;
   description: string;
   holdDurationMs?: number;
   requiresStar?: boolean;
@@ -33,8 +38,10 @@ export const CANON_MACROS: CanonMacro[] = [
     label: 'PULL STARSILK',
     stableId: 'starsilk-material',
     sourceUrl: getCompendiumUrl('starsilk-material'),
-    canonStatus: 'CANON MECHANIC',
-    description: 'Engage stellar target, draw programmable Starsilk filaments, and withdraw. Causes catastrophic stellar destabilization and collapse toward a black hole.',
+    sourceCanonStatus: 'unknown',
+    plannerClassification: 'SOURCE-BACKED MECHANIC',
+    canonStatus: 'SOURCE-BACKED MECHANIC',
+    description: 'Engage stellar core and extract Starsilk. Immediate loss of stellar stability causes host star to collapse toward a black hole; system is destroyed.',
     holdDurationMs: 1800,
     requiresStar: true,
     apply: (engine: SimulationEngine, targetBodyId?: string): ConsequenceEvent | null => {
@@ -42,24 +49,25 @@ export const CANON_MACROS: CanonMacro[] = [
       const star = engine.bodies.find(b => b.id === targetBodyId);
       if (!star || star.type !== 'star') return null;
 
-      // Execute canonical star dive catastrophe:
-      // 1. Photosphere collapses into black hole
+      // 1. Photosphere collapses toward black hole
       star.type = 'black_hole';
       star.color = '#000000';
       star.luminosityW = 0;
       star.starsilkBleed = 1.0;
       star.isCollapsedSingularity = true;
 
-      // Schwarzschild radius approx: r_s = 2 * G * M / c^2 ~ 3 km per solar mass
-      // For visual presence, set radius to compact singularity scale
+      // Compact singularity scale
       star.radiusKm = Math.max(30.0, star.radiusKm * 0.0001);
+
+      // 2. Irreversible system-level destroyed state
+      engine.systemStatus = 'destroyed_by_starsilk_collapse';
 
       const event: ConsequenceEvent = {
         id: `macro-pull-${Date.now()}`,
         timestampSec: engine.timeSec,
         type: 'starsilk_pull',
         title: `Starsilk Extraction: ${star.name} Collapsed`,
-        description: `Cosmological macro extracted Starsilk from ${star.name}. The core lost structural equilibrium and collapsed into an event-horizon singularity.`,
+        description: `Stellar core engaged and Starsilk drawn. Immediate loss of stellar stability caused host star ${star.name} to collapse toward a black hole. Active system destroyed.`,
         bodyIds: [star.id],
         severity: 'catastrophe',
       };
@@ -73,8 +81,11 @@ export const CANON_MACROS: CanonMacro[] = [
     label: 'STARBINDING — LOCAL STUDY',
     stableId: 'starsilk-material',
     sourceUrl: getCompendiumUrl('starsilk-material'),
-    canonStatus: 'CANON EVENT STUDY',
-    description: 'Local demonstration of the Starbinding mechanism: simultaneous mass extraction across all stars in the active system.',
+    sourceCanonStatus: 'unknown',
+    plannerClassification: 'SOURCE-BACKED EVENT STUDY',
+    canonStatus: 'SOURCE-BACKED EVENT STUDY',
+    demonstrativeNotice: 'DEMONSTRATIVE STUDY — LOCAL SYSTEM ABSTRACTION, NOT GALAXY-SCALE CANON EVENT',
+    description: 'Local sandbox abstraction of mass extraction across all system stars. Note: Local study only, not the galaxy-scale canonical Starbinding event.',
     holdDurationMs: 2500,
     requiresMultipleStars: true,
     apply: (engine: SimulationEngine): ConsequenceEvent | null => {
@@ -92,12 +103,15 @@ export const CANON_MACROS: CanonMacro[] = [
         collapsedNames.push(s.name);
       }
 
+      // Mark system destroyed
+      engine.systemStatus = 'destroyed_by_starsilk_collapse';
+
       const event: ConsequenceEvent = {
         id: `macro-starbinding-${Date.now()}`,
         timestampSec: engine.timeSec,
         type: 'starsilk_pull',
         title: `Starbinding Study: ${stars.length} Stars Collapsed`,
-        description: `Simultaneous stellar extraction collapsed ${collapsedNames.join(', ')} into black holes. Note: Local study only, not the galaxy-scale canon event.`,
+        description: `Simultaneous stellar extraction collapsed ${collapsedNames.join(', ')} into black holes. Note: Local study only, not the galaxy-scale canon event. System destroyed.`,
         bodyIds: stars.map(s => s.id),
         severity: 'catastrophe',
       };
@@ -111,8 +125,10 @@ export const CANON_MACROS: CanonMacro[] = [
     label: 'CONSTRUCT BLOOD RING',
     stableId: 'systems',
     sourceUrl: getCompendiumUrl('systems'),
-    canonStatus: 'CANON STRUCTURE',
-    description: 'Drakken vitrified biospheric atrocity-structure. Material reads as deep vitrified crimson glass, severe and orbital.',
+    sourceCanonStatus: 'unknown',
+    plannerClassification: 'SOURCE-BACKED STRUCTURE',
+    canonStatus: 'SOURCE-BACKED STRUCTURE',
+    description: 'Drakken vitrified biospheric atrocity-structure. Feedstock rendered via Gorevault and extruded toward orbit via Ringthroat.',
     requiresPlanet: true,
     apply: (engine: SimulationEngine, targetBodyId?: string): ConsequenceEvent | null => {
       if (!targetBodyId) return null;
@@ -150,13 +166,16 @@ export const CANON_MACROS: CanonMacro[] = [
   },
   {
     id: 'siege-wall-study',
-    label: 'SIEGE WALL CONTAINMENT STUDY',
+    label: 'SIEGE WALL — LOCAL SANDBOX STUDY',
     stableId: 'cosmic-architecture',
     sourceUrl: getCompendiumUrl('cosmic-architecture'),
-    canonStatus: 'CANON EVENT STUDY',
-    description: 'Black-hole lattice containment boundary. In physical view it appears as starless black void absence; in tactical mode as containment geometry.',
+    sourceCanonStatus: 'unknown',
+    plannerClassification: 'CANON-INSPIRED SANDBOX',
+    canonStatus: 'CANON-INSPIRED SANDBOX',
+    demonstrativeNotice: 'DEMONSTRATIVE GEOMETRY — NODE COUNT AND SPACING ARE NOT CANON',
+    description: 'Demonstrative sandbox study of black-hole containment lattice. DEMONSTRATIVE GEOMETRY — NODE COUNT AND SPACING ARE NOT CANON. Physical view is starless black void absence.',
     apply: (engine: SimulationEngine): ConsequenceEvent | null => {
-      // Creates a circle of 6 micro-singularities around outer boundary
+      // Demonstrative sandbox geometry: 6 nodes at 6 AU
       const radiusKm = 6.0 * 149597870.7; // 6 AU containment perimeter
       const singularityCount = 6;
 
@@ -164,7 +183,7 @@ export const CANON_MACROS: CanonMacro[] = [
         const theta = (i / singularityCount) * Math.PI * 2;
         const bh: CelestialBody = {
           id: `siege-node-${i + 1}-${Date.now()}`,
-          name: `Siege Node ${i + 1}`,
+          name: `Siege Node ${i + 1} (Sandbox)`,
           type: 'black_hole',
           massKg: 1e29,
           radiusKm: 100,
@@ -180,7 +199,8 @@ export const CANON_MACROS: CanonMacro[] = [
           },
           color: '#000000',
           isCollapsedSingularity: true,
-          canonClassification: 'CANON STRUCTURE',
+          sourceCanonStatus: 'unknown',
+          plannerClassification: 'CANON-INSPIRED SANDBOX',
           stableId: 'cosmic-architecture',
         };
         engine.bodies.push(bh);
@@ -190,8 +210,8 @@ export const CANON_MACROS: CanonMacro[] = [
         id: `siege-${Date.now()}`,
         timestampSec: engine.timeSec,
         type: 'siege_wall_locked',
-        title: 'Siege Wall Containment Lattice Deployed',
-        description: 'Black-hole containment perimeter established at 6.0 AU. Reads as starless void absence from physical perspective.',
+        title: 'Siege Wall Study Deployed (Demonstrative Sandbox)',
+        description: 'Demonstrative sandbox study of black-hole containment perimeter. Node count and spacing are demonstrative sandbox geometry, not authored canon.',
         severity: 'caution',
       };
 
