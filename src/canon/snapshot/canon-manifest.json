@@ -1,8 +1,9 @@
 {
   "schemaVersion": "1.0.0",
-  "retrievedAt": "2026-09-09T19:49:23.297Z",
+  "retrievedAt": "2026-09-09T22:16:14.564Z",
   "sourceBaseUrl": "https://westkitty.github.io/Starsilk_Character_Dossier",
   "authorityNotice": "Public machine derivative snapshot for Starsilk System Planner. External Compendium remains sole canon authority. Generated planner systems do not become canon.",
+  "provenanceNotice": "Source Dossier records are preserved under sourceRecord; planner-maintained interpretations, palette selections, and pedagogical summaries are explicitly grouped under plannerSummary.",
   "locks": {
     "bloodEclipseDurationYears": 170,
     "starsilkMaterialAzure": true,
@@ -334,6 +335,28 @@
   },
   "entities": {
     "starsilkMaterial": {
+      "sourceRecord": {
+        "stableId": "starsilk-material",
+        "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/starsilk-material/",
+        "sourceRef": "src/content/sections/starsilk-material.body.html"
+      },
+      "plannerSummary": {
+        "palette": [
+          "#03050A",
+          "#07131E",
+          "#0A2A44",
+          "#0CC6FF",
+          "#49E7FF",
+          "#B6F6FF"
+        ],
+        "canonicalNature": [
+          "Literal programmable cosmological substance and medium for repeatable reality Macros.",
+          "Macros are repeatable action-loops embedded into the universe, not metaphorical magic.",
+          "Starsilk itself is not sentient or sapient.",
+          "Death remains final. Starlight and Starsilk may retain data or residue without conscious afterlife.",
+          "Star-dive pull causes irreversible stellar destabilization and black-hole collapse."
+        ]
+      },
       "stableId": "starsilk-material",
       "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/starsilk-material/",
       "palette": [
@@ -354,6 +377,45 @@
       "sourceRef": "src/content/sections/starsilk-material.body.html"
     },
     "cosmicArchitecture": {
+      "sourceRecord": {
+        "stableId": "cosmic-architecture",
+        "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/cosmic-architecture/"
+      },
+      "plannerSummary": {
+        "structures": [
+          {
+            "id": "worlds-vault",
+            "name": "WorldsVault",
+            "type": "digital-geode",
+            "note": "Oppressive digital geode lit by hyper-luminous azure edges. Stores thirty extinct planetary templates."
+          },
+          {
+            "id": "siege-wall",
+            "name": "Siege Wall",
+            "type": "black-hole-lattice",
+            "note": "Physical view is starless black void absence, not glowing geometric grid."
+          },
+          {
+            "id": "meridian-station",
+            "name": "Meridian Station",
+            "type": "orbital-habitat",
+            "note": "Industrial orbital habitat orbiting gas giant Virgil."
+          },
+          {
+            "id": "virgil",
+            "name": "Virgil",
+            "type": "gas-giant",
+            "note": "Desaturated steel-blue and ash-gray gas giant orbited by Meridian."
+          }
+        ],
+        "drakkenTheses": [
+          "Pyric",
+          "Aqueous",
+          "Telluric",
+          "Aeric",
+          "Umbral"
+        ]
+      },
       "stableId": "cosmic-architecture",
       "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/cosmic-architecture/",
       "structures": [
@@ -391,12 +453,79 @@
       ]
     },
     "systems": {
+      "sourceRecord": {
+        "stableId": "systems",
+        "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/systems/"
+      },
+      "plannerSummary": {
+        "bloodRingsNote": "Drakken vitrified biospheric atrocity-structures. Gorevault renders feedstock; Ringthroat extrudes toward orbit.",
+        "hookshotNote": "Connection-based travel infrastructure. Ships latch, tension, and move across stabilized manifolds. Not arbitrary teleportation."
+      },
       "stableId": "systems",
       "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/systems/",
       "bloodRingsNote": "Drakken vitrified biospheric atrocity-structures. Gorevault renders feedstock; Ringthroat extrudes toward orbit.",
       "hookshotNote": "Connection-based travel infrastructure. Ships latch, tension, and move across stabilized manifolds. Not arbitrary teleportation."
     },
     "worldsvaultTemplates": {
+      "sourceRecord": {
+        "stableId": "worldsvault-templates",
+        "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/worldsvault-templates/"
+      },
+      "plannerSummary": {
+        "namedTemplates": [
+          {
+            "id": "syrrian-iv",
+            "name": "Syrrian IV",
+            "trait": "Ground repels adhesion; airborne islands over an atmospheric sea."
+          },
+          {
+            "id": "cumulon-ii",
+            "name": "Cumulon II",
+            "trait": "Memory-Fluid Archive: rivers of hot liquid memory."
+          },
+          {
+            "id": "altostratus-v",
+            "name": "Altostratus V",
+            "trait": "Electric storms rising from surface."
+          },
+          {
+            "id": "nimbus-iii",
+            "name": "Nimbus III",
+            "trait": "Bioluminescent Biosphere: eternal twilight radiance."
+          },
+          {
+            "id": "mistline-xxvi",
+            "name": "Mistline XXVI",
+            "trait": "Continents visible only as humidity gradients."
+          },
+          {
+            "id": "halitus-xxvii",
+            "name": "Halitus XXVII",
+            "trait": "Cryo-Breathing: frozen oceans exhaling steam clouds."
+          },
+          {
+            "id": "nacreous-vi",
+            "name": "Nacreous VI / XXV",
+            "trait": "Prismatic Memory: iridescent pearl skies raining liquid memory."
+          },
+          {
+            "id": "spindrift-xxiii",
+            "name": "Spindrift XXIII",
+            "trait": "Aeolian Civilization: airborne filament weaving."
+          },
+          {
+            "id": "cirrus-i",
+            "name": "Cirrus I",
+            "trait": "Crystalline Continental: translucent glass continents in sky strata."
+          },
+          {
+            "id": "cirrulite-xxx",
+            "name": "Cirrulite XXX",
+            "trait": "Linguistic Ring: rings of refracted language carved into orbit."
+          }
+        ],
+        "unknownsNotice": "Template layouts are non-canonical rendering orders; spatial coordinates between templates are unauthored."
+      },
       "stableId": "worldsvault-templates",
       "canonicalUrl": "https://westkitty.github.io/Starsilk_Character_Dossier/entities/worldsvault-templates/",
       "namedTemplates": [

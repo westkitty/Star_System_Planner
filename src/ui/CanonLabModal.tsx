@@ -27,7 +27,7 @@ export const CanonLabModal: React.FC<CanonLabModalProps> = ({
   const [holdProgress, setHoldProgress] = useState<number>(0);
   const holdControllerRef = useRef<HoldToConfirmController | null>(null);
 
-  const startHold = (macro: CanonMacro) => {
+  const startHold = (macro: CanonMacro, targetId?: string) => {
     setHoldingMacroId(macro.id);
     setHoldProgress(0);
 
@@ -38,7 +38,7 @@ export const CanonLabModal: React.FC<CanonLabModalProps> = ({
       onComplete: () => {
         setHoldingMacroId(null);
         setHoldProgress(0);
-        onExecuteMacro(macro, selectedBody?.id);
+        onExecuteMacro(macro, targetId || selectedBody?.id);
       },
     });
     holdControllerRef.current = ctrl;
@@ -153,17 +153,26 @@ export const CanonLabModal: React.FC<CanonLabModalProps> = ({
             </div>
 
             {CANON_MACROS.map((macro) => {
-              const disabledStar = macro.requiresStar && (!selectedBody || selectedBody.type !== 'star');
+              const targetStar = (selectedBody && selectedBody.type === 'star') ? selectedBody : allBodies.find(b => b.type === 'star');
+              const targetPlanet = (selectedBody && selectedBody.type === 'planet') ? selectedBody : allBodies.find(b => b.type === 'planet');
+              const effectiveTarget = macro.requiresStar ? targetStar : (macro.requiresPlanet ? targetPlanet : selectedBody);
+
+              const disabledStar = macro.requiresStar && !targetStar;
               const disabledMultiStar = macro.requiresMultipleStars && starCount < 2;
-              const disabledPlanet = macro.requiresPlanet && (!selectedBody || selectedBody.type !== 'planet');
+              const disabledPlanet = macro.requiresPlanet && !targetPlanet;
               const isDisabled = disabledStar || disabledMultiStar || disabledPlanet;
 
               return (
                 <div key={macro.id} className="macro-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-azure)' }}>
-                        {macro.label}
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-azure)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>{macro.label}</span>
+                        {effectiveTarget && (macro.requiresStar || macro.requiresPlanet) && (
+                          <span style={{ fontSize: '10px', color: '#0cc6ff', fontWeight: 600 }}>
+                            [TARGET: {effectiveTarget.name.toUpperCase()}]
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
                         <span style={{ color: '#49e7ff', fontWeight: 600 }}>{macro.plannerClassification}</span>
@@ -197,9 +206,9 @@ export const CanonLabModal: React.FC<CanonLabModalProps> = ({
                   {isDisabled && (
                     <div style={{ fontSize: '10px', color: '#ffaa00', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <ShieldAlert size={12} />
-                      {macro.requiresStar && 'Select a star in the viewport first.'}
+                      {macro.requiresStar && 'Requires a star in the system.'}
                       {macro.requiresMultipleStars && 'Requires at least two stars in the active system.'}
-                      {macro.requiresPlanet && 'Select a planet in the viewport first.'}
+                      {macro.requiresPlanet && 'Requires a planet in the system.'}
                     </div>
                   )}
 
@@ -208,7 +217,7 @@ export const CanonLabModal: React.FC<CanonLabModalProps> = ({
                       {macro.holdDurationMs ? (
                         <button
                           className="macro-hold-button"
-                          onPointerDown={() => startHold(macro)}
+                          onPointerDown={() => startHold(macro, effectiveTarget?.id)}
                           onPointerUp={cancelHold}
                           onPointerLeave={cancelHold}
                           title="Press and hold deliberately to complete intervention"
@@ -227,7 +236,7 @@ export const CanonLabModal: React.FC<CanonLabModalProps> = ({
                         </button>
                       ) : (
                         <button
-                          onClick={() => onExecuteMacro(macro, selectedBody?.id)}
+                          onClick={() => onExecuteMacro(macro, effectiveTarget?.id)}
                           style={{
                             width: '100%',
                             padding: '8px',

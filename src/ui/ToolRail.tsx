@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer, PlusCircle, Compass, GitCommit, Waves, Focus, BookOpen } from 'lucide-react';
+import { MousePointer, Hand, PlusCircle, Compass, GitCommit, Waves, Focus, BookOpen } from 'lucide-react';
 import { PointerToolMode } from '../interaction/pointer-manager';
 
 interface ToolRailProps {
@@ -35,6 +35,16 @@ export const ToolRail: React.FC<ToolRailProps> = ({
       >
         <MousePointer size={18} />
         <span>SELECT</span>
+      </button>
+
+      {/* Grab & Throw */}
+      <button
+        className={`tool-button ${activeTool === 'grab_throw' ? 'active' : ''}`}
+        onClick={() => onSelectTool('grab_throw')}
+        title="Grab & Throw: Drag a body to adjust position or throw into orbit"
+      >
+        <Hand size={18} color="#f59e0b" />
+        <span>GRAB</span>
       </button>
 
       {/* Create Body */}

@@ -52,6 +52,8 @@ export const CANON_MANIFEST = {
   },
   entities: canonData.entities as {
     starsilkMaterial: {
+      sourceRecord?: { stableId: string; canonicalUrl: string; sourceRef: string };
+      plannerSummary?: { palette: string[]; canonicalNature: string[] };
       stableId: string;
       canonicalUrl: string;
       palette: string[];
@@ -59,18 +61,27 @@ export const CANON_MANIFEST = {
       sourceRef: string;
     };
     cosmicArchitecture: {
+      sourceRecord?: { stableId: string; canonicalUrl: string };
+      plannerSummary?: {
+        structures: { id: string; name: string; type: string; note: string }[];
+        drakkenTheses: string[];
+      };
       stableId: string;
       canonicalUrl: string;
       structures: { id: string; name: string; type: string; note: string }[];
       drakkenTheses: string[];
     };
     systems: {
+      sourceRecord?: { stableId: string; canonicalUrl: string };
+      plannerSummary?: { bloodRingsNote: string; hookshotNote: string };
       stableId: string;
       canonicalUrl: string;
       bloodRingsNote: string;
       hookshotNote: string;
     };
     worldsvaultTemplates: {
+      sourceRecord?: { stableId: string; canonicalUrl: string };
+      plannerSummary?: { namedTemplates: NamedTemplate[]; unknownsNotice: string };
       stableId: string;
       canonicalUrl: string;
       namedTemplates: NamedTemplate[];

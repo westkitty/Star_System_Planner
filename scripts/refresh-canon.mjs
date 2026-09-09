@@ -38,6 +38,29 @@ async function fetchJson(url) {
   return resp.json();
 }
 
+function validateRequiredFields(payloads) {
+  const { canonLocks, worldsvault, starsilkMaterial, cosmicArchitecture, systems, worldsvaultTemplates } = payloads;
+
+  if (!canonLocks || !Array.isArray(canonLocks.locks)) {
+    throw new Error('Required-field structural validation failed: canonLocks missing locks array');
+  }
+  if (!worldsvault || typeof worldsvault.node_count !== 'number' || !Array.isArray(worldsvault.nodes)) {
+    throw new Error('Required-field structural validation failed: worldsvault missing node_count or nodes array');
+  }
+  if (!starsilkMaterial || typeof starsilkMaterial.canonical_url !== 'string') {
+    throw new Error('Required-field structural validation failed: starsilkMaterial missing canonical_url');
+  }
+  if (!cosmicArchitecture || typeof cosmicArchitecture.canonical_url !== 'string') {
+    throw new Error('Required-field structural validation failed: cosmicArchitecture missing canonical_url');
+  }
+  if (!systems || typeof systems.canonical_url !== 'string') {
+    throw new Error('Required-field structural validation failed: systems missing canonical_url');
+  }
+  if (!worldsvaultTemplates || typeof worldsvaultTemplates.canonical_url !== 'string') {
+    throw new Error('Required-field structural validation failed: worldsvaultTemplates missing canonical_url');
+  }
+}
+
 async function run() {
   console.log('[Canon Refresh] Starting planner-relevant source sync from:', BASE_URL);
 
@@ -67,11 +90,23 @@ async function run() {
       fetchJson(TARGET_ENDPOINTS.worldsvaultTemplates),
     ]);
 
+    // Perform required-field structural validation on fetched payloads
+    validateRequiredFields({
+      canonLocks,
+      worldsvault,
+      starsilkMaterial,
+      cosmicArchitecture,
+      systems,
+      worldsvaultTemplates,
+    });
+    console.log('[Canon Refresh] Passed required-field structural validation.');
+
     const manifest = {
       schemaVersion: '1.0.0',
       retrievedAt: new Date().toISOString(),
       sourceBaseUrl: BASE_URL,
       authorityNotice: 'Public machine derivative snapshot for Starsilk System Planner. External Compendium remains sole canon authority. Generated planner systems do not become canon.',
+      provenanceNotice: 'Source Dossier records are preserved under sourceRecord; planner-maintained interpretations, palette selections, and pedagogical summaries are explicitly grouped under plannerSummary.',
       locks: {
         bloodEclipseDurationYears: 170,
         starsilkMaterialAzure: true,
@@ -109,6 +144,21 @@ async function run() {
       },
       entities: {
         starsilkMaterial: {
+          sourceRecord: {
+            stableId: 'starsilk-material',
+            canonicalUrl: starsilkMaterial.canonical_url,
+            sourceRef: 'src/content/sections/starsilk-material.body.html',
+          },
+          plannerSummary: {
+            palette: ['#03050A', '#07131E', '#0A2A44', '#0CC6FF', '#49E7FF', '#B6F6FF'],
+            canonicalNature: [
+              'Literal programmable cosmological substance and medium for repeatable reality Macros.',
+              'Macros are repeatable action-loops embedded into the universe, not metaphorical magic.',
+              'Starsilk itself is not sentient or sapient.',
+              'Death remains final. Starlight and Starsilk may retain data or residue without conscious afterlife.',
+              'Star-dive pull causes irreversible stellar destabilization and black-hole collapse.'
+            ],
+          },
           stableId: 'starsilk-material',
           canonicalUrl: starsilkMaterial.canonical_url,
           palette: ['#03050A', '#07131E', '#0A2A44', '#0CC6FF', '#49E7FF', '#B6F6FF'],
@@ -122,6 +172,19 @@ async function run() {
           sourceRef: 'src/content/sections/starsilk-material.body.html',
         },
         cosmicArchitecture: {
+          sourceRecord: {
+            stableId: 'cosmic-architecture',
+            canonicalUrl: cosmicArchitecture.canonical_url,
+          },
+          plannerSummary: {
+            structures: [
+              { id: 'worlds-vault', name: 'WorldsVault', type: 'digital-geode', note: 'Oppressive digital geode lit by hyper-luminous azure edges. Stores thirty extinct planetary templates.' },
+              { id: 'siege-wall', name: 'Siege Wall', type: 'black-hole-lattice', note: 'Physical view is starless black void absence, not glowing geometric grid.' },
+              { id: 'meridian-station', name: 'Meridian Station', type: 'orbital-habitat', note: 'Industrial orbital habitat orbiting gas giant Virgil.' },
+              { id: 'virgil', name: 'Virgil', type: 'gas-giant', note: 'Desaturated steel-blue and ash-gray gas giant orbited by Meridian.' }
+            ],
+            drakkenTheses: ['Pyric', 'Aqueous', 'Telluric', 'Aeric', 'Umbral'],
+          },
           stableId: 'cosmic-architecture',
           canonicalUrl: cosmicArchitecture.canonical_url,
           structures: [
@@ -133,12 +196,39 @@ async function run() {
           drakkenTheses: ['Pyric', 'Aqueous', 'Telluric', 'Aeric', 'Umbral'],
         },
         systems: {
+          sourceRecord: {
+            stableId: 'systems',
+            canonicalUrl: systems.canonical_url,
+          },
+          plannerSummary: {
+            bloodRingsNote: 'Drakken vitrified biospheric atrocity-structures. Gorevault renders feedstock; Ringthroat extrudes toward orbit.',
+            hookshotNote: 'Connection-based travel infrastructure. Ships latch, tension, and move across stabilized manifolds. Not arbitrary teleportation.',
+          },
           stableId: 'systems',
           canonicalUrl: systems.canonical_url,
           bloodRingsNote: 'Drakken vitrified biospheric atrocity-structures. Gorevault renders feedstock; Ringthroat extrudes toward orbit.',
           hookshotNote: 'Connection-based travel infrastructure. Ships latch, tension, and move across stabilized manifolds. Not arbitrary teleportation.',
         },
         worldsvaultTemplates: {
+          sourceRecord: {
+            stableId: 'worldsvault-templates',
+            canonicalUrl: worldsvaultTemplates.canonical_url,
+          },
+          plannerSummary: {
+            namedTemplates: [
+              { id: 'syrrian-iv', name: 'Syrrian IV', trait: 'Ground repels adhesion; airborne islands over an atmospheric sea.' },
+              { id: 'cumulon-ii', name: 'Cumulon II', trait: 'Memory-Fluid Archive: rivers of hot liquid memory.' },
+              { id: 'altostratus-v', name: 'Altostratus V', trait: 'Electric storms rising from surface.' },
+              { id: 'nimbus-iii', name: 'Nimbus III', trait: 'Bioluminescent Biosphere: eternal twilight radiance.' },
+              { id: 'mistline-xxvi', name: 'Mistline XXVI', trait: 'Continents visible only as humidity gradients.' },
+              { id: 'halitus-xxvii', name: 'Halitus XXVII', trait: 'Cryo-Breathing: frozen oceans exhaling steam clouds.' },
+              { id: 'nacreous-vi', name: 'Nacreous VI / XXV', trait: 'Prismatic Memory: iridescent pearl skies raining liquid memory.' },
+              { id: 'spindrift-xxiii', name: 'Spindrift XXIII', trait: 'Aeolian Civilization: airborne filament weaving.' },
+              { id: 'cirrus-i', name: 'Cirrus I', trait: 'Crystalline Continental: translucent glass continents in sky strata.' },
+              { id: 'cirrulite-xxx', name: 'Cirrulite XXX', trait: 'Linguistic Ring: rings of refracted language carved into orbit.' }
+            ],
+            unknownsNotice: 'Template layouts are non-canonical rendering orders; spatial coordinates between templates are unauthored.'
+          },
           stableId: 'worldsvault-templates',
           canonicalUrl: worldsvaultTemplates.canonical_url,
           namedTemplates: [

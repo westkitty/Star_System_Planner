@@ -16,7 +16,7 @@
 - Draw orbits directly across space using the S Pen with automatic conic ellipse fitting and periapsis handle tuning.
 - Accelerate time up to $100,000\times$, forecast future orbital trajectories off-thread via dedicated Web Workers, and inspect a 30-path Sensitivity Cloud of chaotic perturbations.
 - Fork alternate futures into isolated timeline branches, inspect causal diffs in tabular side-by-side matrices, and consult the irreversible Event Ledger.
-- Invoke source-backed Starsilk cosmological mechanisms: pull starsilk filaments to collapse stars into spinning Kerr black holes, study orbital starbinding lattices, spawn vitrified crimson blood rings, and inspect siege wall tactical zones with unauthored-coordinate honesty.
+- Invoke source-backed Starsilk cosmological mechanisms: pull starsilk filaments to collapse stars into black holes, study orbital starbinding lattices, spawn vitrified crimson blood rings, and inspect siege wall tactical zones with unauthored-coordinate honesty.
 
 Every interaction is designed around a tactile obsidian and azure visual language (`#03050A` void, `#0CC6FF` starsilk azure filaments, `#880010` vitrified crimson glass).
 
@@ -24,7 +24,7 @@ Every interaction is designed around a tactile obsidian and azure visual languag
 
 ## 2. Tablet & S Pen First Interaction Model
 
-Engineered specifically for large-format OLED Android tablets (Samsung Galaxy Tab S9, 120Hz, 16:10 aspect ratio):
+Targeted for large-format OLED Android tablets (Target hardware profile: Samsung Galaxy Tab S9, 120Hz, 16:10 aspect ratio; physical device testing conducted on physical hardware):
 
 | Input Channel | Primary Interaction | Gesture / Action |
 | :--- | :--- | :--- |
@@ -122,7 +122,7 @@ npm run verify
 | Verification Stage | Command | Status |
 | :--- | :--- | :--- |
 | **Typecheck** | `npm run typecheck` (`tsc --noEmit`) | **0 Errors, Strict Mode** |
-| **Unit Tests** | `npm run test` (`vitest run`) | **17 / 17 Passed** |
+| **Unit Tests** | `npm run test` (`vitest run`) | **All Tests Passing** |
 | **Production Build** | `npm run build` (`tsc && vite build`) | **Clean Bundle, PWA Generated** |
 | **Canon Snapshot** | `npm run canon:refresh` | **Verified Manifest Synced** |
 

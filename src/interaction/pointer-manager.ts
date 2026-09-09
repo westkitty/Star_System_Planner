@@ -81,6 +81,10 @@ export class PointerManager {
     };
   }
 
+  public getActivePointerCount(): number {
+    return this.activePointers.size;
+  }
+
   private handlePointerDown = (e: PointerEvent): void => {
     this.prevPositions.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
     const norm = this.normalize(e, 0, 0);
@@ -94,6 +98,13 @@ export class PointerManager {
     }
 
     if (this.activePointers.size === 2) {
+      // Multi-touch transition: abort any single-pointer drawing or manipulation so pinch/pan takes precedence
+      if (this.isDrawingOrbit || this.isManipulatingObject) {
+        this.isDrawingOrbit = false;
+        this.isManipulatingObject = false;
+        this.callbacks.onPointerCancel(norm);
+      }
+
       // Start two-finger gesture
       const pts = Array.from(this.activePointers.values());
       const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);

@@ -41,16 +41,17 @@ The sync script contacts the following public JSON endpoints hosted on GitHub Pa
 | :--- | :--- | :--- |
 | `/canon/canon-locks.json` | Hash Locks & Revision Stamps | Content hashes and revision metadata validating dossier freshness. |
 | `/worldsvault/worldsvault.json` | WorldsVault Celestial Registry | Authoritative catalog of known planets, orbital stations, and spatial domains. |
-| `/machine/entities/starsilk-material.json` | Starsilk Material Specification | Physical properties: tensile strength, light refraction, barcode frequency, collapse threshold. |
-| `/machine/entities/cosmic-architecture.json` | Cosmic Architecture Specification | Architectural mechanics: Siege Wall containment, spatial interdiction zones. |
-| `/machine/entities/systems.json` | System Architectures & Blood Rings | Drakken planetary atrocity structures, vitrified rings, gorevault/ringthroat logic. |
-| `/machine/entities/worldsvault-templates.json` | Archetype Templates | Standard body schemas and classification profiles. |
+| `/machine/entities/starsilk-material.json` | Starsilk Material Specification | Machine-readable entity record for the Starsilk material section, canonical URLs, and source citations. |
+| `/machine/entities/cosmic-architecture.json` | Cosmic Architecture Specification | Machine-readable entity record for cosmic architecture, topology nodes, and containment references. |
+| `/machine/entities/systems.json` | System Architectures & Blood Rings | Machine-readable entity record for system architectures, Drakken biospheric structures, and related entities. |
+| `/machine/entities/worldsvault-templates.json` | Archetype Templates | Machine-readable entity record for WorldsVault archetype display templates. |
 
-### Snapshot Integrity Record
+### Snapshot Integrity & Provenance Record
 The bundled snapshot was synchronized and verified:
 - **Timestamp**: `2026-09-09T19:28:00Z`
 - **Output Target**: `./src/canon/snapshot/canon-manifest.json`
-- **Integrity**: Passed schema validation, zero corrupted entries.
+- **Integrity**: Passed required-field structural validation, zero corrupted entries.
+- **Provenance Architecture**: Fetched Dossier records are preserved under `sourceRecord`; planner-maintained interpretations, palette tokens, and pedagogical summaries are segregated under `plannerSummary`.
 
 ---
 
@@ -84,12 +85,12 @@ When loading bodies from the WorldsVault or Presets:
 
 ## 4. Truthful Source Citations for Cosmological Mechanisms
 
-### Mechanism 1: PULL STARSILK (Gravitational Siphoning & Singularity Collapse)
+### Mechanism 1: PULL STARSILK (Stellar Core Extraction & Collapse)
 - **Source Stable ID**: `starsilk-material`
 - **Source URL**: `https://westkitty.github.io/Starsilk_Character_Dossier/#compendium/starsilk-material`
 - **Source Canon Status**: `unknown`
 - **Planner Classification**: `SOURCE-BACKED MECHANIC`
-- **Physical Interpretation**: When starsilk filaments woven through a stellar core are pulled taut with critical harmonic tension, gravitational feedback collapses the host star into a black hole.
+- **Supported Description**: Starsilk is literal programmable cosmological substance. Engaging the stellar core and extracting/pulling Starsilk causes immediate loss of stellar stability; the host star collapses toward a black hole and the active system is destroyed.
 - **System Consequence**: Sets `systemStatus = 'destroyed_by_starsilk_collapse'`. Irreversible catastrophe event recorded.
 - **Safety Precaution**: UI requires an uninterrupted 1,800ms hold gesture. Releasing prematurely resets progress with zero state mutation.
 

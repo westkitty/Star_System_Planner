@@ -17,6 +17,7 @@ import { downloadProjectFile, parseAndValidateProjectJson } from './persistence/
 import { createSerializableProject } from './persistence/serializer';
 import { audioSynth } from './audio/audio-synth';
 import { CanonMacro } from './canon/macros';
+import { resolvePointerIntent } from './interaction/pointer-intent';
 
 // UI Components
 import { TopBar, AppMode } from './ui/TopBar';
@@ -214,8 +215,17 @@ export const App: React.FC = () => {
         const normY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
 
         const currentTool = activeToolRef.current;
+        const hitBodyId = sceneMgr.raycastBody(normX, normY);
 
-        if (currentTool === 'orbit_loom') {
+        const intent = resolvePointerIntent({
+          tool: currentTool,
+          pointerType: e.pointerType,
+          hasHitBody: !!hitBodyId,
+          isPaused: isPausedRef.current,
+          pointerCount: pointerMgr.getActivePointerCount(),
+        });
+
+        if (intent === 'orbit_loom_draw') {
           pointerMgr.isDrawingOrbit = true;
           // Ensure appropriate primary is set
           const selected = engine.bodies.find(b => b.id === selectedBodyIdRef.current);
@@ -226,25 +236,38 @@ export const App: React.FC = () => {
           return;
         }
 
-        // Raycast body
-        const hitBodyId = sceneMgr.raycastBody(normX, normY);
-        if (hitBodyId) {
-          setSelectedBodyId(hitBodyId);
-          selectedBodyIdRef.current = hitBodyId;
-          sceneMgr.setSelectedBody(hitBodyId);
-          const b = engine.bodies.find(b => b.id === hitBodyId);
-          if (b && (currentTool === 'grab_throw' || isPausedRef.current)) {
-            pointerMgr.isManipulatingObject = true;
-            grabThrow.startGrab(b);
+        if (intent === 'grab_throw_manipulate') {
+          if (hitBodyId) {
+            setSelectedBodyId(hitBodyId);
+            selectedBodyIdRef.current = hitBodyId;
+            sceneMgr.setSelectedBody(hitBodyId);
+            const b = engine.bodies.find(b => b.id === hitBodyId);
+            if (b) {
+              pointerMgr.isManipulatingObject = true;
+              grabThrow.startGrab(b);
+            }
           }
-        } else {
-          // Deselect if tapping empty void with select tool
-          if (currentTool === 'select') {
-            setSelectedBodyId(null);
-            selectedBodyIdRef.current = null;
-            sceneMgr.setSelectedBody(null);
-          }
+          return;
         }
+
+        if (intent === 'select_body') {
+          if (hitBodyId) {
+            setSelectedBodyId(hitBodyId);
+            selectedBodyIdRef.current = hitBodyId;
+            sceneMgr.setSelectedBody(hitBodyId);
+          }
+          return;
+        }
+
+        if (intent === 'deselect') {
+          setSelectedBodyId(null);
+          selectedBodyIdRef.current = null;
+          sceneMgr.setSelectedBody(null);
+          return;
+        }
+
+        // intent === 'camera_navigate'
+        // Ordinary camera navigation: drawing/manipulation flags remain false
       },
       onPointerMove: (e) => {
         const rect = canvasRef.current?.getBoundingClientRect();
@@ -263,7 +286,7 @@ export const App: React.FC = () => {
         }
 
         // Ordinary background drag orbits camera using per-pointer delta tracking
-        if (e.rawEvent.buttons === 1) {
+        if (e.rawEvent.buttons === 1 || e.pointerType === 'touch') {
           sceneMgr.orbitCamera(-e.deltaX * 0.006, -e.deltaY * 0.006);
         }
       },
