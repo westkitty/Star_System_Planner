@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { audioSynth } from '../audio/audio-synth';
 
 const FOCUSABLE_SELECTOR =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -23,6 +24,9 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+
+    // ASSET07: every modal announces itself with tactile open/close ticks.
+    audioSynth.playModalOpen();
 
     if (autoFocus) {
       const first = container.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
@@ -58,6 +62,7 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
+      audioSynth.playModalClose();
       document.removeEventListener('keydown', handleKeyDown, true);
       document.body.style.overflow = prevOverflow;
     };

@@ -14,11 +14,18 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
+  preview: {
+    allowedHosts: ['.e2b.app', 'localhost'],
+  },
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.svg', 'pwa-192x192.svg', 'pwa-512x512.svg'],
+      // BACK14: prompt-mode updates (user-visible reload) + offline fallback.
+      registerType: 'prompt',
+      includeAssets: ['favicon.svg', 'apple-touch-icon.svg', 'pwa-192x192.svg', 'pwa-512x512.svg', 'offline.html'],
+      workbox: {
+        navigateFallback: '/Star_System_Planner/offline.html',
+      },
       manifest: {
         name: 'Starsilk System Planner',
         short_name: 'Starsilk Planner',

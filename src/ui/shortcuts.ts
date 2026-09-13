@@ -36,6 +36,8 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   { id: 'open-missions', keys: ['M'], label: 'Toggle missions panel', group: 'Panels' },
   { id: 'open-stats', keys: ['S'], label: 'Open system statistics', group: 'Panels' },
   { id: 'open-help', keys: ['?'], label: 'Open keyboard shortcut help', group: 'Panels' },
+  { id: 'command-palette', keys: ['Ctrl+K'], label: 'Command palette', group: 'Panels' },
+  { id: 'present-capture', keys: ['P'], label: 'Capture showcase PNG (PRESENT mode)', group: 'System' },
   { id: 'close-top', keys: ['Esc'], label: 'Close modal / deselect', group: 'Panels' },
 ];
 
@@ -53,6 +55,7 @@ export function isEditableTarget(target: EventTarget | null): boolean {
 export function shortcutIdForEvent(e: KeyboardEvent): string | null {
   const key = e.key;
   if ((e.ctrlKey || e.metaKey) && (key === 'z' || key === 'Z')) return 'undo';
+  if ((e.ctrlKey || e.metaKey) && (key === 'k' || key === 'K')) return 'command-palette';
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   switch (key) {
     case ' ': return 'toggle-pause';
@@ -89,6 +92,8 @@ export function shortcutIdForEvent(e: KeyboardEvent): string | null {
     case 's':
     case 'S': return 'open-stats';
     case '?': return 'open-help';
+    case 'p':
+    case 'P': return 'present-capture';
     case 'Escape': return 'close-top';
     default: return null;
   }

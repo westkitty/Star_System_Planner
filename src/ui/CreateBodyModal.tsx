@@ -1,9 +1,61 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BodyType, CelestialBody, PlanetClassification } from '../simulation/types';
 import { KM_PER_AU, SOLAR_MASS_KG, EARTH_MASS_KG, MOON_MASS_KG, JUPITER_MASS_KG, G_KM } from '../simulation/units';
 import { SPECTRAL_CLASSES, SpectralLetter } from '../rendering/star-palette';
-import { X, Globe, Sun, Moon, Radio } from 'lucide-react';
+import { calculateHabitableZone } from '../simulation/thermal';
+import { formatSimTime } from '../simulation/units';
+import { X, Globe, Sun, Moon, Radio, FlaskConical } from 'lucide-react';
 import { useModalA11y } from './modal-a11y';
+
+/**
+ * Pre-spawn orbital preview (UI13): predicted period, equilibrium
+ * temperature, and habitable-zone verdict update live as the architect
+ * tunes distance and primary — no more blind spawns.
+ */
+function SpawnPreview(props: {
+  primary: CelestialBody | null;
+  distanceAu: number;
+  type: BodyType;
+}): React.ReactElement | null {
+  const preview = useMemo(() => {
+    const primary = props.primary;
+    if (!primary || props.type === 'star') return null;
+    const distKm = props.distanceAu * KM_PER_AU;
+    if (!(distKm > 0) || !(primary.massKg > 0)) return null;
+    const periodSec = 2 * Math.PI * Math.sqrt(Math.pow(distKm, 3) / (G_KM * primary.massKg));
+    // Fast equilibrium estimate (albedo 0.3, no greenhouse).
+    const lum = primary.luminosityW ?? 0;
+    const flux = lum > 0 ? lum / (4 * Math.PI * Math.pow(distKm * 1000, 2)) : 0;
+    const tempK = flux > 0 ? Math.pow((flux * (1 - 0.3)) / (4 * 5.670374419e-8), 0.25) : 0;
+    const hz = calculateHabitableZone(primary);
+    const verdict = !hz
+      ? 'No habitable zone'
+      : distKm < hz.innerRadiusKm
+        ? 'Inside inner edge — hot'
+        : distKm > hz.outerRadiusKm
+          ? 'Beyond outer edge — cold'
+          : 'Inside the habitable zone';
+    const good = hz !== null && distKm >= hz.innerRadiusKm && distKm <= hz.outerRadiusKm;
+    return { periodSec, tempK, verdict, good };
+  }, [props.primary, props.distanceAu, props.type]);
+
+  if (!preview) return null;
+  return (
+    <div className="spawn-preview" aria-live="polite">
+      <div className="spawn-preview-title">
+        <FlaskConical size={13} /> Spawn preview
+      </div>
+      <div className="spawn-preview-grid">
+        <span>Period</span>
+        <strong>{formatSimTime(preview.periodSec)}</strong>
+        <span>Equilibrium</span>
+        <strong>{preview.tempK > 0 ? `${Math.round(preview.tempK)} K` : '—'}</strong>
+        <span>Verdict</span>
+        <strong style={{ color: preview.good ? '#44ee88' : '#ffd166' }}>{preview.verdict}</strong>
+      </div>
+    </div>
+  );
+}
 
 interface CreateBodyModalProps {
   existingBodies: CelestialBody[];
@@ -297,6 +349,12 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
             />
           </div>
         )}
+
+        <SpawnPreview
+          primary={existingBodies.find((b) => b.id === primaryId) ?? null}
+          distanceAu={distanceAu}
+          type={type}
+        />
 
         {/* Commit Button */}
         <button

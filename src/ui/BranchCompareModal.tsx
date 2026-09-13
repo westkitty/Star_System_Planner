@@ -1,14 +1,64 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { TimelineBranch } from '../branching/branch-types';
 import { BranchManager } from '../branching/branch-manager';
 import { formatSimTime } from '../simulation/units';
+import { calculateSystemEnergy } from '../simulation/integrator';
 import { X, GitCompare, GitFork } from 'lucide-react';
 import { useModalA11y } from './modal-a11y';
+
+/** Center-diverging delta bar: B exceeds A to the right, trails to the left. */
+function DeltaBar(props: { label: string; valueA: number; valueB: number; format: (v: number) => string }): React.ReactElement {
+  const max = Math.max(Math.abs(props.valueA), Math.abs(props.valueB), 1e-9);
+  const aPct = Math.abs(props.valueA / max) * 50;
+  const bPct = Math.abs(props.valueB / max) * 50;
+  return (
+    <div className="delta-row">
+      <span className="delta-label">{props.label}</span>
+      <span className="delta-val a">{props.format(props.valueA)}</span>
+      <span className="delta-track" aria-hidden="true">
+        <span className="delta-fill a" style={{ width: `${aPct}%` }} />
+        <span className="delta-mid" />
+        <span className="delta-fill b" style={{ width: `${bPct}%` }} />
+      </span>
+      <span className="delta-val b">{props.format(props.valueB)}</span>
+    </div>
+  );
+}
 
 interface BranchCompareModalProps {
   branches: TimelineBranch[];
   branchManager: BranchManager;
   onClose: () => void;
+}
+
+function DeltaPanel(props: { branches: TimelineBranch[]; branchAId: string; branchBId: string }): React.ReactElement {
+  const stats = useMemo(() => {
+    const summarize = (id: string): { bodies: number; mass: number; energy: number; events: number } => {
+      const branch = props.branches.find((b) => b.id === id);
+      if (!branch) return { bodies: 0, mass: 0, energy: 0, events: 0 };
+      const snapshotBodies = branch.snapshot.bodies ?? [];
+      return {
+        bodies: snapshotBodies.length,
+        mass: snapshotBodies.reduce((sum, b) => sum + b.massKg, 0),
+        energy: Math.abs(calculateSystemEnergy(snapshotBodies).total),
+        events: branch.events.length,
+      };
+    };
+    return { a: summarize(props.branchAId), b: summarize(props.branchBId) };
+  }, [props.branches, props.branchAId, props.branchBId]);
+
+  const fmtInt = (v: number): string => String(Math.round(v));
+  const fmtSci = (v: number): string =>
+    v === 0 ? '0' : `${(v / Math.pow(10, Math.floor(Math.log10(v)))).toFixed(1)}e${Math.floor(Math.log10(v))}`;
+  return (
+    <div className="delta-panel" aria-label="Branch magnitude comparison">
+      <div className="delta-title">Magnitude divergence</div>
+      <DeltaBar label="Bodies" valueA={stats.a.bodies} valueB={stats.b.bodies} format={fmtInt} />
+      <DeltaBar label="Mass (kg)" valueA={stats.a.mass} valueB={stats.b.mass} format={fmtSci} />
+      <DeltaBar label="|Energy| (J)" valueA={stats.a.energy} valueB={stats.b.energy} format={fmtSci} />
+      <DeltaBar label="Ledger events" valueA={stats.a.events} valueB={stats.b.events} format={fmtInt} />
+    </div>
+  );
 }
 
 export const BranchCompareModal: React.FC<BranchCompareModalProps> = ({
@@ -161,6 +211,11 @@ export const BranchCompareModal: React.FC<BranchCompareModalProps> = ({
               </span>
             </div>
           </div>
+        )}
+
+        {/* Diverging delta visualization (UI06) */}
+        {branches.length >= 2 && (
+          <DeltaPanel branches={branches} branchAId={branchAId} branchBId={branchBId} />
         )}
       </div>
     </div>

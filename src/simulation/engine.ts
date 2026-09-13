@@ -16,10 +16,23 @@ import { resolveCollisions, CollisionDebrisParticle } from './collisions';
 import { updateBodyTemperatures } from './thermal';
 import { PLANNER_CONFIG, stepSizeForTimeScale } from '../core/config';
 import { eventBus } from '../core/event-bus';
+import { createId } from '../core/id';
+import { G_KM } from './units';
 
 export interface SimulationEngineConfig {
   enableCollisions: boolean;
   baseSubsteps: number;
+}
+
+export interface EngineTickStats {
+  physicsMs: number;
+  collisionMs: number;
+  thermalMs: number;
+  substeps: number;
+}
+
+function nowMs(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
 export class SimulationEngine {
@@ -37,6 +50,12 @@ export class SimulationEngine {
 
   private accumulatorSec: number = 0;
   private maxSubstepsPerTick: number = PLANNER_CONFIG.physics.maxSubstepsPerTick;
+  private lastTickStats: EngineTickStats = { physicsMs: 0, collisionMs: 0, thermalMs: 0, substeps: 0 };
+
+  /** Subsystem timing of the most recent tick (BACK11 diagnostics). */
+  public getLastTickStats(): EngineTickStats {
+    return { ...this.lastTickStats };
+  }
 
   constructor(initialBodies: CelestialBody[] = [], config?: Partial<SimulationEngineConfig>) {
     this.bodies = initialBodies.map(b => ({ ...b, position: { ...b.position }, velocity: { ...b.velocity } }));
@@ -61,9 +80,13 @@ export class SimulationEngine {
 
     this.accumulatorSec += simDt;
     let substepsDone = 0;
+    let physicsMs = 0;
+    let collisionMs = 0;
 
     while (this.accumulatorSec >= stepSize && substepsDone < this.maxSubstepsPerTick) {
+      const t0 = nowMs();
       const ok = stepVelocityVerlet(this.bodies, stepSize);
+      physicsMs += nowMs() - t0;
       if (!ok) {
         this.isPaused = true;
         this.events.push({
@@ -83,7 +106,9 @@ export class SimulationEngine {
 
       // Check collisions at regular intervals
       if (this.enableCollisions && this.bodies.length > 1) {
+        const t0 = nowMs();
         const colResults = resolveCollisions(this.bodies, this.timeSec, this.debris);
+        collisionMs += nowMs() - t0;
         for (const cr of colResults) {
           this.events.push(cr.event);
           eventBus.emit('collision:occurred', {
@@ -115,14 +140,66 @@ export class SimulationEngine {
     }
 
     // Update body thermal state periodically
+    const tThermal = nowMs();
     updateBodyTemperatures(this.bodies);
+    const thermalMs = nowMs() - tThermal;
+
+    // GAME11: station-keeping autopilot + tick timing ledger.
+    this.applyStationKeeping();
+    this.lastTickStats = { physicsMs, collisionMs, thermalMs, substeps: substepsDone };
+  }
+
+  /**
+   * Station-keeping (GAME11): bodies flagged `stationKeeping` spend
+   * station thrust to hold near-circular orbits, blending planet-relative
+   * velocity toward circular when eccentricity drifts past tolerance.
+   */
+  private applyStationKeeping(): void {
+    for (const body of this.bodies) {
+      if (!body.stationKeeping || body.fixed) continue;
+      const primary = body.primaryId
+        ? this.bodies.find((b) => b.id === body.primaryId) ?? null
+        : null;
+      if (!primary || primary.id === body.id) continue;
+      const rx = body.position.x - primary.position.x;
+      const ry = body.position.y - primary.position.y;
+      const rz = body.position.z - primary.position.z;
+      const r = Math.hypot(rx, ry, rz);
+      if (!(r > 0)) continue;
+      const vx = body.velocity.x - primary.velocity.x;
+      const vy = body.velocity.y - primary.velocity.y;
+      const vz = body.velocity.z - primary.velocity.z;
+      // Specific angular momentum h = r × v.
+      const hx = ry * vz - rz * vy;
+      const hy = rz * vx - rx * vz;
+      const hz = rx * vy - ry * vx;
+      const h = Math.hypot(hx, hy, hz);
+      if (!(h > 1e-9)) continue;
+      const mu = G_KM * primary.massKg;
+      const vCirc = Math.sqrt(mu / r);
+      const speed = Math.hypot(vx, vy, vz);
+      // Outside a 4% band around circular speed: blend back toward it.
+      if (Math.abs(speed - vCirc) / vCirc > 0.04) {
+        // Prograde unit = (h × r) / |h × r|.
+        const px = (hy * rz - hz * ry);
+        const py = (hz * rx - hx * rz);
+        const pz = (hx * ry - hy * rx);
+        const pm = Math.hypot(px, py, pz) || 1;
+        const blend = 0.12;
+        body.velocity = {
+          x: primary.velocity.x + vx * (1 - blend) + (px / pm) * vCirc * blend,
+          y: primary.velocity.y + vy * (1 - blend) + (py / pm) * vCirc * blend,
+          z: primary.velocity.z + vz * (1 - blend) + (pz / pm) * vCirc * blend,
+        };
+      }
+    }
   }
 
   public addBody(body: CelestialBody): void {
     this.bodies.push({ ...body, position: { ...body.position }, velocity: { ...body.velocity } });
     updateBodyTemperatures(this.bodies);
     this.events.push({
-      id: `add-${Date.now()}-${body.id}`,
+      id: createId('add'),
       timestampSec: this.timeSec,
       type: 'body_created',
       title: `Created Body: ${body.name}`,
@@ -138,7 +215,7 @@ export class SimulationEngine {
     if (idx !== -1) {
       const removed = this.bodies.splice(idx, 1)[0];
       this.events.push({
-        id: `rm-${Date.now()}-${id}`,
+        id: createId('rm'),
         timestampSec: this.timeSec,
         type: 'body_removed',
         title: `Removed Body: ${removed.name}`,

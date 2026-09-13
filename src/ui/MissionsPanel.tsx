@@ -9,11 +9,21 @@ import React from 'react';
 import { Trophy, CheckCircle, Circle, RotateCcw } from 'lucide-react';
 import { ChallengeDefinition, ChallengeState } from '../simulation/challenges';
 
+export interface ContractCardState {
+  id: string;
+  title: string;
+  brief: string;
+  progress: string;
+  done: boolean;
+}
+
 interface MissionsPanelProps {
   definitions: ChallengeDefinition[];
   states: ChallengeState[];
   onClose: () => void;
   onReset: () => void;
+  contracts?: ContractCardState[];
+  onResetContracts?: () => void;
 }
 
 export const MissionsPanel: React.FC<MissionsPanelProps> = ({
@@ -21,6 +31,8 @@ export const MissionsPanel: React.FC<MissionsPanelProps> = ({
   states,
   onClose,
   onReset,
+  contracts,
+  onResetContracts,
 }) => {
   const completed = states.filter((s) => s.completed).length;
   const total = definitions.length;
@@ -63,6 +75,30 @@ export const MissionsPanel: React.FC<MissionsPanelProps> = ({
           );
         })}
       </div>
+      {contracts && contracts.length > 0 && (
+        <>
+          <div className="contracts-title">Scenario contracts</div>
+          <div className="missions-list contracts-list">
+            {contracts.map((c) => (
+              <div key={c.id} className={`mission-card contract ${c.done ? 'done' : ''}`}>
+                <div className="mission-icon">
+                  {c.done ? <CheckCircle size={16} color="#34d399" /> : <Circle size={16} color="#d4a373" />}
+                </div>
+                <div className="mission-body">
+                  <div className="mission-title">{c.title}</div>
+                  <div className="mission-desc">{c.brief}</div>
+                  <div className="mission-hint">{c.progress}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {onResetContracts && (
+            <button className="btn-secondary missions-reset" onClick={onResetContracts}>
+              <RotateCcw size={13} /> Reset contracts
+            </button>
+          )}
+        </>
+      )}
       <button className="btn-secondary missions-reset" onClick={onReset}>
         <RotateCcw size={13} /> Reset progress
       </button>

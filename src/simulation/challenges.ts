@@ -10,6 +10,8 @@
 
 import { PlannerEventType, eventBus } from '../core/event-bus';
 import { CelestialBody } from './types';
+import { KM_PER_AU } from './units';
+import { computeLagrangePoints } from './orbital-mechanics';
 
 export interface ChallengeDefinition {
   id: string;
@@ -114,6 +116,59 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
     hint: 'Build calmly; watch the stability score.',
     triggerEvents: ['body:created', 'orbit:circularized', 'orbit:fitted'],
     gate: (bodies) => bodies.length >= 6,
+  },
+  // ---- Iteration 2 commissions (GAME05) ----
+  {
+    id: 'eclipse-chaser',
+    title: 'Eclipse Chaser',
+    description: 'Witness an eclipse or transit between your worlds.',
+    hint: 'Align a moon between its planet and the star, then let time run.',
+    triggerEvents: ['discovery:eclipse', 'discovery:transit'],
+  },
+  {
+    id: 'lagrange-parker',
+    title: 'Lagrange Parker',
+    description: 'Park any body near the L4 or L5 point of a star–planet pair.',
+    hint: 'Throw a station 60° ahead of (or behind) a planet on its orbit.',
+    triggerEvents: ['body:created', 'throw:released', 'orbit:circularized'],
+    gate: (bodies) => {
+      const stars = bodies.filter((b) => b.type === 'star');
+      const secondaries = bodies.filter((b) => b.type === 'planet' || b.type === 'moon');
+      for (const star of stars) {
+        for (const secondary of secondaries) {
+          if (secondary.id === star.id) continue;
+          const points = computeLagrangePoints(star, secondary);
+          if (!points) continue;
+          for (const parked of bodies) {
+            if (parked.id === star.id || parked.id === secondary.id) continue;
+            if (parked.type === 'star' || parked.type === 'black_hole') continue;
+            for (const anchor of [points.L4, points.L5]) {
+              const d = Math.hypot(
+                parked.position.x - anchor.x,
+                parked.position.y - anchor.y,
+                parked.position.z - anchor.z
+              );
+              if (d < 0.02 * KM_PER_AU) return true;
+            }
+          }
+        }
+      }
+      return false;
+    },
+  },
+  {
+    id: 'hohmann-pilot',
+    title: 'Hohmann Pilot',
+    description: 'Execute a planned transfer departure burn.',
+    hint: 'Open Transfers in the inspector, plan a Hohmann leg, and burn.',
+    triggerEvents: ['transfer:executed'],
+  },
+  {
+    id: 'comet-wrangler',
+    title: 'Comet Wrangler',
+    description: 'Capture an unbound wanderer into a bound orbit.',
+    hint: 'Slow a hyperbolic body near periapsis until the system seizes it.',
+    triggerEvents: ['orbit:captured'],
   },
 ];
 

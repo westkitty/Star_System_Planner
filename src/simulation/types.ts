@@ -72,6 +72,9 @@ export interface CelestialBody {
   greenhouseOffsetK?: number; // Kelvin added by atmosphere
   temperatureK?: number; // Current calculated equilibrium temp
 
+  // Flight-dynamics flags
+  stationKeeping?: boolean; // GAME11: stations actively hold circular orbits
+
   // Visual metadata
   classification?: PlanetClassification;
   color: string;
@@ -128,7 +131,14 @@ export interface ConsequenceEvent {
     | 'starsilk_pull'
     | 'heliocide_triggered'
     | 'siege_wall_locked'
-    | 'hookshot_latched';
+    | 'hookshot_latched'
+    | 'eclipse'
+    | 'transit'
+    | 'conjunction'
+    | 'resonance'
+    | 'capture'
+    | 'assist'
+    | 'contract_complete';
   title: string;
   description: string;
   bodyIds?: string[];

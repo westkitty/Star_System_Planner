@@ -8,12 +8,14 @@
 import React, { useState } from 'react';
 import { ConsequenceEvent } from '../simulation/types';
 import { formatSimTime } from '../simulation/units';
-import { X, AlertCircle, Info, Flame, Sparkles, ScrollText } from 'lucide-react';
+import { X, AlertCircle, Info, Flame, Sparkles, ScrollText, Crosshair } from 'lucide-react';
 import { useModalA11y } from './modal-a11y';
 
 interface EventLedgerModalProps {
   events: ConsequenceEvent[];
   onClose: () => void;
+  /** Jump the camera to the event's primary body (UI05). */
+  onFocusBody?: (bodyId: string) => void;
 }
 
 type SeverityFilter = 'all' | 'info' | 'caution' | 'catastrophe';
@@ -25,7 +27,7 @@ const FILTERS: Array<{ id: SeverityFilter; label: string }> = [
   { id: 'catastrophe', label: 'Catastrophe' },
 ];
 
-export const EventLedgerModal: React.FC<EventLedgerModalProps> = ({ events, onClose }) => {
+export const EventLedgerModal: React.FC<EventLedgerModalProps> = ({ events, onClose, onFocusBody }) => {
   const ref = useModalA11y<HTMLDivElement>(onClose);
   const [filter, setFilter] = useState<SeverityFilter>('all');
   const visible = filter === 'all' ? events : events.filter((e) => e.severity === filter);
@@ -94,6 +96,16 @@ export const EventLedgerModal: React.FC<EventLedgerModalProps> = ({ events, onCl
                     <span className="ledger-entry-time">T+ {formatSimTime(ev.timestampSec)}</span>
                   </div>
                   <div className="ledger-entry-desc">{ev.description}</div>
+                  {onFocusBody && ev.bodyIds && ev.bodyIds.length > 0 && (
+                    <button
+                      className="ledger-jump"
+                      onClick={() => ev.bodyIds && onFocusBody(ev.bodyIds[0])}
+                      title="Jump camera to the involved body"
+                      aria-label={`Jump to ${ev.title}`}
+                    >
+                      <Crosshair size={12} /> Visit site
+                    </button>
+                  )}
                 </div>
               );
             })

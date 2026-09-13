@@ -32,6 +32,17 @@ import { CollisionBurstPool } from './collision-bursts';
 import { HabitableZoneRenderer } from './habitable-rings';
 import { LagrangeMarkerGroup } from './lagrange-markers';
 import { InstancedBeltRenderer } from './instanced-belts';
+import { OrbitLineRenderer } from './orbit-lines';
+import { BodyLabelRenderer } from './body-labels';
+import { AuRulerRenderer } from './au-ruler';
+import { CometTailRenderer, COMET_ACTIVE_RADIUS_KM, COMET_MIN_ECCENTRICITY } from './comet-tails';
+import { EclipseConeRenderer } from './eclipse-cones';
+import { buildStationKit, StationKit } from './station-kit';
+import { getRingTexture } from './ring-textures';
+import { disposalRegistry } from './disposal';
+import { calculateOsculatingElements, findDominantPrimary } from '../simulation/orbital-mechanics';
+import { KM_PER_AU } from '../simulation/units';
+import { CollisionDebrisParticle } from '../simulation/collisions';
 import { SeededRng } from '../core/seeded-rng';
 import { spectralClassByLetter, spectralClassForMass, SpectralLetter } from './star-palette';
 
@@ -58,6 +69,22 @@ export class SceneManager {
   private lastBodies: CelestialBody[] = [];
   private frameCounter = 0;
   private starfieldFullCount = 0;
+
+  // Iteration-2 overlay renderers.
+  public orbitLines: OrbitLineRenderer;
+  public bodyLabels: BodyLabelRenderer;
+  public auRuler: AuRulerRenderer;
+  private cometTails: CometTailRenderer;
+  private eclipseCones: EclipseConeRenderer;
+  private velocityArrows: Map<string, THREE.ArrowHelper> = new Map();
+  private stationKits: Map<string, StationKit> = new Map();
+  private velocityVectorsVisible = false;
+  private debrisPoints: THREE.Points | null = null;
+  private debrisCap = 512;
+  private shockwaves: Array<{ mesh: THREE.Mesh; ageSec: number }> = [];
+  private flareUntil = new Map<string, number>();
+  private flareNext = new Map<string, number>();
+  private flareRng = new SeededRng(777);
 
   /** Honors reduced-motion preference across pulses and rotation. */
   public reducedMotion = false;
@@ -129,6 +156,25 @@ export class SceneManager {
     // Collision-burst VFX pool (ASSET10)
     this.collisionBursts = new CollisionBurstPool();
     this.scene.add(this.collisionBursts.getGroup());
+
+    // Iteration-2 overlays: orbit map, labels, ruler, comets, eclipse cones.
+    this.orbitLines = new OrbitLineRenderer();
+    this.scene.add(this.orbitLines.group);
+    this.bodyLabels = new BodyLabelRenderer();
+    this.scene.add(this.bodyLabels.group);
+    this.auRuler = new AuRulerRenderer();
+    this.scene.add(this.auRuler.group);
+    this.cometTails = new CometTailRenderer();
+    this.scene.add(this.cometTails.group);
+    this.eclipseCones = new EclipseConeRenderer();
+    this.scene.add(this.eclipseCones.group);
+  }
+
+  /** Map simulation-km to scene units through the floating origin + scale. */
+  private toSceneVec(simKm: Vector3D, out = new THREE.Vector3()): THREE.Vector3 {
+    const rel = this.floatingOrigin.toRelative(simKm);
+    const disp = this.scaleTransform.getDisplayPosition(rel);
+    return out.set(disp.x, disp.y, disp.z);
   }
 
   private initBackgroundStarfield(): void {
@@ -193,6 +239,18 @@ export class SceneManager {
         this.bodyMeshes.delete(id);
         this.selectionIndicators.delete(id);
         this.accretionDisks.delete(id);
+        const arrow = this.velocityArrows.get(id);
+        if (arrow) {
+          group.remove(arrow);
+          disposalRegistry.release(arrow.line.geometry);
+          disposalRegistry.release((arrow.line.material as THREE.Material));
+          disposalRegistry.release(arrow.cone.geometry);
+          disposalRegistry.release((arrow.cone.material as THREE.Material));
+          this.velocityArrows.delete(id);
+        }
+        this.stationKits.delete(id);
+        this.flareUntil.delete(id);
+        this.flareNext.delete(id);
       }
     }
 
@@ -257,6 +315,14 @@ export class SceneManager {
       if (indicator) {
         indicator.group.scale.set(dispRadius, dispRadius, dispRadius);
       }
+      // Relativistic jet shafts track the horizon scale (ASSET04).
+      const jetUp = group.getObjectByName('jet-up');
+      if (jetUp) jetUp.scale.set(dispRadius * 0.22, dispRadius * 5, dispRadius * 0.22);
+      const jetDown = group.getObjectByName('jet-down');
+      if (jetDown) jetDown.scale.set(dispRadius * 0.22, dispRadius * 5, dispRadius * 0.22);
+
+      // Persistent velocity vectors for in-flight bodies (ASSET01).
+      this.syncVelocityArrow(b, group);
 
       // Update rings if attached
       if (b.rings && b.rings.length > 0) {
@@ -290,7 +356,132 @@ export class SceneManager {
       }
       const selected = bodies.find(bb => bb.id === this.selectedBodyId) ?? null;
       this.lagrangeMarkers.update(selected, bodies);
+      if (this.orbitLines.isVisible()) this.refreshOrbitLines(bodies);
+      if (this.auRuler.isVisible()) this.refreshAuRuler(bodies);
+      this.refreshComets(bodies);
     }
+  }
+
+  /** Per-body velocity arrow lifecycle (ASSET01). */
+  private syncVelocityArrow(b: CelestialBody, group: THREE.Group): void {
+    const speed = Math.hypot(b.velocity.x, b.velocity.y, b.velocity.z);
+    const want = this.velocityVectorsVisible && !b.fixed && speed > 1e-6 && b.type !== 'star';
+    let arrow = this.velocityArrows.get(b.id);
+    if (!want) {
+      if (arrow) arrow.visible = false;
+      return;
+    }
+    if (!arrow) {
+      arrow = new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1),
+        new THREE.Vector3(),
+        10,
+        b.id === this.selectedBodyId ? 0xffd166 : 0x0cc6ff,
+        3,
+        1.6
+      );
+      arrow.line.material = (arrow.line.material as THREE.Material).clone();
+      arrow.cone.material = (arrow.cone.material as THREE.Material).clone();
+      disposalRegistry.track(arrow.line.geometry, 'velocity-arrow');
+      disposalRegistry.track(arrow.line.material as THREE.Material, 'velocity-arrow');
+      disposalRegistry.track(arrow.cone.geometry, 'velocity-arrow');
+      disposalRegistry.track(arrow.cone.material as THREE.Material, 'velocity-arrow');
+      this.velocityArrows.set(b.id, arrow);
+      group.add(arrow);
+    }
+    arrow.visible = true;
+    (arrow.line.material as THREE.LineBasicMaterial).color.set(
+      b.id === this.selectedBodyId ? '#ffd166' : '#0cc6ff'
+    );
+    (arrow.cone.material as THREE.MeshBasicMaterial).color.set(
+      b.id === this.selectedBodyId ? '#ffd166' : '#0cc6ff'
+    );
+    const dispVel = this.scaleTransform.getDisplayPosition({
+      x: b.velocity.x,
+      y: b.velocity.y,
+      z: b.velocity.z,
+    });
+    const dir = new THREE.Vector3(dispVel.x, dispVel.y, dispVel.z);
+    if (dir.lengthSq() < 1e-12) {
+      arrow.visible = false;
+      return;
+    }
+    dir.normalize();
+    arrow.setDirection(dir);
+    // Log-length so 0.1 km/s and 100 km/s both stay legible.
+    const len = 6 + Math.log10(1 + speed) * 9;
+    arrow.setLength(len, len * 0.28, len * 0.14);
+  }
+
+  /** Rebuild Keplerian orbit loops for bound orbiters (ASSET09). */
+  private refreshOrbitLines(bodies: CelestialBody[]): void {
+    const entries: Array<{
+      body: CelestialBody;
+      primary: CelestialBody;
+      elements: import('../simulation/types').OsculatingElements;
+    }> = [];
+    for (const b of bodies) {
+      if (b.type === 'star' || b.type === 'black_hole' || b.fixed) continue;
+      const primary = b.primaryId
+        ? (bodies.find((x) => x.id === b.primaryId) ?? findDominantPrimary(b, bodies))
+        : findDominantPrimary(b, bodies);
+      if (!primary) continue;
+      const elements = calculateOsculatingElements(b, primary);
+      if (elements && elements.isBound) entries.push({ body: b, primary, elements });
+    }
+    this.orbitLines.rebuild(entries, (p) => this.toSceneVec(p), this.selectedBodyId);
+  }
+
+  /** Re-center AU ruler rings on the dominant star (ASSET12). */
+  private refreshAuRuler(bodies: CelestialBody[]): void {
+    const star = bodies.find((b) => b.type === 'star') ?? bodies[0] ?? null;
+    if (!star) return;
+    const center = this.toSceneVec(star.position);
+    const unitsPerKm =
+      (ScaleTransform.SCENE_UNITS_PER_KM as number | undefined) ?? 1000.0 / 149597870.7;
+    this.auRuler.update(center, unitsPerKm);
+  }
+
+  /** Detect active comets and refresh their tails (ASSET14). */
+  private refreshComets(bodies: CelestialBody[]): void {
+    const stars = bodies.filter((b) => b.type === 'star');
+    if (stars.length === 0) {
+      this.cometTails.update([]);
+      return;
+    }
+    const actives: Array<{ id: string; headScene: THREE.Vector3; awayScene: THREE.Vector3; intensity01: number }> = [];
+    for (const b of bodies) {
+      if (b.type === 'star' || b.type === 'black_hole' || b.fixed) continue;
+      let nearest: CelestialBody | null = null;
+      let nearestDist = Number.POSITIVE_INFINITY;
+      for (const s of stars) {
+        const d = Math.hypot(
+          b.position.x - s.position.x,
+          b.position.y - s.position.y,
+          b.position.z - s.position.z
+        );
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearest = s;
+        }
+      }
+      if (!nearest || nearestDist > COMET_ACTIVE_RADIUS_KM) continue;
+      const el = calculateOsculatingElements(b, nearest);
+      if (!el || el.eccentricity < COMET_MIN_ECCENTRICITY) continue;
+      const head = this.toSceneVec(b.position);
+      const starScene = this.toSceneVec(nearest.position);
+      const away = head.clone().sub(starScene).normalize();
+      const rAu = nearestDist / KM_PER_AU;
+      const intensity01 = Math.max(0, Math.min(1, 1.2 - rAu / 3.5));
+      const tailLen = 4 + (26 / Math.max(0.2, rAu * rAu)) * intensity01;
+      actives.push({
+        id: b.id,
+        headScene: head,
+        awayScene: head.clone().addScaledVector(away, tailLen),
+        intensity01,
+      });
+    }
+    this.cometTails.update(actives);
   }
 
   private syncBelts(belts: AsteroidBelt[]): void {
@@ -329,6 +520,33 @@ export class SceneManager {
       const disk = createAccretionDisk(1);
       this.accretionDisks.set(b.id, disk);
       group.add(disk.group);
+      // ASSET04: twin relativistic jet shafts along the disk normal.
+      for (const [name, sign] of [['jet-up', 1], ['jet-down', -1]] as Array<[string, number]>) {
+        const jetGeo = new THREE.CylinderGeometry(0.08, 0.3, 1, 10, 1, true);
+        disposalRegistry.track(jetGeo, 'jet-geometry');
+        const jetMat = new THREE.MeshBasicMaterial({
+          color: '#9fdcff',
+          transparent: true,
+          opacity: 0.35,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+        disposalRegistry.track(jetMat, 'jet-material');
+        const jet = new THREE.Mesh(jetGeo, jetMat);
+        jet.name = name;
+        jet.position.y = sign * 2.6;
+        jet.renderOrder = 4;
+        group.add(jet);
+      }
+    } else if (b.type === 'station' || b.type === 'ship' || b.type === 'megastructure') {
+      // ASSET15: built station kit instead of a placeholder globe.
+      const kit = buildStationKit(b.color || '#9fd8ff');
+      this.stationKits.set(b.id, kit);
+      group.add(kit.group);
+      const mat = new THREE.MeshBasicMaterial({ visible: false });
+      disposalRegistry.track(mat, 'station-proxy-material');
+      coreMesh = new THREE.Mesh(sphereGeo, mat);
     } else if (b.type === 'star') {
       // ASSET01: spectral-class tint anchors the star color honestly.
       const spectral = this.spectralClassForBody(b);
@@ -353,6 +571,12 @@ export class SceneManager {
 
     coreMesh.name = 'core';
     group.add(coreMesh);
+    // Station kits ride the same display-radius scaling as globes.
+    const kit = this.stationKits.get(b.id);
+    if (kit) {
+      const dispRadius = this.scaleTransform.getDisplayRadius(b.radiusKm, b.type);
+      kit.group.scale.set(dispRadius, dispRadius, dispRadius);
+    }
 
     // ASSET07: animated selection lock-ring (hidden until selected).
     const indicator = createSelectionIndicator();
@@ -378,8 +602,27 @@ export class SceneManager {
       if (!ringMesh) {
         const innerR = 1.4;
         const outerR = 2.4;
-        const geo = new THREE.RingGeometry(innerR, outerR, 64);
-        const mat = ring.isBloodRing ? createBloodRingMaterial() : createOrdinaryRingMaterial(ring.color);
+        const geo = new THREE.RingGeometry(innerR, outerR, 96, 1);
+        // ASSET02: remap planar UVs to true (radial, angular) coordinates
+        // so the ring shaders' band math works as documented.
+        const pos = geo.attributes.position;
+        const uv = geo.attributes.uv;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i);
+          const y = pos.getY(i);
+          const r = Math.min(1, Math.max(0, (Math.hypot(x, y) - innerR) / (outerR - innerR)));
+          const a = (Math.atan2(y, x) + Math.PI) / (Math.PI * 2);
+          uv.setXY(i, r, a);
+        }
+        uv.needsUpdate = true;
+        const seed = SeededRng.hashString(`${b.id}|${ring.id}`);
+        const mat = ring.isBloodRing
+          ? createBloodRingMaterial()
+          : createOrdinaryRingMaterial(
+              ring.color,
+              getRingTexture(seed, ring.color || '#c0b49c'),
+              (seed % 1000) / 1000
+            );
         ringMesh = new THREE.Mesh(geo, mat);
         ringMesh.name = `ring-${ring.id}`;
         ringMesh.rotation.x = Math.PI / 2;
@@ -411,6 +654,114 @@ export class SceneManager {
     const group = this.bodyMeshes.get(bodyId);
     if (!group) return;
     this.collisionBursts.spawn(group.position, tintHex, energy);
+  }
+
+  /** Maneuver burn flash: azure burst + expanding shockwave ring (ASSET05). */
+  public spawnBurnFlash(bodyId: string): void {
+    const group = this.bodyMeshes.get(bodyId);
+    if (!group) return;
+    this.collisionBursts.spawn(group.position, '#7df9ff', 0.7);
+    if (this.reducedMotion || this.shockwaves.length >= 8) return;
+    const core = group.getObjectByName('core') as THREE.Mesh | undefined;
+    const base = core ? core.scale.x : 4;
+    const geo = new THREE.RingGeometry(0.92, 1, 48);
+    disposalRegistry.track(geo, 'shockwave-geometry');
+    const mat = new THREE.MeshBasicMaterial({
+      color: '#7df9ff',
+      transparent: true,
+      opacity: 0.7,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    disposalRegistry.track(mat, 'shockwave-material');
+    const ring = new THREE.Mesh(geo, mat);
+    ring.position.copy(group.position);
+    ring.rotation.x = -Math.PI / 2;
+    ring.scale.set(base, base, base);
+    ring.renderOrder = 6;
+    this.scene.add(ring);
+    this.shockwaves.push({ mesh: ring, ageSec: 0 });
+  }
+
+  /** Render a shadow shaft for a fresh eclipse (ASSET10). */
+  public spawnEclipseCone(viewerId: string, occluderId: string): void {
+    const viewer = this.bodyMeshes.get(viewerId);
+    const occluder = this.bodyMeshes.get(occluderId);
+    if (!viewer || !occluder) return;
+    const core = occluder.getObjectByName('core') as THREE.Mesh | undefined;
+    this.eclipseCones.spawn(occluder.position, viewer.position, core ? core.scale.x : 3);
+  }
+
+  /** Sync engine ejecta debris into a fading point cloud (ASSET13). */
+  public syncDebris(debris: CollisionDebrisParticle[]): void {
+    if (debris.length === 0) {
+      if (this.debrisPoints) this.debrisPoints.visible = false;
+      return;
+    }
+    if (!this.debrisPoints) {
+      const geo = new THREE.BufferGeometry();
+      disposalRegistry.track(geo, 'debris-geometry');
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.debrisCap * 3), 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(this.debrisCap * 3), 3));
+      const mat = new THREE.PointsMaterial({
+        size: 2.2,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+      });
+      disposalRegistry.track(mat, 'debris-material');
+      this.debrisPoints = new THREE.Points(geo, mat);
+      this.debrisPoints.name = 'ejecta-debris';
+      this.debrisPoints.frustumCulled = false;
+      this.scene.add(this.debrisPoints);
+    }
+    const shown = debris.slice(0, this.debrisCap);
+    const posAttr = this.debrisPoints.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const colAttr = this.debrisPoints.geometry.getAttribute('color') as THREE.BufferAttribute;
+    const scratch = new THREE.Vector3();
+    const color = new THREE.Color();
+    for (let i = 0; i < shown.length; i++) {
+      const d = shown[i];
+      this.toSceneVec(d.position, scratch);
+      posAttr.setXYZ(i, scratch.x, scratch.y, scratch.z);
+      const fade = Math.max(0.15, d.lifetimeRemainingSec / Math.max(0.001, d.initialLifetimeSec));
+      color.set(d.color || '#ff8844').multiplyScalar(fade);
+      colAttr.setXYZ(i, color.r, color.g, color.b);
+    }
+    this.debrisPoints.geometry.setDrawRange(0, shown.length);
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+    this.debrisPoints.visible = true;
+  }
+
+  /** Capture the live canvas as a PNG data URL (UI15 PRESENT mode). */
+  public captureScreenshot(): string | null {
+    try {
+      this.render();
+      return this.renderer.domElement.toDataURL('image/png');
+    } catch {
+      return null;
+    }
+  }
+
+  public setVelocityVectorsVisible(visible: boolean): void {
+    this.velocityVectorsVisible = visible;
+    if (!visible) {
+      for (const arrow of this.velocityArrows.values()) arrow.visible = false;
+    }
+  }
+
+  public setOrbitLinesVisible(visible: boolean): void {
+    this.orbitLines.setVisible(visible);
+  }
+
+  public setLabelsVisible(visible: boolean): void {
+    this.bodyLabels.setVisible(visible);
+  }
+
+  public setAuRulerVisible(visible: boolean): void {
+    this.auRuler.setVisible(visible);
   }
 
   /** Manual pixel-ratio control for the auto-quality governor (BACK07). */
@@ -519,6 +870,80 @@ export class SceneManager {
     }
     this.trajectoryRenderer.update(deltaSec, this.reducedMotion);
     this.collisionBursts.update(deltaSec);
+    this.eclipseCones.update(this.reducedMotion ? 0 : deltaSec);
+
+    // Floating nameplates track bodies every frame (ASSET11).
+    this.bodyLabels.update(
+      this.lastBodies,
+      (p, out) => this.toSceneVec(p, out),
+      this.camera,
+      this.selectedBodyId
+    );
+
+    // Maneuver shockwaves expand and fade (ASSET05).
+    if (!this.reducedMotion) {
+      for (const wave of [...this.shockwaves]) {
+        wave.ageSec += deltaSec;
+        const t = wave.ageSec / 1.1;
+        if (t >= 1) {
+          this.scene.remove(wave.mesh);
+          disposalRegistry.release(wave.mesh.geometry);
+          disposalRegistry.release(wave.mesh.material as THREE.Material);
+          this.shockwaves.splice(this.shockwaves.indexOf(wave), 1);
+          continue;
+        }
+        const s = 1 + t * 3.2;
+        wave.mesh.scale.set(s, s, s);
+        (wave.mesh.material as THREE.MeshBasicMaterial).opacity = 0.7 * (1 - t);
+      }
+    }
+
+    // Station beacons blink; jets shimmer; M-dwarfs flare (ASSET15/04/03).
+    if (!this.reducedMotion) {
+      for (const kit of this.stationKits.values()) kit.update(elapsed);
+      for (const group of this.bodyMeshes.values()) {
+        for (const jetName of ['jet-up', 'jet-down']) {
+          const jet = group.getObjectByName(jetName) as THREE.Mesh | undefined;
+          if (jet) {
+            (jet.material as THREE.MeshBasicMaterial).opacity =
+              0.28 + 0.12 * Math.sin(elapsed * 7 + group.position.x);
+          }
+        }
+      }
+      this.updateStellarFlares(elapsed);
+    }
+  }
+
+  /**
+   * M-dwarf flare flashes (ASSET03): red dwarfs randomly surge to ~2×
+   * corona brightness for a few seconds — temperamental hosts that make
+   * habitability around them a genuine gamble.
+   */
+  private updateStellarFlares(elapsed: number): void {
+    for (const b of this.lastBodies) {
+      if (b.type !== 'star') continue;
+      const spectral = this.spectralClassForBody(b);
+      void spectral;
+      const cls = spectralClassForMass(b.massKg).class;
+      if (cls !== 'M') continue;
+      const group = this.bodyMeshes.get(b.id);
+      const corona = group?.getObjectByName('corona') as THREE.Sprite | undefined;
+      if (!corona) continue;
+      const next = this.flareNext.get(b.id) ?? elapsed + this.flareRng.range(20, 90);
+      if (elapsed >= next) {
+        this.flareUntil.set(b.id, elapsed + this.flareRng.range(2, 5));
+        this.flareNext.set(b.id, elapsed + this.flareRng.range(45, 160));
+      }
+      const until = this.flareUntil.get(b.id) ?? 0;
+      if (elapsed < until) {
+        const envelope = 1 + 0.9 * Math.sin(((until - elapsed) / 5) * Math.PI);
+        corona.scale.multiplyScalar(envelope / ((corona.userData.flare as number | undefined) ?? 1));
+        corona.userData.flare = envelope;
+      } else if (corona.userData.flare) {
+        corona.scale.multiplyScalar(1 / (corona.userData.flare as number));
+        corona.userData.flare = 0;
+      }
+    }
   }
 
   public render(): void {
@@ -596,6 +1021,19 @@ export class SceneManager {
     this.collisionBursts.dispose();
     this.habitableZones.dispose();
     this.lagrangeMarkers.dispose();
+    this.orbitLines.dispose();
+    this.bodyLabels.dispose();
+    this.auRuler.dispose();
+    this.cometTails.dispose();
+    this.eclipseCones.dispose();
+    for (const wave of this.shockwaves) {
+      this.scene.remove(wave.mesh);
+      disposalRegistry.release(wave.mesh.geometry);
+      disposalRegistry.release(wave.mesh.material as THREE.Material);
+    }
+    this.shockwaves = [];
+    this.velocityArrows.clear();
+    this.stationKits.clear();
     this.scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh | THREE.Points | THREE.Sprite;
       const geometry = (mesh as THREE.Mesh).geometry;

@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { Play, Pause, GitFork, ListOrdered, GitCompare, StepForward, Video, Map } from 'lucide-react';
+import { Play, Pause, GitFork, ListOrdered, GitCompare, StepForward, Video, Map, History, Radio } from 'lucide-react';
 import { formatMissionClock, formatSimTime } from '../simulation/units';
 import { TimelineBranch } from '../branching/branch-types';
 
@@ -29,6 +29,18 @@ interface TimelineBarProps {
   onOpenLedger: () => void;
   onOpenBranchCompare: () => void;
   eventCount: number;
+  /** Divergence % per branch id vs the prime branch (GAME14). */
+  divergenceByBranch?: Record<string, number>;
+  /** Snapshot ring-buffer scrub state (UI03). */
+  scrub?: {
+    size: number;
+    index: number;
+    oldestTimeSec: number | null;
+    newestTimeSec: number | null;
+    scrubbing: boolean;
+    onScrub: (index: number) => void;
+    onResumeLive: () => void;
+  };
 }
 
 const MIN_LOG = 0; // 10^0 = 1×
@@ -64,6 +76,8 @@ export const TimelineBar: React.FC<TimelineBarProps> = ({
   onOpenLedger,
   onOpenBranchCompare,
   eventCount,
+  divergenceByBranch,
+  scrub,
 }) => {
   return (
     <footer className="bottom-timeline-bar hud-interactive" aria-label="Simulation transport">
@@ -120,6 +134,29 @@ export const TimelineBar: React.FC<TimelineBarProps> = ({
           <span className="mission-clock-time">{formatSimTime(timeSec)}</span>
         </div>
 
+        {scrub && scrub.size > 1 && (
+          <div className="time-scrub" title="Rewind recent history (snapshots every 5 sim-seconds)">
+            <History size={13} color={scrub.scrubbing ? '#ffd166' : 'var(--text-muted)'} />
+            <input
+              type="range"
+              min={0}
+              max={scrub.size - 1}
+              step={1}
+              value={scrub.scrubbing ? scrub.index : scrub.size - 1}
+              onChange={(e) => scrub.onScrub(Number(e.target.value))}
+              className="scrub-slider"
+              aria-label="Scrub recent history"
+            />
+            {scrub.scrubbing ? (
+              <button className="scrub-live" onClick={scrub.onResumeLive} title="Return to the live frontier">
+                <Radio size={12} /> LIVE
+              </button>
+            ) : (
+              <span className="scrub-hint">rewind</span>
+            )}
+          </div>
+        )}
+
         <div className="camera-modes">
           <button
             onClick={onToggleFollow}
@@ -150,11 +187,16 @@ export const TimelineBar: React.FC<TimelineBarProps> = ({
           title="Active Timeline Branch"
           aria-label="Active timeline branch"
         >
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name} ({formatSimTime(b.snapshot.timestampSec)})
-            </option>
-          ))}
+          {branches.map((b) => {
+            const div = divergenceByBranch?.[b.id];
+            const tag = div === undefined || div <= 0.5 ? '' : ` Δ${div.toFixed(0)}%`;
+            return (
+              <option key={b.id} value={b.id}>
+                {b.name}
+                {tag} ({formatSimTime(b.snapshot.timestampSec)})
+              </option>
+            );
+          })}
         </select>
 
         <button onClick={onForkBranch} className="fork-btn" title="Fork Future into an alternate causal timeline (B)">

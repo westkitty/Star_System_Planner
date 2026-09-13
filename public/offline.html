@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#03050a" />
+    <title>STARSILK — Offline</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #03050a; color: #e2e8f0;
+        font-family: system-ui, -apple-system, sans-serif; display: flex;
+        align-items: center; justify-content: center; text-align: center; }
+      .card { max-width: 420px; padding: 32px; border: 1px solid #164e63; border-radius: 12px;
+        background: rgba(3, 8, 16, 0.9); }
+      h1 { color: #0cc6ff; font-size: 18px; letter-spacing: 0.1em; }
+      p { font-size: 14px; color: #94a3b8; line-height: 1.6; }
+      button { margin-top: 12px; background: #0cc6ff; color: #03050a; border: 0;
+        border-radius: 8px; padding: 10px 22px; font-weight: 700; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>SIGNAL LOST</h1>
+      <p>The planner shell failed to load and no cached copy is available. Reconnect, then retry — your IndexedDB universes remain on this device.</p>
+      <button onclick="location.reload()">Retry</button>
+    </div>
+  </body>
+</html>

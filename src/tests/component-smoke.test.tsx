@@ -99,6 +99,13 @@ describe('HUD chrome renders', () => {
         onOpenStats={noop}
         onOpenSettings={noop}
         onOpenHelp={noop}
+        onOpenPalette={noop}
+        onOpenLedger={noop}
+        health={{ unbound: 0, roche: 0, thermalAlerts: 0 }}
+        library={[]}
+        onSaveToLibrary={noop}
+        onOpenProject={noop}
+        onDeleteProject={noop}
       />
     );
     expect(html).toContain('Smoke Test');
@@ -156,6 +163,8 @@ describe('HUD chrome renders', () => {
         onSelectBody={noop}
         onFocusBody={noop}
         onClose={noop}
+        bookmarkedIds={[]}
+        onToggleBookmark={noop}
       />
     );
     expect(html).toContain('Verdant');
@@ -165,7 +174,7 @@ describe('HUD chrome renders', () => {
   it('SelectionChip renders selection quick actions', () => {
     const bodies = sampleBodies();
     const html = renderToString(
-      <SelectionChip selected={bodies[1]} primary={bodies[0]} onFocus={noop} onGrab={noop} onDeselect={noop} />
+      <SelectionChip selected={bodies[1]} primary={bodies[0]} onFocus={noop} onGrab={noop} onDeselect={noop} bookmarked={false} onToggleBookmark={noop} />
     );
     expect(html).toContain('Verdant');
   });

@@ -9,10 +9,13 @@ import React, { useState } from 'react';
 import {
   Eye, Volume2, VolumeX, Grid, Download, Upload, Sparkles, Undo2, ListTree,
   Trophy, BarChart3, Settings, Keyboard, Leaf, Dices, ChevronDown, Activity,
+  Terminal, HeartPulse, Save, Trash2,
 } from 'lucide-react';
 import { ScaleMode } from '../rendering/scale-transform';
 import { SystemStatus } from '../simulation/types';
 import { AutosaveStatus } from '../persistence/autosave';
+import { LibraryEntry } from '../persistence/project-library';
+import { MonitorWarningSummary } from '../simulation/event-monitor';
 import { formatRelativeTime } from '../simulation/units';
 
 export type AppMode = 'BUILD' | 'SIMULATE' | 'FORECAST' | 'CANON LAB' | 'PRESENT';
@@ -51,6 +54,13 @@ interface TopBarProps {
   onOpenStats: () => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
+  onOpenPalette: () => void;
+  onOpenLedger: () => void;
+  health: MonitorWarningSummary;
+  library: LibraryEntry[];
+  onSaveToLibrary: () => void;
+  onOpenProject: (projectId: string) => void;
+  onDeleteProject: (projectId: string) => void;
 }
 
 function IconBtn(props: {
@@ -114,6 +124,17 @@ export const TopBar: React.FC<TopBarProps> = (props) => {
             )}
           </div>
         </div>
+        <button
+          className={`health-pill ${(props.health.unbound + props.health.roche + props.health.thermalAlerts) > 0 ? 'warn' : 'calm'}`}
+          onClick={props.onOpenLedger}
+          title={`Unbound: ${props.health.unbound} · Roche: ${props.health.roche} · Thermal alerts: ${props.health.thermalAlerts} — open ledger`}
+          aria-label="System health — open ledger"
+        >
+          <HeartPulse size={12} />
+          {props.health.unbound + props.health.roche + props.health.thermalAlerts > 0
+            ? `${props.health.unbound + props.health.roche + props.health.thermalAlerts} warnings`
+            : 'Stable'}
+        </button>
         <div
           className="autosave-pill"
           title={
@@ -154,6 +175,42 @@ export const TopBar: React.FC<TopBarProps> = (props) => {
                 <Dices size={13} /> Procedural Seed World
               </button>
               <button role="menuitem" onClick={() => choosePreset('blank')}>Blank Void</button>
+              <div className="preset-menu-divider" role="separator" />
+              <div className="preset-menu-label">Project library</div>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setPresetOpen(false);
+                  props.onSaveToLibrary();
+                }}
+              >
+                <Save size={13} /> Save current to library
+              </button>
+              {props.library.length === 0 && (
+                <div className="preset-menu-empty">No shelved universes yet.</div>
+              )}
+              {props.library.map((entry) => (
+                <div key={entry.projectId} className="preset-menu-row" role="menuitem">
+                  <button
+                    className="preset-menu-load"
+                    onClick={() => {
+                      setPresetOpen(false);
+                      props.onOpenProject(entry.projectId);
+                    }}
+                    title={`Open ${entry.projectName}`}
+                  >
+                    {entry.projectName}
+                  </button>
+                  <button
+                    className="preset-menu-delete"
+                    onClick={() => props.onDeleteProject(entry.projectId)}
+                    title={`Delete ${entry.projectName}`}
+                    aria-label={`Delete ${entry.projectName}`}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -219,6 +276,9 @@ export const TopBar: React.FC<TopBarProps> = (props) => {
         </IconBtn>
         <IconBtn onClick={props.onOpenHelp} title="Keyboard shortcuts (?)" label="Open shortcut help">
           <Keyboard size={14} />
+        </IconBtn>
+        <IconBtn onClick={props.onOpenPalette} title="Command palette (Ctrl+K)" label="Open command palette">
+          <Terminal size={14} />
         </IconBtn>
         <IconBtn onClick={onExport} title="Export system (.ssp.json)" label="Export system">
           <Download size={14} />

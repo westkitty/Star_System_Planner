@@ -105,3 +105,107 @@ undo, challenges, forecasts, persistence) and give the planner a complete HUD.
 - Browser-based QA (grab-and-throw feel, loom sketching, S Pen) still needs a human/device pass.
 - `velocity-arrow.ts` is currently consumed only by grab-and-throw; persistent per-body velocity vectors remain an option.
 - Challenge roster could grow (eclipse photography, Lagrange parking, Grand Tour).
+
+---
+
+## Iteration 2 — 2026-09-13 — `improve: recursive project pass 2`
+
+**Theme:** emergent depth — long-session systems (contracts, time-scrub,
+project library, crash recovery), cinematic simulation feedback (slow-mo,
+eclipse cones, warp streaks), and full App wiring for every new subsystem.
+
+### UI (UI01–UI15)
+
+| ID | Improvement | Evidence |
+|----|-------------|----------|
+| UI01 | Command palette (`Ctrl+K`): fuzzy search over static + dynamic (per-body, per-branch) commands | `src/ui/CommandPalette.tsx`, `command-registry.ts`, `App` registration effects |
+| UI02 | Body bookmarks: persisted shelf in navigator + chip star toggle | `settings.bookmarkedBodyIds`, `SystemNavigator`, `SelectionChip` |
+| UI03 | Timeline history scrubber: 60-frame ring buffer + LIVE resume (undo-checkpointed) | `TimelineBar` scrub, `snapshot-buffer.ts`, `App.handleScrub` |
+| UI04 | Branch-compare magnitude divergence: center-diverging delta bars | `BranchCompareModal` delta panel |
+| UI05 | Ledger “Visit site” jump: event rows focus their body in 3D | `EventLedgerModal onFocusBody`, `App` wiring |
+| UI06 | Navigator rewrite: hierarchy tree, ancestor-aware search, bookmarks shelf | `src/ui/SystemNavigator.tsx` |
+| UI07 | Selection chip: bookmark control + live apsidal countdown (Periapsis T−) | `src/ui/SelectionChip.tsx` |
+| UI08 | Settings v2 surface: overlay toggles, approach autopilot, metric/imperial units | `SettingsModal`, `PlannerSettings` schema v2 |
+| UI09 | TopBar upgrade: health pill, project-library menu, palette button | `src/ui/TopBar.tsx` |
+| UI10 | Inspector expansion: transfer planner, habitability, tidal lock, station-keeping, ephemeris export, copy-telemetry, imperial units | `src/ui/ContextInspector.tsx` |
+| UI11 | Screen-reader announcer: selection/pause/collision/branch narration | `src/ui/Announcer.tsx`, `App` announce sites |
+| UI12 | Create-body SpawnPreview: live period/equilibrium/HZ verdict while authoring | `CreateBodyModal` SpawnPreview |
+| UI13 | Contextual coachmarks (grab/loom/fork/macro/transfer) with persisted dismissal | `src/ui/Coachmark.tsx`, `coachmarks.ts` |
+| UI14 | New shortcuts: `Ctrl+K` palette + `P` showcase capture, registered + dispatched | `src/ui/shortcuts.ts`, `ShortcutsModal` |
+| UI15 | PRESENT mode: chrome-free showcase canvas with PNG capture overlay | `AppMode PRESENT`, `present-overlay`, `captureScreenshot` |
+
+### Assets / rendering (ASSET01–ASSET15)
+
+| ID | Improvement | Evidence |
+|----|-------------|----------|
+| ASSET01 | M-dwarf stochastic flare cycle (seeded RNG, per-star cooldowns) | `scene-manager` flare maps |
+| ASSET02 | Black-hole relativistic jet shafts tracking horizon scale | `scene-manager` jet scaling |
+| ASSET03 | Station construction kits (docking arms + beacons) for station bodies | `src/rendering/station-kit.ts` |
+| ASSET04 | Ring shader upgrade: radial-UV band maps + per-ring seed variation | `celestial-shaders` `uBandMap`/`uSeed` |
+| ASSET05 | Maneuver burn flash: azure burst at the burned body | `scene-manager.spawnBurnFlash`, `afterManeuverSync` |
+| ASSET06 | Expanding shockwave rings on burns (reduced-motion gated, pooled ≤8) | `scene-manager` shockwaves |
+| ASSET07 | Modal open/close micro-sounds + rate-limited UI feedback (90 ms floor) | `audio-synth` micro set, `modal-a11y` |
+| ASSET08 | Ambience drone reacting to time acceleration (log-scaled intensity) | `setAmbienceIntensity`, frame-loop driver |
+| ASSET09 | Eclipse shadow cones rendered on discovery events | `eclipse-cones.ts`, `discovery:eclipse` bus flow |
+| ASSET10 | Procedural comet tails inside activity radius above eccentricity floor | `src/rendering/comet-tails.ts` |
+| ASSET11 | Persistent collision-debris particle sync from engine state | `scene-manager.syncDebris`, frame loop |
+| ASSET12 | Per-body velocity-vector overlay (settings toggle) | `setVelocityVectorsVisible` + settings |
+| ASSET13 | AU measurement ruler overlay (settings toggle) | `setAuRulerVisible` + settings |
+| ASSET14 | Warp-streak overlay at high time acceleration | `src/ui/WarpStreaks.tsx` |
+| ASSET15 | Orbit-line + body-label visibility toggles plumbed to settings | `setOrbitLinesVisible`, `setLabelsVisible` |
+
+### Gameplay / simulation (GAME01–GAME15)
+
+| ID | Improvement | Evidence |
+|----|-------------|----------|
+| GAME01 | Hohmann transfer planner: Δv1/Δv2/coast/total + one-click departure burn | `transfer-planner.ts`, inspector Transfers |
+| GAME02 | Habitability verdicts: 0–100 score + factor breakdown per world | `habitability.ts`, inspector section |
+| GAME03 | Tidal-lock timescale estimates for bound orbiters | `tidal-locking.ts`, inspector line |
+| GAME04 | Station-keeping: engine thrust enforcement + per-body toggle | `engine` GAME11 pass, `handleToggleStationKeeping` |
+| GAME05 | Gravity-assist meter: measured slingshot Δv celebrated in ledger + toast | `gravity-assists.ts`, `assist:measured` flow |
+| GAME06 | Gravitational capture detection (unbound → bound) with bus event | `event-monitor` capture, `orbit:captured` |
+| GAME07 | Eclipse/transit/conjunction detection with cooldown caches | `event-monitor` syzygy pipeline |
+| GAME08 | Mean-motion resonance + syzygy-chain detection (one-shot per pair) | `syzygy.ts`, monitor resonance cache |
+| GAME09 | Scenario contracts: Harbor Light, Resonance Architect, Comet Shepherd (persisted) | `contracts.ts`, `MissionsPanel` contracts |
+| GAME10 | Forecast-driven manual merge: fuse doomed pairs from the banner (undoable) | `mergeBodiesInelastic`, MERGE NOW |
+| GAME11 | Approach autopilot: auto-throttle near imminent impact or periapsis | frame-loop autopilot + settings |
+| GAME12 | Mission roster doubled 8 → 16 (eclipse, Hohmann, comet, steward, scholar…) | `CHALLENGE_DEFINITIONS` |
+| GAME13 | L4/L5-gated Lagrange-parker win condition (60° Trojan parking check) | `challenges.ts` gate |
+| GAME14 | Timeline divergence tags: live % drift per branch in the switcher | `divergencePercent`, `TimelineBar` |
+| GAME15 | Catastrophe slow-motion: 10× dilation for 2.5 s on collision | `collision:occurred` slow-mo flow |
+
+### Backend (BACK01–BACK15)
+
+| ID | Improvement | Evidence |
+|----|-------------|----------|
+| BACK01 | Bus growth: 14 new typed events (orbit/transfer/merge/discovery/assist/contract/library/PWA/recovery/ephemeris) | `src/core/event-bus.ts` |
+| BACK02 | Snapshot ring buffer: interval-gated, capacity-bounded, restorable | `src/simulation/snapshot-buffer.ts` |
+| BACK03 | Project library: named IndexedDB slots beyond the autosave (save/open/delete) | `project-library.ts`, TopBar menu |
+| BACK04 | Forecast-response cache keyed by originating request hash (hit/miss stats) | `future-client` `lastRequestKey` |
+| BACK05 | Settings schema v2 + migration (bookmarks, overlays, autopilot, units) | `src/core/settings.ts` |
+| BACK06 | `createId` unique ids replace all `Date.now()` identity (bursts, macros, maneuvers) | `src/core/id.ts`, App + engine |
+| BACK07 | `PlannerError` taxonomy + fault-screen error codes + `toUserMessage` | `src/core/errors.ts`, `ErrorBoundary` |
+| BACK08 | Crash-recovery sentinel: dirty flag + boot-time autosave offer | `src/core/recovery.ts`, `main.tsx` |
+| BACK09 | Perf telemetry: longtask observer, frame histograms, budget tracking | `perf-monitor`, `observeLongTasks` |
+| BACK10 | GPU-memory hygiene: texture LRU-96 + disposal registry in diagnostics | `planet-textures`, `rendering/disposal` |
+| BACK11 | Typed persistence failures (`PERSIST_READ`/`PERSIST_WRITE`) with safe copy | `src/persistence/db.ts` |
+| BACK12 | Ephemeris sampler: N-body propagation → timestamped CSV export | `src/simulation/ephemeris.ts` |
+| BACK13 | PWA prompt-mode updates + offline fallback page | `vite.config` VitePWA, `offline.html` |
+| BACK14 | Clean shutdown (beforeunload) + update-available bus signal with reload toast | `src/main.tsx`, `pwa:update-available` |
+| BACK15 | Engine tick stats: per-subsystem ms + substep counts for diagnostics | `engine.lastTickStats` |
+
+### Validation
+
+- `npx tsc --noEmit` — clean (whole project, incl. `App.tsx`).
+- `npm run test` — **95/95 pass** (77 pre-existing + 18 new in `iteration2.test.ts`).
+- `npm run build` — PASS (PWA precache 12 entries; chunk-size warning only, pre-existing).
+- Production preview served over sandbox proxy: `index.html` + main bundle + SW — HTTP 200; bundle contains MERGE NOW, present-overlay, palette, scrub, contract/capture flows.
+- `vite.config` gains `preview.allowedHosts` for sandbox proxy (dev-only effect).
+- No regressions: all 7 pre-existing test files still green; iteration-1 journeys untouched.
+
+### Notes for next iteration
+
+- Browser-feel QA (loom sketching, grab throws, S Pen) still needs a human/device pass.
+- Contract roster could grow (Grand Tour, Trojan shepherd, heliocide witness).
+- Assist “best of session” is tracked but not yet surfaced in a debrief surface.
+- Snapshot buffer covers bodies only; belts/routes stay live during scrub by design.

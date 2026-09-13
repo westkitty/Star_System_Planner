@@ -28,7 +28,20 @@ export type PlannerEventType =
   | 'project:imported'
   | 'project:exported'
   | 'quality:degraded'
-  | 'quality:restored';
+  | 'quality:restored'
+  | 'orbit:captured'
+  | 'transfer:executed'
+  | 'merge:executed'
+  | 'discovery:eclipse'
+  | 'discovery:transit'
+  | 'discovery:conjunction'
+  | 'discovery:resonance'
+  | 'assist:measured'
+  | 'contract:completed'
+  | 'library:saved'
+  | 'pwa:update-available'
+  | 'recovery:completed'
+  | 'ephemeris:exported';
 
 export interface PlannerEvent<T = unknown> {
   type: PlannerEventType;

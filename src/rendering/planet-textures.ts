@@ -10,8 +10,11 @@
 import * as THREE from 'three';
 import { PlanetClassification } from '../simulation/types';
 import { SeededRng } from '../core/seeded-rng';
+import { disposalRegistry } from './disposal';
 
 const TEXTURE_SIZE = 256;
+// BACK15: bounded LRU so infinite body churn cannot pin GPU memory.
+const MAX_CACHED_TEXTURES = 96;
 const cache = new Map<string, THREE.CanvasTexture>();
 
 function basePalette(classification: PlanetClassification): [string, string, string] {
@@ -191,6 +194,14 @@ export function getPlanetTexture(classification: PlanetClassification, seed: num
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.wrapS = THREE.RepeatWrapping;
+    disposalRegistry.track(texture, 'planet-texture');
+    if (cache.size >= MAX_CACHED_TEXTURES) {
+      const oldest = cache.keys().next().value as string | undefined;
+      if (oldest) {
+        disposalRegistry.release(cache.get(oldest));
+        cache.delete(oldest);
+      }
+    }
     cache.set(key, texture);
     return texture;
   } catch {

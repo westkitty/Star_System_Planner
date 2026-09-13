@@ -9,7 +9,7 @@
 import { CelestialBody, ConsequenceEvent, SystemStatus } from './types';
 import { SimulationEngine } from './engine';
 
-export type UndoKind = 'delete-body' | 'macro' | 'preset-load' | 'bulk';
+export type UndoKind = 'delete-body' | 'macro' | 'preset-load' | 'bulk' | 'merge' | 'time-scrub';
 
 export interface UndoEntry {
   id: string;

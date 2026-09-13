@@ -245,7 +245,11 @@ export function createBloodRingMaterial(): THREE.ShaderMaterial {
  * Standard Planetary Ring Material.
  * Subtle concentric dust bands and Cassini division.
  */
-export function createOrdinaryRingMaterial(color: string = '#c0b49c'): THREE.ShaderMaterial {
+export function createOrdinaryRingMaterial(
+  color: string = '#c0b49c',
+  bandMap?: THREE.Texture | null,
+  seed01 = 0.5
+): THREE.ShaderMaterial {
   const ringColor = new THREE.Color(color);
   return new THREE.ShaderMaterial({
     transparent: true,
@@ -253,6 +257,9 @@ export function createOrdinaryRingMaterial(color: string = '#c0b49c'): THREE.Sha
     depthWrite: false,
     uniforms: {
       uColor: { value: ringColor },
+      uBandMap: { value: bandMap ?? null },
+      uHasMap: { value: bandMap ? 1.0 : 0.0 },
+      uSeed: { value: seed01 },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -263,23 +270,37 @@ export function createOrdinaryRingMaterial(color: string = '#c0b49c'): THREE.Sha
     `,
     fragmentShader: `
       uniform vec3 uColor;
+      uniform sampler2D uBandMap;
+      uniform float uHasMap;
+      uniform float uSeed;
       varying vec2 vUv;
 
       void main() {
         // vUv.x represents radius across the ring (0 = inner, 1 = outer)
         float r = vUv.x;
+        float angle = vUv.y * 6.28318;
 
-        // Cassini division gap around r = 0.65 to 0.70
-        float gap = 1.0 - smoothstep(0.64, 0.66, r) * (1.0 - smoothstep(0.69, 0.71, r));
+        // Seeded Cassini-style division: each ring splits at its own radius.
+        float splitAt = 0.45 + uSeed * 0.3;
+        float gap = 1.0 - smoothstep(splitAt - 0.02, splitAt, r) * (1.0 - smoothstep(splitAt + 0.02, splitAt + 0.04, r));
 
-        // Concentric fine ringlets
-        float ringlets = sin(r * 180.0) * 0.15 + 0.85;
+        // Concentric fine ringlets with slow differential shimmer.
+        float ringlets = sin(r * (150.0 + uSeed * 90.0) + angle * 2.0) * 0.15 + 0.85;
+
+        // Procedural band texture modulates density (ASSET02).
+        float band = 1.0;
+        vec3 bandTint = vec3(1.0);
+        if (uHasMap > 0.5) {
+          vec4 texel = texture2D(uBandMap, vec2(r, 0.5));
+          band = 0.35 + texel.a * 0.85;
+          bandTint = mix(vec3(1.0), texel.rgb * 2.0, 0.35);
+        }
 
         // Smooth inner and outer fade
         float edgeFade = smoothstep(0.0, 0.05, r) * (1.0 - smoothstep(0.95, 1.0, r));
 
-        float alpha = gap * ringlets * edgeFade * 0.75;
-        gl_FragColor = vec4(uColor * ringlets, alpha);
+        float alpha = gap * ringlets * band * edgeFade * 0.8;
+        gl_FragColor = vec4(uColor * ringlets * bandTint, alpha);
       }
     `,
   });

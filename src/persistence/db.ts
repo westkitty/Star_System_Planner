@@ -39,6 +39,8 @@ export interface SavedSystemProject {
   updatedAtIso: string;
 }
 
+import { PlannerError } from '../core/errors';
+
 const DB_NAME = 'StarsilkSystemPlannerDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'systems';
@@ -46,7 +48,9 @@ const STORE_NAME = 'systems';
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
-      return reject(new Error('IndexedDB not supported in current environment'));
+      return reject(
+        new PlannerError('PERSIST_READ', 'Local vault unavailable on this device.', 'IndexedDB missing')
+      );
     }
 
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -59,7 +63,8 @@ function openDatabase(): Promise<IDBDatabase> {
     };
 
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () =>
+      reject(new PlannerError('PERSIST_READ', 'Could not open the local vault.', String(req.error)));
   });
 }
 
@@ -70,7 +75,8 @@ export async function saveProjectToDb(project: SavedSystemProject): Promise<void
     const store = tx.objectStore(STORE_NAME);
     const req = store.put(project);
     req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+    req.onerror = () =>
+      reject(new PlannerError('PERSIST_WRITE', 'Failed to save the universe.', String(req.error)));
   });
 }
 
@@ -81,7 +87,8 @@ export async function loadProjectFromDb(projectId: string): Promise<SavedSystemP
     const store = tx.objectStore(STORE_NAME);
     const req = store.get(projectId);
     req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
+    req.onerror = () =>
+      reject(new PlannerError('PERSIST_READ', 'Failed to load the universe.', String(req.error)));
   });
 }
 
@@ -101,7 +108,8 @@ export async function listAllProjects(): Promise<{ projectId: string; projectNam
         }))
       );
     };
-    req.onerror = () => reject(req.error);
+    req.onerror = () =>
+      reject(new PlannerError('PERSIST_READ', 'Failed to list saved universes.', String(req.error)));
   });
 }
 
@@ -112,6 +120,7 @@ export async function deleteProjectFromDb(projectId: string): Promise<void> {
     const store = tx.objectStore(STORE_NAME);
     const req = store.delete(projectId);
     req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+    req.onerror = () =>
+      reject(new PlannerError('PERSIST_WRITE', 'Failed to delete the universe.', String(req.error)));
   });
 }

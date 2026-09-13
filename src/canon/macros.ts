@@ -14,6 +14,7 @@
 import { CelestialBody, ConsequenceEvent, RingStructure, SourceCanonStatus, PlannerClassification } from '../simulation/types';
 import { SimulationEngine } from '../simulation/engine';
 import { getCompendiumUrl } from './manifest';
+import { createId } from '../core/id';
 
 export interface CanonMacro {
   id: string;
@@ -63,7 +64,7 @@ export const CANON_MACROS: CanonMacro[] = [
       engine.systemStatus = 'destroyed_by_starsilk_collapse';
 
       const event: ConsequenceEvent = {
-        id: `macro-pull-${Date.now()}`,
+        id: createId('macro-pull'),
         timestampSec: engine.timeSec,
         type: 'starsilk_pull',
         title: `Starsilk Extraction: ${star.name} Collapsed`,
@@ -107,7 +108,7 @@ export const CANON_MACROS: CanonMacro[] = [
       engine.systemStatus = 'destroyed_by_starsilk_collapse';
 
       const event: ConsequenceEvent = {
-        id: `macro-starbinding-${Date.now()}`,
+        id: createId('macro-starbinding'),
         timestampSec: engine.timeSec,
         type: 'starsilk_pull',
         title: `Starbinding Study: ${stars.length} Stars Collapsed`,
@@ -138,7 +139,7 @@ export const CANON_MACROS: CanonMacro[] = [
       if (!body.rings) body.rings = [];
 
       const bloodRing: RingStructure = {
-        id: `blood-ring-${Date.now()}`,
+        id: createId('blood-ring'),
         name: `Blood Ring [${body.name}]`,
         innerRadiusKm: body.radiusKm * 1.6,
         outerRadiusKm: body.radiusKm * 2.8,
@@ -151,7 +152,7 @@ export const CANON_MACROS: CanonMacro[] = [
       body.rings.push(bloodRing);
 
       const event: ConsequenceEvent = {
-        id: `ring-${Date.now()}`,
+        id: createId('ring'),
         timestampSec: engine.timeSec,
         type: 'body_created',
         title: `Blood Ring Constructed around ${body.name}`,
@@ -182,7 +183,7 @@ export const CANON_MACROS: CanonMacro[] = [
       for (let i = 0; i < singularityCount; i++) {
         const theta = (i / singularityCount) * Math.PI * 2;
         const bh: CelestialBody = {
-          id: `siege-node-${i + 1}-${Date.now()}`,
+          id: createId(`siege-node-${i + 1}`),
           name: `Siege Node ${i + 1} (Sandbox)`,
           type: 'black_hole',
           massKg: 1e29,
@@ -207,7 +208,7 @@ export const CANON_MACROS: CanonMacro[] = [
       }
 
       const event: ConsequenceEvent = {
-        id: `siege-${Date.now()}`,
+        id: createId('siege'),
         timestampSec: engine.timeSec,
         type: 'siege_wall_locked',
         title: 'Siege Wall Study Deployed (Demonstrative Sandbox)',

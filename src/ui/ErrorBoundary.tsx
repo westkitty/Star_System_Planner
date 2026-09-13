@@ -9,6 +9,7 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { logger } from '../core/logger';
+import { toErrorCode, toUserMessage } from '../core/errors';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -70,8 +71,11 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             Interface disruption detected
           </div>
           <div className="boot-blocked-message">
-            {this.state.error.message || 'An unexpected rendering fault occurred.'} Your simulation
-            autosave is preserved in local storage.
+            {this.state.error ? toUserMessage(this.state.error) : 'An unexpected rendering fault occurred.'}{' '}
+            Your simulation autosave is preserved in local storage.
+          </div>
+          <div className="error-code-chip" aria-label="Error code">
+            FAULT {this.state.error ? toErrorCode(this.state.error) : 'UNKNOWN'}
           </div>
           <div className="modal-actions" style={{ justifyContent: 'center', marginTop: '16px' }}>
             <button className="btn-secondary" onClick={this.downloadDiagnostics}>

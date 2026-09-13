@@ -8,7 +8,29 @@
  */
 
 import { SimulationEngine } from '../simulation/engine';
+import { CelestialBody } from '../simulation/types';
+import { KM_PER_AU } from '../simulation/units';
 import { TimelineBranch, BranchComparisonResult } from './branch-types';
+
+/**
+ * Timeline divergence (GAME14): mean positional drift of bodies shared by
+ * two branches, expressed as a percentage of 1 AU. Powers the divergence
+ * tags in the timeline branch switcher.
+ */
+export function divergencePercent(primeBodies: CelestialBody[], otherBodies: CelestialBody[]): number {
+  if (primeBodies.length === 0 || otherBodies.length === 0) return 0;
+  const byId = new Map(otherBodies.map((b) => [b.id, b]));
+  let total = 0;
+  let count = 0;
+  for (const a of primeBodies) {
+    const b = byId.get(a.id);
+    if (!b) continue;
+    total += Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y, a.position.z - b.position.z);
+    count++;
+  }
+  if (count === 0) return 100;
+  return Math.min(999, Math.max(0, (total / count / KM_PER_AU) * 100));
+}
 
 export class BranchManager {
   public branches: Map<string, TimelineBranch> = new Map();

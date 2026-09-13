@@ -28,6 +28,17 @@ export class FutureClient {
   private pendingPayload: FutureForecastRequest | null = null;
   private coalesceTimer: ReturnType<typeof setTimeout> | null = null;
   private timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  // BACK04: state-hash-keyed forecast cache (LRU, small: responses are large).
+  private forecastCache = new Map<string, FutureForecastResponse>();
+  private lastRequestKey = '';
+  private cacheHits = 0;
+  private cacheMisses = 0;
+  private readonly maxCacheEntries = 8;
+
+  /** Cache telemetry for diagnostics. */
+  public getCacheStats(): { hits: number; misses: number; entries: number } {
+    return { hits: this.cacheHits, misses: this.cacheMisses, entries: this.forecastCache.size };
+  }
 
   constructor(callback?: ForecastCallback) {
     if (callback) this.callback = callback;
@@ -47,6 +58,7 @@ export class FutureClient {
           // Discard stale responses from older requests
           if (resp.requestId === this.currentRequestId) {
             this.clearTimeout();
+            this.storeInCache(resp);
             this.callback?.(resp);
           }
         };
@@ -93,6 +105,20 @@ export class FutureClient {
       selectedBodyId: options?.selectedBodyId ?? null,
       calculateSensitivity: options?.calculateSensitivity ?? false,
     };
+
+    // BACK04: serve identical states from cache without touching the worker.
+    const cacheKey = this.hashPayload(payload);
+    const cached = this.forecastCache.get(cacheKey);
+    if (cached) {
+      this.cacheHits++;
+      const hit = { ...cached, requestId };
+      setTimeout(() => {
+        if (requestId === this.currentRequestId) this.callback?.(hit);
+      }, 0);
+      return requestId;
+    }
+    this.cacheMisses++;
+    this.lastRequestKey = cacheKey;
 
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const elapsed = now - this.lastDispatchMs;
@@ -169,6 +195,41 @@ export class FutureClient {
       }
       this.callback?.({ requestId: payload.requestId, trajectories: dummyTraj, collisions: [] });
     }, 0);
+  }
+
+  /** Hash rounded state + request shape; insensitive to float jitter. */
+  private hashPayload(payload: FutureForecastRequest): string {
+    const parts: string[] = [
+      String(payload.steps),
+      String(payload.dtSeconds),
+      payload.selectedBodyId ?? '-',
+      payload.calculateSensitivity ? 's1' : 's0',
+    ];
+    for (const b of payload.bodies) {
+      parts.push(
+        [
+          b.id,
+          Math.round(b.position.x),
+          Math.round(b.position.y),
+          Math.round(b.position.z),
+          Math.round(b.velocity.x * 1000),
+          Math.round(b.velocity.y * 1000),
+          Math.round(b.velocity.z * 1000),
+        ].join(',')
+      );
+    }
+    return parts.join('|');
+  }
+
+  private storeInCache(resp: FutureForecastResponse): void {
+    // Responses are stored under the originating request's state hash so
+    // identical future states hit without re-integrating.
+    if (!this.lastRequestKey) return;
+    if (this.forecastCache.size >= this.maxCacheEntries) {
+      const oldest = this.forecastCache.keys().next().value as string | undefined;
+      if (oldest) this.forecastCache.delete(oldest);
+    }
+    this.forecastCache.set(this.lastRequestKey, resp);
   }
 
   public destroy(): void {

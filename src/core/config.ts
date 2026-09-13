@@ -58,6 +58,26 @@ export interface PersistenceTuning {
   maxChallengeRecords: number;
 }
 
+export interface DiscoveryTuning {
+  /** Pairwise separation (km) that counts as a close-approach conjunction. */
+  conjunctionKm: number;
+  /** Cooldown between repeat conjunction events for the same pair (sim-sec). */
+  conjunctionCooldownSec: number;
+  /** Cooldown between repeat syzygy events for the same triple (sim-sec). */
+  syzygyCooldownSec: number;
+  /** Resonance period-ratio tolerance (fraction). */
+  resonanceTolerance: number;
+  /** Minimum inertial Δv (km/s) worth celebrating as an assist. */
+  assistMinDvKmS: number;
+}
+
+export interface ScrubTuning {
+  /** Ring-buffer capacity (snapshots). */
+  capacity: number;
+  /** Sim-seconds between automatic captures. */
+  intervalSec: number;
+}
+
 export interface QualityTuning {
   /** Max device pixel ratio before downscale. */
   maxPixelRatio: number;
@@ -112,6 +132,17 @@ export const PLANNER_CONFIG = {
     recoverFpsThreshold: 55,
     starfieldCount: 3500,
   } as QualityTuning,
+  discovery: {
+    conjunctionKm: 0.05 * 149597870.7,
+    conjunctionCooldownSec: 86400,
+    syzygyCooldownSec: 43200,
+    resonanceTolerance: 0.015,
+    assistMinDvKmS: 0.03,
+  } as DiscoveryTuning,
+  scrub: {
+    capacity: 60,
+    intervalSec: 5,
+  } as ScrubTuning,
 };
 
 /** Resolve the adaptive physics step for a given time acceleration. */

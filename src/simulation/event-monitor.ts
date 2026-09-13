@@ -1,45 +1,70 @@
 /**
- * Live dynamical-event monitor (GAME05 escape watch, GAME06 tidal watch,
- * GAME07 thermal watch).
+ * Simulation consequence monitor (GAME05–07, GAME02–04, GAME06).
  *
- * Runs at a throttled cadence from the master loop and converts silent
- * physics transitions into ledger entries + bus events:
- * - newly unbound (escaping) orbits,
- * - Roche-limit breaches and Hill-sphere instability,
- * - equilibrium-temperature regime crossings (frozen / temperate / boiling).
+ * Throttled watchdog pass over live bodies: escape trajectories, Roche /
+ * Hill stability, thermal regime crossings, gravitational captures,
+ * eclipses + transits, close-approach conjunctions, and mean-motion
+ * resonances. Pair checks run through a spatial hash; Keplerian elements
+ * come from the per-tick cache. Also aggregates the warning summary that
+ * feeds the TopBar health pill.
  */
 
 import { CelestialBody, ConsequenceEvent } from './types';
-import { calculateOsculatingElements, findDominantPrimary } from './orbital-mechanics';
 import { eventBus } from '../core/event-bus';
+import { createId } from '../core/id';
+import { PLANNER_CONFIG } from '../core/config';
+import { calculateOsculatingElements, findDominantPrimary } from './orbital-mechanics';
+import { getCachedElements } from './element-cache';
+import { SpatialHash } from './spatial-hash';
+import { detectConjunctions, detectResonances, detectSyzygies } from './syzygy';
 
 export type ThermalRegime = 'frozen' | 'cold' | 'temperate' | 'hot' | 'inferno';
 
 export function thermalRegimeFor(tempK: number | undefined): ThermalRegime {
-  const t = tempK ?? 273;
-  if (t < 200) return 'frozen';
-  if (t < 273) return 'cold';
-  if (t <= 320) return 'temperate';
-  if (t <= 500) return 'hot';
+  if (tempK === undefined) return 'cold';
+  if (tempK < 200) return 'frozen';
+  if (tempK < 273) return 'cold';
+  if (tempK <= 320) return 'temperate';
+  if (tempK < 900) return 'hot';
   return 'inferno';
 }
 
 interface TrackedState {
-  wasBound: boolean | null;
+  wasBound: boolean;
   insideRoche: boolean;
   outsideHill: boolean;
   regime: ThermalRegime;
 }
 
+export interface MonitorWarningSummary {
+  unbound: number;
+  roche: number;
+  thermalAlerts: number;
+}
+
 export class SimulationEventMonitor {
   private tracked = new Map<string, TrackedState>();
   private lastRunMs = 0;
+  private hash = new SpatialHash(PLANNER_CONFIG.discovery.conjunctionKm);
+  private conjunctionCooldown = new Map<string, number>();
+  private syzygyCooldown = new Map<string, number>();
+  private announcedResonances = new Set<string>();
+  private summary: MonitorWarningSummary = { unbound: 0, roche: 0, thermalAlerts: 0 };
   /** Minimum wall-clock gap between monitor passes. */
   public throttleMs = 750;
 
   public reset(): void {
     this.tracked.clear();
+    this.conjunctionCooldown.clear();
+    this.syzygyCooldown.clear();
+    this.announcedResonances.clear();
+    this.summary = { unbound: 0, roche: 0, thermalAlerts: 0 };
     this.lastRunMs = 0;
+  }
+
+  /** Latest warning counts (updated on every executed pass). */
+  public getWarningSummary(): MonitorWarningSummary {
+    return { ...this.summary };
   }
 
   /**
@@ -56,15 +81,23 @@ export class SimulationEventMonitor {
     for (const id of [...this.tracked.keys()]) {
       if (!liveIds.has(id)) this.tracked.delete(id);
     }
+    for (const key of [...this.announcedResonances]) {
+      const [a, c] = key.split('|');
+      if (!liveIds.has(a) || !liveIds.has(c)) this.announcedResonances.delete(key);
+    }
+
+    let unbound = 0;
+    let roche = 0;
+    let thermalAlerts = 0;
 
     for (const body of bodies) {
       if (body.type === 'star' || body.type === 'black_hole' || body.fixed) continue;
       const primary = body.primaryId
-        ? bodies.find((b) => b.id === body.primaryId) ?? findDominantPrimary(body, bodies)
+        ? (bodies.find((b) => b.id === body.primaryId) ?? findDominantPrimary(body, bodies))
         : findDominantPrimary(body, bodies);
       if (!primary) continue;
 
-      const elements = calculateOsculatingElements(body, primary);
+      const elements = getCachedElements(body, primary, timeSec);
       if (!elements) continue;
 
       const prev = this.tracked.get(body.id);
@@ -78,8 +111,12 @@ export class SimulationEventMonitor {
       const outsideHill =
         elements.hillRadiusKm !== null && elements.hillRadiusKm > 0 && separationKm > elements.hillRadiusKm * 1.5;
 
+      if (!elements.isBound) unbound++;
+      if (insideRoche) roche++;
+      if (regime === 'inferno' || regime === 'frozen') thermalAlerts++;
+
       if (prev) {
-        // GAME05 — newly unbound orbit.
+        // Newly unbound orbit.
         if (prev.wasBound === true && !elements.isBound) {
           events.push({
             id: `escape-${body.id}-${Math.round(timeSec)}`,
@@ -92,7 +129,20 @@ export class SimulationEventMonitor {
           });
           eventBus.emit('orbit:escape', { bodyId: body.id, primaryId: primary.id });
         }
-        // GAME06 — tidal / Hill stability.
+        // GAME06 — gravitational capture (unbound → bound).
+        if (prev.wasBound === false && elements.isBound) {
+          events.push({
+            id: createId('capture'),
+            timestampSec: timeSec,
+            type: 'capture',
+            title: `Gravitational Capture: ${body.name}`,
+            description: `${primary.name} seized ${body.name} into a bound orbit (e=${elements.eccentricity.toFixed(3)}). A wanderer becomes a world.`,
+            bodyIds: [body.id, primary.id],
+            severity: 'info',
+          });
+          eventBus.emit('orbit:captured', { bodyId: body.id, primaryId: primary.id });
+        }
+        // Tidal / Hill stability.
         if (!prev.insideRoche && insideRoche) {
           events.push({
             id: `roche-${body.id}-${Math.round(timeSec)}`,
@@ -117,7 +167,7 @@ export class SimulationEventMonitor {
           });
           eventBus.emit('stability:warning', { kind: 'hill', bodyId: body.id, primaryId: primary.id });
         }
-        // GAME07 — thermal regime crossing.
+        // Thermal regime crossing.
         if (prev.regime !== regime) {
           const severe =
             (prev.regime === 'temperate' || regime === 'inferno' || regime === 'frozen') &&
@@ -138,6 +188,91 @@ export class SimulationEventMonitor {
       this.tracked.set(body.id, { wasBound: elements.isBound, insideRoche, outsideHill, regime });
     }
 
+    this.summary = { unbound, roche, thermalAlerts };
+    this.detectPairs(bodies, timeSec, events);
     return events;
   }
+
+  /** Pairwise discovery: conjunctions, syzygies, resonances. */
+  private detectPairs(bodies: CelestialBody[], timeSec: number, events: ConsequenceEvent[]): void {
+    const byId = new Map(bodies.map((b) => [b.id, b]));
+
+    // GAME03 — close approaches via spatial hash.
+    const conjunctions = detectConjunctions(bodies, PLANNER_CONFIG.discovery.conjunctionKm, this.hash);
+    for (const c of conjunctions) {
+      const key = [c.bodyAId, c.bodyBId].sort().join('|');
+      if ((this.conjunctionCooldown.get(key) ?? 0) > timeSec) continue;
+      this.conjunctionCooldown.set(key, timeSec + PLANNER_CONFIG.discovery.conjunctionCooldownSec);
+      const a = byId.get(c.bodyAId);
+      const b = byId.get(c.bodyBId);
+      events.push({
+        id: createId('conjunction'),
+        timestampSec: timeSec,
+        type: 'conjunction',
+        title: `Close Approach: ${a?.name ?? '?'} ↔ ${b?.name ?? '?'}`,
+        description: `Separation ${(c.separationKm / 149597870.7).toFixed(4)} AU and closing — a collision forecast may follow.`,
+        bodyIds: [c.bodyAId, c.bodyBId],
+        severity: 'caution',
+      });
+      eventBus.emit('discovery:conjunction', { bodyAId: c.bodyAId, bodyBId: c.bodyBId });
+    }
+
+    // GAME02 — eclipses and transits.
+    for (const s of detectSyzygies(bodies)) {
+      const key = `${s.kind}|${s.viewerId}|${s.occluderId}|${s.starId}`;
+      if ((this.syzygyCooldown.get(key) ?? 0) > timeSec) continue;
+      this.syzygyCooldown.set(key, timeSec + PLANNER_CONFIG.discovery.syzygyCooldownSec);
+      const viewer = byId.get(s.viewerId);
+      const occluder = byId.get(s.occluderId);
+      const star = byId.get(s.starId);
+      const depth = Math.round(s.magnitude01 * 100);
+      events.push({
+        id: createId(s.kind),
+        timestampSec: timeSec,
+        type: s.kind,
+        title:
+          s.kind === 'eclipse'
+            ? `Eclipse over ${viewer?.name ?? '?'}`
+            : `Transit across ${star?.name ?? '?'} as seen from ${viewer?.name ?? '?'}`,
+        description:
+          s.kind === 'eclipse'
+            ? `${occluder?.name ?? '?'} occults ${star?.name ?? '?'} above ${viewer?.name ?? '?'} (${depth}% depth).`
+            : `${occluder?.name ?? '?'} crosses the disc of ${star?.name ?? '?'} (${depth}% chord).`,
+        bodyIds: [s.viewerId, s.occluderId, s.starId],
+        severity: 'info',
+      });
+      eventBus.emit(s.kind === 'eclipse' ? 'discovery:eclipse' : 'discovery:transit', {
+        viewerId: s.viewerId,
+        occluderId: s.occluderId,
+        starId: s.starId,
+        magnitude01: s.magnitude01,
+      });
+    }
+
+    // GAME04 — mean-motion resonances (one-shot per pair).
+    for (const r of detectResonances(bodies, PLANNER_CONFIG.discovery.resonanceTolerance)) {
+      const key = [r.bodyAId, r.bodyBId].sort().join('|');
+      if (this.announcedResonances.has(key)) continue;
+      this.announcedResonances.add(key);
+      const a = byId.get(r.bodyAId);
+      const b = byId.get(r.bodyBId);
+      events.push({
+        id: createId('resonance'),
+        timestampSec: timeSec,
+        type: 'resonance',
+        title: `Resonance Found: ${r.ratioLabel}`,
+        description: `${a?.name ?? '?'} and ${b?.name ?? '?'} orbit in ${r.ratioLabel} mean-motion resonance (detune ${r.detunePct.toFixed(2)}%).`,
+        bodyIds: [r.bodyAId, r.bodyBId, r.primaryId],
+        severity: 'info',
+      });
+      eventBus.emit('discovery:resonance', {
+        bodyAId: r.bodyAId,
+        bodyBId: r.bodyBId,
+        ratioLabel: r.ratioLabel,
+      });
+    }
+  }
 }
+
+// Re-export for call sites that import the solver alongside the monitor.
+export { calculateOsculatingElements };

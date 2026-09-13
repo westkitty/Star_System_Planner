@@ -3,6 +3,7 @@
  */
 
 import { CelestialBody, ConsequenceEvent, Vector3D } from './types';
+import { createId } from '../core/id';
 
 export interface CollisionEventDetail {
   timestampSec: number;
@@ -102,7 +103,7 @@ export function resolveCollisions(
             const angle2 = (Math.random() - 0.5) * Math.PI;
             const ejectSpeed = (Math.random() * 0.5 + 0.2) * relSpeed + 5;
             debrisSink.push({
-              id: `debris-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              id: createId('debris'),
               position: {
                 x: survivor.position.x + (Math.random() - 0.5) * survivor.radiusKm,
                 y: survivor.position.y + (Math.random() - 0.5) * survivor.radiusKm,
@@ -153,4 +154,58 @@ export function resolveCollisions(
   }
 
   return collisions;
+}
+
+export interface ManualMergeResult {
+  survivor: CelestialBody;
+  absorbedId: string;
+  relativeSpeedKmS: number;
+  event: ConsequenceEvent;
+}
+
+/**
+ * Forecast-driven manual merge (GAME10): inelastically fuse two bodies on
+ * demand — the same momentum/volume-conserving math as physical
+ * collisions, invoked from the forecast banner instead of contact.
+ */
+export function mergeBodiesInelastic(
+  bodyA: CelestialBody,
+  bodyB: CelestialBody,
+  timestampSec: number
+): ManualMergeResult {
+  const survivor = bodyA.massKg >= bodyB.massKg ? bodyA : bodyB;
+  const absorbed = survivor === bodyA ? bodyB : bodyA;
+  const rvx = absorbed.velocity.x - survivor.velocity.x;
+  const rvy = absorbed.velocity.y - survivor.velocity.y;
+  const rvz = absorbed.velocity.z - survivor.velocity.z;
+  const relSpeed = Math.hypot(rvx, rvy, rvz);
+
+  const totalMass = survivor.massKg + absorbed.massKg;
+  if (!survivor.fixed && totalMass > 0) {
+    survivor.velocity = {
+      x: (survivor.massKg * survivor.velocity.x + absorbed.massKg * absorbed.velocity.x) / totalMass,
+      y: (survivor.massKg * survivor.velocity.y + absorbed.massKg * absorbed.velocity.y) / totalMass,
+      z: (survivor.massKg * survivor.velocity.z + absorbed.massKg * absorbed.velocity.z) / totalMass,
+    };
+    survivor.position = {
+      x: (survivor.massKg * survivor.position.x + absorbed.massKg * absorbed.position.x) / totalMass,
+      y: (survivor.massKg * survivor.position.y + absorbed.massKg * absorbed.position.y) / totalMass,
+      z: (survivor.massKg * survivor.position.z + absorbed.massKg * absorbed.position.z) / totalMass,
+    };
+  }
+  survivor.massKg = totalMass;
+  survivor.radiusKm = Math.cbrt(survivor.radiusKm ** 3 + absorbed.radiusKm ** 3);
+
+  const event: ConsequenceEvent = {
+    id: createId('merge'),
+    timestampSec,
+    type: 'collision',
+    title: `Commanded merger: ${survivor.name} + ${absorbed.name}`,
+    description:
+      `The architect fused ${absorbed.name} into ${survivor.name} ahead of the forecast impact. ` +
+      `Merged mass ${totalMass.toExponential(2)} kg; closing speed was ${relSpeed.toFixed(2)} km/s.`,
+    bodyIds: [survivor.id, absorbed.id],
+    severity: 'caution',
+  };
+  return { survivor, absorbedId: absorbed.id, relativeSpeedKmS: relSpeed, event };
 }

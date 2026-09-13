@@ -10,8 +10,12 @@
 export class AudioSynthesizer {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private ambienceGain: GainNode | null = null;
+  private ambienceNodes: OscillatorNode[] = [];
+  private ambienceFilter: BiquadFilterNode | null = null;
   public isEnabled: boolean = false;
   private volume = 0.8;
+  private lastMicroMs = 0;
 
   /** Live master volume 0..1 (UI15 settings). */
   public setVolume(volume: number): void {
@@ -52,8 +56,155 @@ export class AudioSynthesizer {
     if (this.isEnabled) {
       this.getContext();
       this.playTick();
+      this.startAmbience();
+    } else {
+      this.stopAmbience();
     }
     return this.isEnabled;
+  }
+
+  /**
+   * Generative ambient drone (ASSET06): a detuned low triad through a
+   * wandering lowpass — the sound of deep time. Intensity follows the
+   * time acceleration via setAmbienceIntensity.
+   */
+  public startAmbience(): void {
+    const ctx = this.getContext();
+    if (!ctx || this.ambienceNodes.length > 0) return;
+    const out = this.output();
+    if (!out) return;
+    this.ambienceGain = ctx.createGain();
+    this.ambienceGain.gain.value = 0;
+    this.ambienceGain.gain.setTargetAtTime(0.05, ctx.currentTime, 2.5);
+    this.ambienceFilter = ctx.createBiquadFilter();
+    this.ambienceFilter.type = 'lowpass';
+    this.ambienceFilter.frequency.value = 320;
+    this.ambienceFilter.Q.value = 0.8;
+    this.ambienceGain.connect(this.ambienceFilter);
+    this.ambienceFilter.connect(out);
+    for (const [freq, detune] of [[55, 0], [82.4, 4], [110, -5], [164.8, 7]] as Array<[number, number]>) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      osc.detune.value = detune;
+      osc.connect(this.ambienceGain);
+      osc.start();
+      this.ambienceNodes.push(osc);
+    }
+    // Slow filter wander via LFO.
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.07;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 140;
+    lfo.connect(lfoGain);
+    lfoGain.connect(this.ambienceFilter.frequency);
+    lfo.start();
+    this.ambienceNodes.push(lfo);
+  }
+
+  public stopAmbience(): void {
+    if (!this.ctx || this.ambienceNodes.length === 0) return;
+    const t = this.ctx.currentTime;
+    this.ambienceGain?.gain.setTargetAtTime(0, t, 0.4);
+    const nodes = this.ambienceNodes;
+    this.ambienceNodes = [];
+    setTimeout(() => {
+      for (const n of nodes) {
+        try {
+          n.stop();
+        } catch {
+          /* already stopped */
+        }
+        n.disconnect();
+      }
+    }, 1500);
+    this.ambienceGain = null;
+    this.ambienceFilter = null;
+  }
+
+  /** Brighten and lift the drone as time acceleration climbs (0..1). */
+  public setAmbienceIntensity(intensity01: number): void {
+    if (!this.ctx || !this.ambienceGain || !this.ambienceFilter) return;
+    const k = Math.max(0, Math.min(1, intensity01));
+    const t = this.ctx.currentTime;
+    this.ambienceGain.gain.setTargetAtTime(0.04 + k * 0.05, t, 0.8);
+    this.ambienceFilter.frequency.setTargetAtTime(320 + k * 900, t, 0.8);
+  }
+
+  /** Rate-limit micro feedback so slider drags don't machine-gun. */
+  private microReady(minGapMs = 90): boolean {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (now - this.lastMicroMs < minGapMs) return false;
+    this.lastMicroMs = now;
+    return true;
+  }
+
+  private blip(freq: number, durSec: number, gainValue: number, type: OscillatorType = 'sine'): void {
+    const ctx = this.getContext();
+    if (!ctx || !this.microReady()) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(gainValue, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durSec);
+    osc.connect(gain);
+    const out = this.output();
+    if (out) gain.connect(out);
+    osc.start();
+    osc.stop(ctx.currentTime + durSec + 0.02);
+  }
+
+  /** UI micro-sound set (ASSET07): modality-aware tactile feedback. */
+  public playModalOpen(): void {
+    this.blip(520, 0.09, 0.06, 'triangle');
+  }
+
+  public playModalClose(): void {
+    const ctx = this.getContext();
+    if (!ctx || !this.microReady()) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(520, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(330, ctx.currentTime + 0.09);
+    gain.gain.setValueAtTime(0.055, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.connect(gain);
+    const out = this.output();
+    if (out) gain.connect(out);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  }
+
+  public playToggle(on: boolean): void {
+    this.blip(on ? 660 : 440, 0.07, 0.05, 'square');
+  }
+
+  public playSliderTick(): void {
+    this.blip(880, 0.03, 0.025);
+  }
+
+  public playAssistChime(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const out = this.output();
+    if (!out) return;
+    [660, 880, 1320].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      const t0 = ctx.currentTime + i * 0.09;
+      osc.frequency.setValueAtTime(freq, t0);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.07, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
+      osc.connect(gain);
+      gain.connect(out);
+      osc.start(t0);
+      osc.stop(t0 + 0.4);
+    });
   }
 
   public playTick(): void {

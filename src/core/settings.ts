@@ -8,7 +8,12 @@
 
 import { eventBus } from './event-bus';
 
+export const SETTINGS_SCHEMA_VERSION = 2;
+
+export type UnitSystem = 'metric' | 'imperial';
+
 export interface PlannerSettings {
+  settingsVersion: number;
   audioVolume: number; // 0..1
   audioEnabled: boolean;
   autosaveEnabled: boolean;
@@ -18,9 +23,18 @@ export interface PlannerSettings {
   navigatorVisible: boolean;
   followOnSelect: boolean;
   onboardingCompleted: boolean;
+  // Iteration 2 additions (schema v2).
+  bookmarkedBodyIds: string[];
+  velocityVectorsVisible: boolean;
+  bodyLabelsVisible: boolean;
+  auRulerVisible: boolean;
+  orbitLinesVisible: boolean;
+  approachAutopilot: boolean;
+  unitSystem: UnitSystem;
 }
 
 export const DEFAULT_SETTINGS: PlannerSettings = {
+  settingsVersion: SETTINGS_SCHEMA_VERSION,
   audioVolume: 0.8,
   audioEnabled: false,
   autosaveEnabled: true,
@@ -29,6 +43,13 @@ export const DEFAULT_SETTINGS: PlannerSettings = {
   showHudHints: true,
   navigatorVisible: true,
   followOnSelect: false,
+  bookmarkedBodyIds: [],
+  velocityVectorsVisible: false,
+  bodyLabelsVisible: true,
+  auRulerVisible: false,
+  orbitLinesVisible: true,
+  approachAutopilot: true,
+  unitSystem: 'metric',
   onboardingCompleted: false,
 };
 
@@ -68,7 +89,7 @@ class SettingsStore {
       const raw = readRaw();
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<PlannerSettings>;
-        this.settings = { ...DEFAULT_SETTINGS, ...parsed };
+        this.settings = migrateSettings(parsed);
       }
     } catch {
       this.settings = { ...DEFAULT_SETTINGS };
@@ -101,6 +122,24 @@ class SettingsStore {
     writeRaw(JSON.stringify(this.settings));
     return this.get();
   }
+}
+
+/**
+ * Versioned settings migration (BACK09). Unversioned payloads are v1;
+ * each step layers new defaults without dropping unknown future keys.
+ */
+export function migrateSettings(parsed: Partial<PlannerSettings>): PlannerSettings {
+  const version = parsed.settingsVersion ?? 1;
+  if (version <= 1) {
+    const { settingsVersion: _ignored, ...rest } = parsed;
+    void _ignored;
+    return { ...DEFAULT_SETTINGS, ...rest, settingsVersion: SETTINGS_SCHEMA_VERSION };
+  }
+  return { ...DEFAULT_SETTINGS, ...parsed, settingsVersion: SETTINGS_SCHEMA_VERSION };
+}
+
+export function settingsSchemaVersionForTests(): number {
+  return SETTINGS_SCHEMA_VERSION;
 }
 
 export const settingsStore = new SettingsStore();
