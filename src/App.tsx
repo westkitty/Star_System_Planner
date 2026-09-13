@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SceneManager } from './rendering/scene-manager';
 import { SimulationEngine } from './simulation/engine';
 import { PointerManager, PointerToolMode } from './interaction/pointer-manager';
@@ -14,7 +14,7 @@ import { createBlankSystem } from './simulation/presets/blank-system';
 import { createProceduralSystem } from './simulation/presets/procedural-system';
 import { generateSystemSigilSvg } from './persistence/sigil';
 import { loadProjectFromDb } from './persistence/db';
-import { downloadProjectFile, parseProjectWithMigration } from './persistence/export-import';
+import { downloadProjectFile } from './persistence/export-import';
 import { createSerializableProject } from './persistence/serializer';
 import { AutosaveManager, AutosaveStatus } from './persistence/autosave';
 import { audioSynth } from './audio/audio-synth';
@@ -51,6 +51,20 @@ import { disposalRegistry } from './rendering/disposal';
 // UI Components
 import { TopBar, AppMode, PresetKind } from './ui/TopBar';
 import { ToolRail } from './ui/ToolRail';
+import { shortcutHintFor } from './ui/shortcuts';
+import { ImportDiagnosticsDialog } from './ui/ImportDiagnosticsDialog';
+import { PanelErrorBoundary } from './ui/PanelErrorBoundary';
+import { parseProjectWithDiagnostics } from './persistence/export-import';
+import type { ValidationIssue } from './persistence/validation';
+import { planTrojanPair } from './simulation/orbital-mechanics';
+import { applyArrivalBurn, planArrivalBurn } from './simulation/transfer-planner';
+import { computeArchitectScore } from './simulation/architect-score';
+import { discoveryCodex } from './simulation/discovery-codex';
+import type { DiscoveryKind } from './simulation/discovery-codex';
+import { SeededRng } from './core/seeded-rng';
+import { collectDiagnostics } from './core/diagnostics';
+import { computeSystemStatistics } from './simulation/system-stats';
+import { formatSimTime } from './simulation/units';
 import { ContextInspector } from './ui/ContextInspector';
 import { TimelineBar } from './ui/TimelineBar';
 import { CanonLabModal } from './ui/CanonLabModal';
@@ -256,11 +270,36 @@ const PlannerApp: React.FC = () => {
     }
   }, [settings, capabilities]);
 
+  // Iteration 3: selection history, eclipse memory, codex/debrief refresh, import diagnostics.
+  const selectionHistoryRef = useRef<string[]>([]);
+  const historyIndexRef = useRef(-1);
+  const historyNavRef = useRef(false);
+  const [historyPos, setHistoryPos] = useState({ index: -1, length: 0 });
+  const lastEclipseRef = useRef<{ atMs: number; viewerId: string; occluderId: string } | null>(null);
+  const [codexVersion, setCodexVersion] = useState(0);
+  const [assistVersion, setAssistVersion] = useState(0);
+  const [importDiagnostics, setImportDiagnostics] = useState<{ fileName: string; issues: ValidationIssue[]; notes: string[] } | null>(null);
+  const recordCodex = (kind: DiscoveryKind, label: string): void => {
+    discoveryCodex.record(kind, label);
+    setCodexVersion((v) => v + 1);
+  };
+
   // Selection side effects: follow-on-select + first-light challenge.
   const handleSelectBody = (id: string | null): void => {
+    if (!historyNavRef.current && id) {
+      const hist = selectionHistoryRef.current.slice(0, historyIndexRef.current + 1);
+      if (hist[hist.length - 1] !== id) {
+        hist.push(id);
+        const trimmed = hist.slice(-20);
+        selectionHistoryRef.current = trimmed;
+        historyIndexRef.current = trimmed.length - 1;
+        setHistoryPos({ index: trimmed.length - 1, length: trimmed.length });
+      }
+    }
     setSelectedBodyId(id);
     selectedBodyIdRef.current = id;
     sceneRef.current?.setSelectedBody(id);
+    if (sceneRef.current && followEnabled) sceneRef.current.setFollowBody(id);
     if (id) {
       challengeTrackerRef.current?.credit('first-light');
       audioSynth.playSelect();
@@ -273,10 +312,37 @@ const PlannerApp: React.FC = () => {
       }
       if (settingsRef.current.followOnSelect && sceneRef.current) {
         sceneRef.current.viewMode = 'follow_selected';
+        sceneRef.current.setFollowBody(id);
         setFollowEnabled(true);
         setTopDownEnabled(false);
       }
     }
+  };
+
+  // Selection-history traversal (iteration 3, UI07).
+  const selectionHistoryBack = (): void => {
+    const idx = historyIndexRef.current;
+    if (idx <= 0) return;
+    const id = selectionHistoryRef.current[idx - 1];
+    if (!id) return;
+    historyNavRef.current = true;
+    historyIndexRef.current = idx - 1;
+    setHistoryPos({ index: idx - 1, length: selectionHistoryRef.current.length });
+    handleSelectBody(id);
+    historyNavRef.current = false;
+  };
+
+  const selectionHistoryForward = (): void => {
+    const idx = historyIndexRef.current;
+    const hist = selectionHistoryRef.current;
+    if (idx < 0 || idx >= hist.length - 1) return;
+    const id = hist[idx + 1];
+    if (!id) return;
+    historyNavRef.current = true;
+    historyIndexRef.current = idx + 1;
+    setHistoryPos({ index: idx + 1, length: hist.length });
+    handleSelectBody(id);
+    historyNavRef.current = false;
   };
 
   // Initialize System
@@ -411,6 +477,8 @@ const PlannerApp: React.FC = () => {
         const name = bodies.find((b) => b.id === payload.bodyId)?.name ?? 'wanderer';
         const primary = bodies.find((b) => b.id === payload.primaryId)?.name ?? 'a companion';
         audioSynth.playSuccess();
+        audioSynth.playCaptureChord();
+        recordCodex('capture', `${primary} seized ${name}`);
         pushToastGlobal({
           kind: 'success',
           title: `Captured: ${name}`,
@@ -418,15 +486,24 @@ const PlannerApp: React.FC = () => {
           durationMs: 6000,
         });
       }),
+      eventBus.on('discovery:transit', (e) => recordCodex('transit', `Transit over ${engineRef.current?.bodies.find((b) => b.id === e.payload.viewerId)?.name ?? 'a world'}`)),
+      eventBus.on('discovery:conjunction', (e) => recordCodex('conjunction', `${engineRef.current?.bodies.find((b) => b.id === e.payload.bodyAId)?.name ?? '?'} x ${engineRef.current?.bodies.find((b) => b.id === e.payload.bodyBId)?.name ?? '?'}`)),
+      eventBus.on('discovery:resonance', (e) => recordCodex('resonance', `Resonance ${e.payload.ratioLabel}`)),
+      eventBus.on('collision:occurred', () => {
+        if (engineRef.current && branchManagerRef.current) branchManagerRef.current.checkpointActiveBranch(engineRef.current);
+      }),
       eventBus.on('discovery:eclipse', (e) => {
         const payload = e.payload as { viewerId?: string; occluderId?: string; magnitude01?: number };
         if (payload.viewerId && payload.occluderId) {
-          sceneMgr.spawnEclipseCone(payload.viewerId, payload.occluderId);
+          sceneMgr.spawnEclipseCone(payload.viewerId, payload.occluderId, payload.magnitude01 ?? 0.7);
+          lastEclipseRef.current = { atMs: Date.now(), viewerId: payload.viewerId ?? '', occluderId: payload.occluderId ?? '' };
+          audioSynth.playEclipseHush();
         }
         const bodies = engineRef.current?.bodies ?? [];
         const viewer = bodies.find((b) => b.id === payload.viewerId)?.name ?? 'a world';
         const occluder = bodies.find((b) => b.id === payload.occluderId)?.name ?? 'A companion';
         const depth = payload.magnitude01 !== undefined ? ` (${Math.round(payload.magnitude01 * 100)}% depth)` : '';
+        recordCodex('eclipse', `Eclipse over ${viewer}${depth}`);
         pushToastGlobal({
           kind: 'info',
           title: `Eclipse over ${viewer}${depth}`,
@@ -831,6 +908,10 @@ const PlannerApp: React.FC = () => {
 
         // Live dynamical-event monitor (GAME05–07).
         const monitor = monitorRef.current;
+        if (monitor && frameTicker % 120 === 0) {
+          const census = engine.bodies.length;
+          monitor.setPairBudget(census > 220 ? 140 : census > 120 ? 220 : Number.POSITIVE_INFINITY);
+        }
         if (monitor && !engine.isPaused) {
           const freshEvents = monitor.update(engine.bodies, engine.timeSec);
           for (const ev of freshEvents) {
@@ -867,6 +948,8 @@ const PlannerApp: React.FC = () => {
               planetName: engine.bodies.find((b) => b.id === assist.planetId)?.name,
               deltaVKmS: assist.deltaVKmS,
             });
+            recordCodex('assist', `${assist.craftId} +${assist.deltaVKmS.toFixed(2)} km/s sling @ ${assist.planetId}`);
+            setAssistVersion((v) => v + 1);
           }
           if (assists.length > 0) setEventCount(engine.events.length);
         }
@@ -874,9 +957,10 @@ const PlannerApp: React.FC = () => {
         // Scenario contracts (MissionsPanel): evaluate at ~6 Hz.
         if (frameTicker % 60 === 0 && contractTrackerRef.current) {
           const tracker = contractTrackerRef.current;
-          const ctx = { capturedBodyIds: [...capturedIdsRef.current] };
+          const ctx = { capturedBodyIds: [...capturedIdsRef.current], assistAtlas: assistTrackerRef.current?.grandTourAtlas() ?? {} };
           const fresh = tracker.evaluate(engine.bodies, ctx);
           for (const def of fresh) {
+            audioSynth.playContractFanfare();
             eventBus.emit('contract:completed', { contractId: def.id, title: def.title });
             engine.events.push({
               id: createId('contract'),
@@ -1092,6 +1176,8 @@ const PlannerApp: React.FC = () => {
         case 'fork-branch': openForkModal(); break;
         case 'open-ledger': setIsLedgerOpen(true); break;
         case 'open-navigator': handleToggleNavigator(); break;
+        case 'selection-back': selectionHistoryBack(); break;
+        case 'selection-forward': selectionHistoryForward(); break;
         case 'open-missions': setMissionsVisible((v) => !v); break;
         case 'open-stats': setIsStatsOpen(true); break;
         case 'open-help': setIsHelpOpen(true); break;
@@ -1109,6 +1195,11 @@ const PlannerApp: React.FC = () => {
     paletteOpen,
   ]);
 
+  // Iteration 3 (ASSET05): the deep-field backdrop follows the project name.
+  useEffect(() => {
+    sceneRef.current?.setNebulaSeed(SeededRng.hashString(projectName));
+  }, [projectName]);
+
   // Command palette registration (UI01): static entries once, bodies/branches dynamic.
   useEffect(() => {
     const faster = () => {
@@ -1120,34 +1211,34 @@ const PlannerApp: React.FC = () => {
       handleSetTimeScale(below);
     };
     registerCommands([
-      { id: 'cmd-pause', title: 'Pause / resume time', hint: 'Space', section: 'Transport', run: () => handleTogglePause() },
-      { id: 'cmd-step', title: 'Step one tick', hint: '.', section: 'Transport', run: () => handleStepOnce() },
-      { id: 'cmd-faster', title: 'Accelerate time', hint: ']', section: 'Transport', run: faster },
-      { id: 'cmd-slower', title: 'Decelerate time', hint: '[', section: 'Transport', run: slower },
+      { id: 'cmd-pause', title: 'Pause / resume time', hint: shortcutHintFor('toggle-pause'), section: 'Transport', run: () => handleTogglePause() },
+      { id: 'cmd-step', title: 'Step one tick', hint: shortcutHintFor('step-once'), section: 'Transport', run: () => handleStepOnce() },
+      { id: 'cmd-faster', title: 'Accelerate time', hint: shortcutHintFor('faster'), section: 'Transport', run: faster },
+      { id: 'cmd-slower', title: 'Decelerate time', hint: shortcutHintFor('slower'), section: 'Transport', run: slower },
       { id: 'cmd-resume-live', title: 'Resume live timeline', section: 'Transport', run: () => handleResumeLive() },
-      { id: 'cmd-tool-select', title: 'Tool: Select', hint: '1', section: 'Tools', run: () => setActiveTool('select') },
-      { id: 'cmd-tool-grab', title: 'Tool: Grab & throw', hint: '2', section: 'Tools', run: () => setActiveTool('grab_throw') },
-      { id: 'cmd-tool-loom', title: 'Tool: Orbit loom', hint: '3', section: 'Tools', run: () => setActiveTool('orbit_loom') },
-      { id: 'cmd-tool-create', title: 'New body…', hint: '4', section: 'Tools', run: () => setIsCreateModalOpen(true) },
+      { id: 'cmd-tool-select', title: 'Tool: Select', hint: shortcutHintFor('tool-select'), section: 'Tools', run: () => setActiveTool('select') },
+      { id: 'cmd-tool-grab', title: 'Tool: Grab & throw', hint: shortcutHintFor('tool-grab'), section: 'Tools', run: () => setActiveTool('grab_throw') },
+      { id: 'cmd-tool-loom', title: 'Tool: Orbit loom', hint: shortcutHintFor('tool-loom'), section: 'Tools', run: () => setActiveTool('orbit_loom') },
+      { id: 'cmd-tool-create', title: 'New body…', hint: shortcutHintFor('tool-create'), section: 'Tools', run: () => setIsCreateModalOpen(true) },
       { id: 'cmd-preset-demo', title: 'Load preset: Demonstration', section: 'System', keywords: 'preset demo kallisto', run: () => handleLoadPreset('demo') },
       { id: 'cmd-preset-meridian', title: 'Load preset: Meridian study', section: 'System', keywords: 'preset meridian virgil', run: () => handleLoadPreset('meridian') },
       { id: 'cmd-preset-procedural', title: 'Load preset: Procedural system', section: 'System', keywords: 'preset procedural random seed', run: () => handleLoadPreset('procedural') },
       { id: 'cmd-preset-blank', title: 'Load preset: Blank system', section: 'System', keywords: 'preset blank empty', run: () => handleLoadPreset('blank') },
-      { id: 'cmd-undo', title: 'Undo', hint: 'Ctrl+Z', section: 'System', run: () => handleUndo() },
+      { id: 'cmd-undo', title: 'Undo', hint: shortcutHintFor('undo'), section: 'System', run: () => handleUndo() },
       { id: 'cmd-export', title: 'Export system (.ssp.json)', section: 'System', run: () => handleExport() },
       { id: 'cmd-import', title: 'Import system…', section: 'System', run: () => handleImport() },
       { id: 'cmd-save-library', title: 'Shelve project in library', section: 'System', run: () => handleSaveToLibrary() },
-      { id: 'cmd-capture', title: 'Capture frame (PNG)', hint: 'P', section: 'System', run: () => handlePresentCapture() },
-      { id: 'cmd-ledger', title: 'Open event ledger', hint: 'L', section: 'System', run: () => setIsLedgerOpen(true) },
+      { id: 'cmd-capture', title: 'Capture frame (PNG)', hint: shortcutHintFor('present-capture'), section: 'System', run: () => handlePresentCapture() },
+      { id: 'cmd-ledger', title: 'Open event ledger', hint: shortcutHintFor('open-ledger'), section: 'System', run: () => setIsLedgerOpen(true) },
       { id: 'cmd-compare', title: 'Compare branches', section: 'System', run: () => setIsCompareOpen(true) },
-      { id: 'cmd-fork', title: 'Fork timeline…', hint: 'B', section: 'System', run: () => openForkModal() },
+      { id: 'cmd-fork', title: 'Fork timeline…', hint: shortcutHintFor('fork-branch'), section: 'System', run: () => openForkModal() },
       { id: 'cmd-stats', title: 'System statistics', section: 'System', run: () => setIsStatsOpen(true) },
       { id: 'cmd-settings', title: 'Settings', section: 'System', run: () => setIsSettingsOpen(true) },
-      { id: 'cmd-help', title: 'Keyboard shortcuts', hint: '?', section: 'System', run: () => setIsHelpOpen(true) },
-      { id: 'cmd-navigator', title: 'Toggle navigator', hint: 'N', section: 'System', run: () => handleToggleNavigator() },
-      { id: 'cmd-missions', title: 'Toggle missions', hint: 'M', section: 'System', run: () => setMissionsVisible((v) => !v) },
-      { id: 'cmd-grid', title: 'Toggle gravity grid', hint: 'G', section: 'System', run: () => handleToggleGravityGrid() },
-      { id: 'cmd-hz', title: 'Toggle habitable zones', hint: 'H', section: 'System', run: () => handleToggleHz() },
+      { id: 'cmd-help', title: 'Keyboard shortcuts', hint: shortcutHintFor('open-help'), section: 'System', run: () => setIsHelpOpen(true) },
+      { id: 'cmd-navigator', title: 'Toggle navigator', hint: shortcutHintFor('open-navigator'), section: 'System', run: () => handleToggleNavigator() },
+      { id: 'cmd-missions', title: 'Toggle missions', hint: shortcutHintFor('open-missions'), section: 'System', run: () => setMissionsVisible((v) => !v) },
+      { id: 'cmd-grid', title: 'Toggle gravity grid', hint: shortcutHintFor('toggle-grid'), section: 'System', run: () => handleToggleGravityGrid() },
+      { id: 'cmd-hz', title: 'Toggle habitable zones', hint: shortcutHintFor('toggle-hz'), section: 'System', run: () => handleToggleHz() },
     ]);
     return () => {
       for (const id of [
@@ -1206,6 +1297,13 @@ const PlannerApp: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     audioSynth.playTick();
+    const lastEclipse = lastEclipseRef.current;
+    if (lastEclipse && mode === 'PRESENT' && Date.now() - lastEclipse.atMs <= 120000) {
+      const bodies = engineRef.current?.bodies ?? [];
+      if (bodies.some((b) => b.id === lastEclipse.viewerId) && bodies.some((b) => b.id === lastEclipse.occluderId)) {
+        challengeTrackerRef.current?.credit('eclipse-photo');
+      }
+    }
     toast.push({ kind: 'success', title: 'Frame captured', detail: 'Screenshot exported as PNG.' });
   };
 
@@ -1233,9 +1331,9 @@ const PlannerApp: React.FC = () => {
 
   const handleSetTimeScale = (scale: number) => {
     if (engineRef.current) {
-      engineRef.current.timeScale = scale;
-      setTimeScale(scale);
-      timeScaleRef.current = scale;
+      const applied = engineRef.current.setTimeScale(scale);
+      setTimeScale(applied);
+      timeScaleRef.current = applied;
       audioSynth.playTick();
     }
   };
@@ -1293,6 +1391,7 @@ const PlannerApp: React.FC = () => {
     if (!sceneRef.current) return;
     if (followEnabled) {
       sceneRef.current.viewMode = 'inertial';
+      sceneRef.current.setFollowBody(null);
       setFollowEnabled(false);
     } else {
       if (!selectedBodyIdRef.current) {
@@ -1300,9 +1399,20 @@ const PlannerApp: React.FC = () => {
         return;
       }
       sceneRef.current.viewMode = 'follow_selected';
+      sceneRef.current.setFollowBody(selectedBodyIdRef.current);
       setFollowEnabled(true);
       setTopDownEnabled(false);
     }
+    audioSynth.playTick();
+  };
+
+  // Exit any camera lock (iteration 3, UI08 camera pill).
+  const handleExitCameraMode = (): void => {
+    if (!sceneRef.current) return;
+    sceneRef.current.setViewMode('inertial');
+    sceneRef.current.setFollowBody(null);
+    setFollowEnabled(false);
+    setTopDownEnabled(false);
     audioSynth.playTick();
   };
 
@@ -1364,13 +1474,22 @@ const PlannerApp: React.FC = () => {
   // Branching: Switch Branch
   const handleSwitchBranch = (id: string) => {
     if (branchManagerRef.current && engineRef.current && sceneRef.current) {
+      const keepId = selectedBodyIdRef.current;
       branchManagerRef.current.switchBranch(id, engineRef.current);
       setActiveBranchId(id);
       setSystemStatus(engineRef.current.systemStatus);
       sceneRef.current.syncBodies(engineRef.current.bodies, engineRef.current.belts);
-      setSelectedBodyId(null);
-      selectedBodyIdRef.current = null;
-      sceneRef.current.setSelectedBody(null);
+      const survivor = keepId ? engineRef.current.bodies.find((b) => b.id === keepId) : undefined;
+      if (survivor) {
+        setSelectedBodyId(survivor.id);
+        selectedBodyIdRef.current = survivor.id;
+        sceneRef.current.setSelectedBody(survivor.id);
+        toast.push({ kind: 'info', title: 'Selection preserved', detail: `${survivor.name} exists in this branch too.` });
+      } else {
+        setSelectedBodyId(null);
+        selectedBodyIdRef.current = null;
+        sceneRef.current.setSelectedBody(null);
+      }
       monitorRef.current?.reset();
       alertTrackerRef.current?.clear();
       setForecastAlerts([]);
@@ -1556,6 +1675,7 @@ const PlannerApp: React.FC = () => {
     if (!primary || !engineRef.current) return;
     const live = engineRef.current.bodies.find((b) => b.id === body.id);
     if (!live) return;
+    undoStackRef.current?.checkpoint(engineRef.current, 'maneuver', `Nudge ${live.name}`);
     const result = applyNudge(live, primary, direction, dvKmS);
     if (!result.applied) {
       toast.push({ kind: 'warning', title: 'Maneuver rejected', detail: result.detail });
@@ -1578,6 +1698,7 @@ const PlannerApp: React.FC = () => {
     if (!primary || !engineRef.current) return;
     const live = engineRef.current.bodies.find((b) => b.id === body.id);
     if (!live) return;
+    undoStackRef.current?.checkpoint(engineRef.current, 'maneuver', `Circularize ${live.name}`);
     const result = circularizeOrbit(live, primary);
     if (!result.applied) {
       toast.push({ kind: 'warning', title: 'Circularization rejected', detail: result.detail });
@@ -1601,6 +1722,7 @@ const PlannerApp: React.FC = () => {
     const live = engineRef.current.bodies.find((b) => b.id === body.id);
     const target = engineRef.current.bodies.find((b) => b.id === targetId);
     if (!live || !target) return;
+    undoStackRef.current?.checkpoint(engineRef.current, 'maneuver', `Rendezvous ${live.name}`);
     const result = matchVelocity(live, target);
     if (!result.applied) {
       toast.push({ kind: 'warning', title: 'Rendezvous rejected', detail: result.detail });
@@ -1629,6 +1751,7 @@ const PlannerApp: React.FC = () => {
       toast.push({ kind: 'warning', title: 'Transfer rejected', detail: 'No valid Hohmann arc between these radii.' });
       return;
     }
+    undoStackRef.current?.checkpoint(engineRef.current, 'maneuver', `Transfer ${live.name}`);
     const result = applyTransferDeparture(live, primary, plan);
     if (!result.applied) {
       toast.push({ kind: 'warning', title: 'Transfer rejected', detail: result.detail });
@@ -1649,6 +1772,108 @@ const PlannerApp: React.FC = () => {
       detail: `Δv ${plan.totalDvKmS.toFixed(2)} km/s · coast ${formatCountdown(plan.transferTimeSec)}.`,
     });
     afterManeuverSync(`${live.name}: transfer departure Δv ${plan.dv1KmS.toFixed(2)} km/s`, live.id);
+  };
+
+  // Arrival burn at the destination (iteration 3, GAME03).
+  const handleArrivalBurn = (body: CelestialBody, targetRadiusKm: number) => {
+    const primary = resolvePrimary(body);
+    if (!primary || !engineRef.current || !undoStackRef.current) return;
+    const live = engineRef.current.bodies.find((b) => b.id === body.id);
+    if (!live) return;
+    const plan = planArrivalBurn(live, primary, targetRadiusKm);
+    if (!plan) {
+      toast.push({ kind: 'warning', title: 'Arrival rejected', detail: 'No valid arrival solution for this radius.' });
+      return;
+    }
+    undoStackRef.current.checkpoint(engineRef.current, 'maneuver', `Arrival burn ${live.name}`);
+    const result = applyArrivalBurn(live, primary, plan);
+    if (!result.applied) {
+      toast.push({ kind: 'warning', title: 'Arrival rejected', detail: result.detail });
+      return;
+    }
+    engineRef.current.events.push({
+      id: createId('arrival'),
+      timestampSec: engineRef.current.timeSec,
+      type: 'throw_released',
+      title: `Arrival burn: ${live.name}`,
+      description: result.detail,
+      bodyIds: [live.id],
+      severity: 'info',
+    });
+    eventBus.emit('orbit:circularized', { bodyId: live.id });
+    afterManeuverSync(`${live.name}: ${result.detail}`, live.id);
+  };
+
+  // Trojan camp spawner (iteration 3, GAME11): honest L4/L5 co-orbital stations.
+  const handleParkTrojans = (planet: CelestialBody) => {
+    const primary = resolvePrimary(planet);
+    if (!primary || !engineRef.current || !sceneRef.current || !undoStackRef.current) return;
+    if (primary.type !== 'star') {
+      toast.push({ kind: 'info', title: 'Trojans need a star', detail: 'Select a planet orbiting a star first.' });
+      return;
+    }
+    const live = engineRef.current.bodies.find((b) => b.id === planet.id);
+    if (!live) return;
+    const pair = planTrojanPair(live, primary);
+    if (!pair) {
+      toast.push({ kind: 'warning', title: 'No trojan solution', detail: 'This planet has no usable L4/L5 geometry.' });
+      return;
+    }
+    undoStackRef.current.checkpoint(engineRef.current, 'bulk', `Trojan pair ${live.name}`);
+    const camps = [
+      { label: 'L4', berth: pair.l4 },
+      { label: 'L5', berth: pair.l5 },
+    ];
+    const spawned: string[] = [];
+    for (const camp of camps) {
+      const station: CelestialBody = {
+        id: createId('trojan'),
+        name: `${live.name} ${camp.label} Camp`,
+        type: 'station',
+        massKg: 1e9,
+        radiusKm: 80,
+        position: { ...camp.berth.position },
+        velocity: { ...camp.berth.velocity },
+        color: '#9fd8ff',
+        primaryId: primary.id,
+      };
+      engineRef.current.addBody(station);
+      spawned.push(station.id);
+    }
+    engineRef.current.events.push({
+      id: createId('trojan'),
+      timestampSec: engineRef.current.timeSec,
+      type: 'body_created',
+      title: `Trojan pair parked at ${live.name}`,
+      description: `Co-orbital stations hold the L4/L5 camps of ${live.name} around ${primary.name}.`,
+      bodyIds: spawned,
+      severity: 'info',
+    });
+    sceneRef.current.syncBodies(engineRef.current.bodies, engineRef.current.belts);
+    setEventCount(engineRef.current.events.length);
+    setSigilSvg(generateSystemSigilSvg(projectNameRef.current, engineRef.current.bodies));
+    audioSynth.playOrbitLock();
+    toast.push({ kind: 'success', title: 'Trojan pair parked', detail: `L4/L5 camps established around ${live.name}.` });
+  };
+
+  // Forecast interventions (iteration 3, GAME08): track or stabilize the doomed.
+  const handleTrackAlert = (alert: ForecastAlert) => {
+    handleSelectBody(alert.bodyAId);
+    if (sceneRef.current && !followEnabled) {
+      sceneRef.current.viewMode = 'follow_selected';
+      sceneRef.current.setFollowBody(alert.bodyAId);
+      setFollowEnabled(true);
+      setTopDownEnabled(false);
+    }
+  };
+
+  const handleStabilizeAlert = (alert: ForecastAlert) => {
+    const body = engineRef.current?.bodies.find((b) => b.id === alert.bodyAId);
+    if (!body) {
+      toast.push({ kind: 'info', title: 'Pair unavailable', detail: 'The threatened body is gone.' });
+      return;
+    }
+    handleCircularize(body);
   };
 
   // Forecast-driven manual merge (GAME10): fuse a doomed pair on demand.
@@ -1925,7 +2150,7 @@ const PlannerApp: React.FC = () => {
         distance: 250,
         viewMode: sceneRef.current.viewMode,
       },
-      `proj-${Date.now()}`
+      createId('proj')
     );
     downloadProjectFile(project);
     eventBus.emit('project:exported', { projectId: project.projectId });
@@ -1943,7 +2168,13 @@ const PlannerApp: React.FC = () => {
       reader.onload = (re) => {
         try {
           const raw = re.target?.result as string;
-          const { project, migrated, migrationNotes } = parseProjectWithMigration(raw);
+          const diag = parseProjectWithDiagnostics(raw);
+          if (!diag.ok || !diag.project) {
+            logger.error('import', 'Project import failed validation', { issues: diag.issues.length });
+            setImportDiagnostics({ fileName: file.name, issues: diag.issues, notes: diag.migrationNotes });
+            return;
+          }
+          const { project, migrated, migrationNotes } = { project: diag.project, migrated: diag.migrated, migrationNotes: diag.migrationNotes };
           if (engineRef.current && sceneRef.current && undoStackRef.current) {
             undoStackRef.current.checkpoint(engineRef.current, 'bulk', `Import ${project.projectName}`);
             const activeBranch = project.branches.find(b => b.id === project.activeBranchId) || project.branches[0];
@@ -1989,7 +2220,7 @@ const PlannerApp: React.FC = () => {
   const anyModalOpen =
     isCreateModalOpen || isCanonLabOpen || isLedgerOpen || isCompareOpen || isForkOpen ||
     isStatsOpen || isSettingsOpen || isHelpOpen || showOnboarding || confirmState !== null ||
-    importError !== null || paletteOpen;
+    importError !== null || importDiagnostics !== null || paletteOpen;
 
   // Timeline divergence tags (GAME14): live bodies for the active branch.
   const primeBranch = branches.find((b) => b.parentBranchId === null) ?? branches[0];
@@ -2002,9 +2233,53 @@ const PlannerApp: React.FC = () => {
     }
   }
 
+  // Iteration 3: progression props memoized on their refresh ticks.
+  const debriefProps = useMemo(
+    () =>
+      assistTrackerRef.current
+        ? {
+            best: assistTrackerRef.current.best,
+            recent: assistTrackerRef.current.recentAssists(),
+            onReset: () => {
+              assistTrackerRef.current?.reset();
+              setAssistVersion((v) => v + 1);
+            },
+          }
+        : undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [assistVersion]
+  );
+  const codexProps = useMemo(
+    () => ({
+      entries: discoveryCodex.list(),
+      onReset: () => {
+        discoveryCodex.reset();
+        setCodexVersion((v) => v + 1);
+      },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [codexVersion]
+  );
+
   const downloadDiagnostics = () => {
     const blob = new Blob(
-      [logger.exportDiagnostics({ capabilities, projectName, simTimeSec, disposal: disposalRegistry.report() })],
+      [
+        logger.exportDiagnostics(
+          collectDiagnostics({
+            capabilities,
+            projectName,
+            simTimeSec,
+            settingsVersion: settings.settingsVersion,
+            branchCount: branches.length,
+            activeBranchId,
+            eventCount: engineRef.current?.events.length ?? 0,
+            disposal: disposalRegistry.report(),
+            forecastCache: futureClientRef.current?.getCacheStats() ?? null,
+            forecastHealth: futureClientRef.current?.getHealth() ?? null,
+            monitorLoad: monitorRef.current?.getLoadStats() ?? null,
+          })
+        ),
+      ],
       { type: 'application/json' }
     );
     const url = URL.createObjectURL(blob);
@@ -2018,7 +2293,8 @@ const PlannerApp: React.FC = () => {
   };
 
   return (
-    <div className="planner-viewport">
+    <div className={`planner-viewport${settings.hudDensity === 'compact' ? ' hud-compact' : ''}`}>
+
       {!booted && (
         <BootSplash
           stage={bootStage}
@@ -2035,6 +2311,7 @@ const PlannerApp: React.FC = () => {
       <div className="hud-layer">
         <WarpStreaks timeScale={timeScale} paused={isPaused} reducedMotion={settings.reducedMotion} />
         {mode !== 'PRESENT' && (
+        <PanelErrorBoundary panel="Command bar">
         <TopBar
           projectName={projectName}
           sigilSvg={sigilSvg}
@@ -2079,6 +2356,7 @@ const PlannerApp: React.FC = () => {
           onOpenProject={handleOpenProject}
           onDeleteProject={handleDeleteProject}
         />
+        </PanelErrorBoundary>
         )}
         {/* Forecast impact banner (GAME04) */}
         {forecastAlerts.length > 0 && (
@@ -2101,6 +2379,20 @@ const PlannerApp: React.FC = () => {
             >
               MERGE NOW
             </button>
+            <button
+              className="forecast-track"
+              onClick={() => handleTrackAlert(forecastAlerts[0])}
+              title="Follow the threatened body"
+            >
+              TRACK
+            </button>
+            <button
+              className="forecast-stabilize"
+              onClick={() => handleStabilizeAlert(forecastAlerts[0])}
+              title="Circularize the threatened body (undoable)"
+            >
+              STABILIZE
+            </button>
           </div>
         )}
 
@@ -2116,6 +2408,7 @@ const PlannerApp: React.FC = () => {
 
         {/* Selected Body Inspector */}
         {selectedBody && mode !== 'PRESENT' && (
+          <PanelErrorBoundary panel="Inspector">
           <ContextInspector
             selectedBody={selectedBody}
             allBodies={engineRef.current?.bodies || []}
@@ -2145,10 +2438,13 @@ const PlannerApp: React.FC = () => {
             onCircularize={handleCircularize}
             onMatchVelocity={handleMatchVelocity}
             onTransferBurn={handleTransferBurn}
+            onArrivalBurn={handleArrivalBurn}
+            onParkTrojans={handleParkTrojans}
             onToggleStationKeeping={handleToggleStationKeeping}
             onExportEphemeris={handleExportEphemeris}
             unitSystem={settings.unitSystem}
           />
+          </PanelErrorBoundary>
         )}
 
         {/* Selection breadcrumb chip (UI14) */}
@@ -2166,11 +2462,16 @@ const PlannerApp: React.FC = () => {
             onDeselect={() => handleSelectBody(null)}
             bookmarked={settings.bookmarkedBodyIds.includes(selectedBody.id)}
             onToggleBookmark={() => handleToggleBookmark(selectedBody.id)}
+            onBack={selectionHistoryBack}
+            onForward={selectionHistoryForward}
+            canBack={historyPos.index > 0}
+            canForward={historyPos.index >= 0 && historyPos.index < historyPos.length - 1}
           />
         )}
 
         {/* Bottom Timeline Bar */}
         {mode !== 'PRESENT' && (
+        <PanelErrorBoundary panel="Timeline">
         <TimelineBar
           timeSec={simTimeSec}
           timeScale={timeScale}
@@ -2184,6 +2485,9 @@ const PlannerApp: React.FC = () => {
           onToggleTopDown={handleToggleTopDown}
           branches={branches}
           activeBranchId={activeBranchId}
+          cameraMode={topDownEnabled ? 'top' : followEnabled ? 'follow' : sceneRef.current?.viewMode === 'focus_selected' ? 'focus' : 'inertial'}
+          cameraTargetName={selectedBody?.name ?? null}
+          onExitCameraMode={handleExitCameraMode}
           onSwitchBranch={handleSwitchBranch}
           onForkBranch={openForkModal}
           onOpenLedger={() => setIsLedgerOpen(true)}
@@ -2200,6 +2504,7 @@ const PlannerApp: React.FC = () => {
             onResumeLive: handleResumeLive,
           }}
         />
+        </PanelErrorBoundary>
         )}
       </div>
 
@@ -2232,7 +2537,37 @@ const PlannerApp: React.FC = () => {
       {mode === 'PRESENT' && (
         <div className="present-overlay hud-interactive">
           <div className="present-title">{projectName}</div>
+          <div className="present-meta">
+            {isPaused ? 'HELD' : `${timeScale.toLocaleString()}×`} · T+{formatSimTime(simTimeSec)} ·{' '}
+            {branches.find((b) => b.id === activeBranchId)?.name ?? 'Prime Timeline'}
+          </div>
           <div className="present-row">
+            <button className="present-btn ghost" onClick={handleTogglePause} title="Pause / resume (Space)">
+              {isPaused ? 'Resume' : 'Pause'}
+            </button>
+            <button className="present-btn ghost" onClick={handleStepOnce} title="Advance one step (.)">
+              Step
+            </button>
+            <button
+              className="present-btn ghost"
+              onClick={() => {
+                const below = [...TIME_LADDER].reverse().find((x) => x < timeScaleRef.current) ?? 1;
+                handleSetTimeScale(below);
+              }}
+              title="Slow down"
+            >
+              −
+            </button>
+            <button
+              className="present-btn ghost"
+              onClick={() => {
+                const next = TIME_LADDER.find((x) => x > timeScaleRef.current) ?? 100000;
+                handleSetTimeScale(next);
+              }}
+              title="Speed up"
+            >
+              +
+            </button>
             <button className="present-btn" onClick={handlePresentCapture} title="Export the current frame as PNG (P)">
               Capture PNG
             </button>
@@ -2245,6 +2580,7 @@ const PlannerApp: React.FC = () => {
 
       {/* System navigator (UI07) */}
       {navigatorVisible && booted && mode !== 'PRESENT' && (
+        <PanelErrorBoundary panel="System navigator">
         <SystemNavigator
           bodies={engineRef.current?.bodies || []}
           selectedBodyId={selectedBodyId}
@@ -2257,10 +2593,12 @@ const PlannerApp: React.FC = () => {
           bookmarkedIds={settings.bookmarkedBodyIds}
           onToggleBookmark={handleToggleBookmark}
         />
+        </PanelErrorBoundary>
       )}
 
       {/* Missions panel (GAME14) */}
       {missionsVisible && mode !== 'PRESENT' && (
+        <PanelErrorBoundary panel="Missions">
         <MissionsPanel
           definitions={CHALLENGE_DEFINITIONS}
           states={challenges}
@@ -2268,7 +2606,10 @@ const PlannerApp: React.FC = () => {
           onReset={() => challengeTrackerRef.current?.resetAll()}
           contracts={contractCards}
           onResetContracts={handleResetContracts}
+          debrief={debriefProps}
+          codex={codexProps}
         />
+        </PanelErrorBoundary>
       )}
 
       {/* Orbit Loom Conic Confirmation Overlay */}
@@ -2370,6 +2711,15 @@ const PlannerApp: React.FC = () => {
         />
       )}
 
+      {importDiagnostics && (
+        <ImportDiagnosticsDialog
+          fileName={importDiagnostics.fileName}
+          issues={importDiagnostics.issues}
+          migrationNotes={importDiagnostics.notes}
+          onClose={() => setImportDiagnostics(null)}
+        />
+      )}
+
       {importError && (
         <ConfirmDialog
           title="Import failed"
@@ -2407,6 +2757,7 @@ const PlannerApp: React.FC = () => {
       )}
 
       {isLedgerOpen && (
+        <PanelErrorBoundary panel="Event ledger">
         <EventLedgerModal
           events={engineRef.current?.events || []}
           onClose={() => setIsLedgerOpen(false)}
@@ -2416,6 +2767,7 @@ const PlannerApp: React.FC = () => {
             if (sceneRef.current) sceneRef.current.viewMode = 'focus_selected';
           }}
         />
+        </PanelErrorBoundary>
       )}
 
       {isCompareOpen && branchManagerRef.current && (
@@ -2427,12 +2779,26 @@ const PlannerApp: React.FC = () => {
       )}
 
       {isStatsOpen && (
+        <PanelErrorBoundary panel="System statistics">
         <SystemStatsModal
           bodies={engineRef.current?.bodies || []}
           simTimeSec={simTimeSec}
           eventCount={eventCount}
+          architect={(() => {
+            const stats = computeSystemStatistics(engineRef.current?.bodies ?? []);
+            return computeArchitectScore({
+              missionsDone: challenges.filter((c) => c.completed).length,
+              missionsTotal: CHALLENGE_DEFINITIONS.length,
+              contractsDone: contractTrackerRef.current?.completedIds().length ?? 0,
+              contractsTotal: CONTRACT_DEFINITIONS.length,
+              codexKinds: discoveryCodex.kindsSeen(),
+              codexSightings: discoveryCodex.totalSightings(),
+              stabilityScore: stats.stabilityScore,
+            });
+          })()}
           onClose={() => setIsStatsOpen(false)}
         />
+        </PanelErrorBoundary>
       )}
 
       {isSettingsOpen && (

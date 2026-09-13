@@ -13,12 +13,16 @@ import { CelestialBody } from './types';
 import { KM_PER_AU } from './units';
 import { computeLagrangePoints } from './orbital-mechanics';
 
+export type ChallengeTier = 'Initiate' | 'Architect' | 'Master';
+
 export interface ChallengeDefinition {
   id: string;
   title: string;
   description: string;
   hint: string;
   triggerEvents: PlannerEventType[];
+  /** Progression tier (iteration 3, GAME06). */
+  tier: ChallengeTier;
   /** Optional extra gate evaluated against live bodies. */
   gate?: (bodies: CelestialBody[]) => boolean;
 }
@@ -33,6 +37,7 @@ export interface ChallengeState {
 export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   {
     id: 'first-light',
+    tier: 'Initiate',
     title: 'First Light',
     description: 'Select any celestial body to inspect its telemetry.',
     hint: 'Tap a planet or star in the viewport.',
@@ -40,6 +45,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'worldwright',
+    tier: 'Initiate',
     title: 'Worldwright',
     description: 'Create a new celestial body.',
     hint: 'Use CREATE in the tool rail to spawn a world.',
@@ -47,6 +53,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'loomweaver',
+    tier: 'Initiate',
     title: 'Loomweaver',
     description: 'Fit a conic orbit with the Orbit Loom.',
     hint: 'Select the LOOM tool and draw a stroke with pen or mouse.',
@@ -54,6 +61,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'ringwright',
+    tier: 'Architect',
     title: 'Ringwright',
     description: 'Engineer an orbital ring around any body.',
     hint: 'Commit a loom-fitted orbit as a ring, or invoke a blood ring.',
@@ -62,6 +70,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'slingshot',
+    tier: 'Initiate',
     title: 'Slingshot Pilot',
     description: 'Throw a body with grab-and-throw.',
     hint: 'GRAB a moon, drag a velocity vector, release.',
@@ -69,6 +78,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'escape-artist',
+    tier: 'Architect',
     title: 'Escape Artist',
     description: 'Place any body on an unbound escape trajectory.',
     hint: 'Throw hard, or nudge prograde until e ≥ 1.',
@@ -76,6 +86,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'cataclysm',
+    tier: 'Architect',
     title: 'Cataclysm Witness',
     description: 'Observe a physical collision merger.',
     hint: 'Throw two worlds at each other with collisions enabled.',
@@ -83,6 +94,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'soothsayer',
+    tier: 'Architect',
     title: 'Soothsayer',
     description: 'Receive a forecast collision warning before impact.',
     hint: 'Keep SHOW FUTURE on while orbits destabilize.',
@@ -90,6 +102,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'chronicler',
+    tier: 'Initiate',
     title: 'Chronicler',
     description: 'Fork the timeline into a named causal branch.',
     hint: 'Use the fork control in the timeline bar.',
@@ -97,6 +110,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'navigator',
+    tier: 'Architect',
     title: 'Navigator',
     description: 'Circularize any orbit with a single maneuver.',
     hint: 'Select a body and press CIRCULARIZE in the inspector.',
@@ -104,6 +118,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'canon-scholar',
+    tier: 'Initiate',
     title: 'Canon Scholar',
     description: 'Execute any Starsilk canon mechanism.',
     hint: 'Open the Canon Lab and complete a hold-to-confirm macro.',
@@ -111,6 +126,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'steward',
+    tier: 'Master',
     title: 'System Steward',
     description: 'Maintain 5+ bound bodies with no active warnings.',
     hint: 'Build calmly; watch the stability score.',
@@ -120,6 +136,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   // ---- Iteration 2 commissions (GAME05) ----
   {
     id: 'eclipse-chaser',
+    tier: 'Architect',
     title: 'Eclipse Chaser',
     description: 'Witness an eclipse or transit between your worlds.',
     hint: 'Align a moon between its planet and the star, then let time run.',
@@ -127,6 +144,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'lagrange-parker',
+    tier: 'Master',
     title: 'Lagrange Parker',
     description: 'Park any body near the L4 or L5 point of a star–planet pair.',
     hint: 'Throw a station 60° ahead of (or behind) a planet on its orbit.',
@@ -158,6 +176,7 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'hohmann-pilot',
+    tier: 'Architect',
     title: 'Hohmann Pilot',
     description: 'Execute a planned transfer departure burn.',
     hint: 'Open Transfers in the inspector, plan a Hohmann leg, and burn.',
@@ -165,12 +184,24 @@ export const CHALLENGE_DEFINITIONS: ChallengeDefinition[] = [
   },
   {
     id: 'comet-wrangler',
+    tier: 'Master',
     title: 'Comet Wrangler',
     description: 'Capture an unbound wanderer into a bound orbit.',
     hint: 'Slow a hyperbolic body near periapsis until the system seizes it.',
     triggerEvents: ['orbit:captured'],
   },
+  {
+    id: 'eclipse-photo',
+    tier: 'Master',
+    title: 'Eclipse Photographer',
+    description: 'Capture a PRESENT-mode frame while an eclipse is underway.',
+    hint: 'Enter PRESENT during an eclipse warning and press P to capture.',
+    triggerEvents: [],
+  },
 ];
+
+/** Progression order for tiered mission display. */
+export const TIER_ORDER: ChallengeTier[] = ['Initiate', 'Architect', 'Master'];
 
 const STORAGE_KEY = 'starsilk-planner-challenges-v1';
 

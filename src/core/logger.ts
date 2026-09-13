@@ -1,3 +1,5 @@
+import { createId } from './id';
+
 /**
  * Structured diagnostic logger (BACK02).
  *
@@ -15,6 +17,8 @@ export interface LogRecord {
   scope: string;
   message: string;
   data?: unknown;
+  /** Session correlation id (iteration 3, BACK10). */
+  session: string;
 }
 
 const LEVEL_RANK: Record<LogLevel, number> = {
@@ -29,7 +33,13 @@ const MAX_RECORDS = 512;
 class Logger {
   private records: LogRecord[] = [];
   private seq = 0;
+  private readonly sessionId: string = createId('session');
   public minLevel: LogLevel = 'debug';
+
+  /** Stable id correlating every record and export from this page load. */
+  public getSessionId(): string {
+    return this.sessionId;
+  }
 
   private emit(level: LogLevel, scope: string, message: string, data?: unknown): void {
     const record: LogRecord = {
@@ -39,6 +49,7 @@ class Logger {
       scope,
       message,
       data,
+      session: this.sessionId,
     };
     this.records.push(record);
     if (this.records.length > MAX_RECORDS) {
@@ -75,6 +86,7 @@ class Logger {
     return JSON.stringify(
       {
         exportedAtIso: new Date().toISOString(),
+        sessionId: this.sessionId,
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
         ...extra,
         records: this.records,

@@ -5,10 +5,10 @@
  * state guiding first-time architects, and accessible modal behavior.
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ConsequenceEvent } from '../simulation/types';
 import { formatSimTime } from '../simulation/units';
-import { X, AlertCircle, Info, Flame, Sparkles, ScrollText, Crosshair } from 'lucide-react';
+import { X, AlertCircle, Info, Flame, Sparkles, ScrollText, Crosshair, Copy, Check } from 'lucide-react';
 import { useModalA11y } from './modal-a11y';
 
 interface EventLedgerModalProps {
@@ -30,7 +30,28 @@ const FILTERS: Array<{ id: SeverityFilter; label: string }> = [
 export const EventLedgerModal: React.FC<EventLedgerModalProps> = ({ events, onClose, onFocusBody }) => {
   const ref = useModalA11y<HTMLDivElement>(onClose);
   const [filter, setFilter] = useState<SeverityFilter>('all');
-  const visible = filter === 'all' ? events : events.filter((e) => e.severity === filter);
+  const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [copied, setCopied] = useState(false);
+  const types = useMemo(() => [...new Set(events.map((e) => e.type))].sort(), [events]);
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return events.filter((e) => {
+      if (filter !== 'all' && e.severity !== filter) return false;
+      if (typeFilter !== 'all' && e.type !== typeFilter) return false;
+      if (q && !`${e.title} ${e.description}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [events, filter, typeFilter, query]);
+  const copyVisible = (): void => {
+    try {
+      void navigator.clipboard?.writeText(JSON.stringify(visible, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
 
   return (
     <div className="modal-backdrop hud-interactive" onClick={onClose}>
@@ -44,7 +65,7 @@ export const EventLedgerModal: React.FC<EventLedgerModalProps> = ({ events, onCl
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header-row ledger-header">
-          <h3 className="modal-title">CAUSAL EVENT LEDGER ({events.length})</h3>
+          <h3 className="modal-title">CAUSAL EVENT LEDGER ({visible.length}/{events.length})</h3>
           <button onClick={onClose} className="modal-x" aria-label="Close ledger">
             <X size={16} />
           </button>
@@ -63,6 +84,31 @@ export const EventLedgerModal: React.FC<EventLedgerModalProps> = ({ events, onCl
           ))}
         </div>
 
+        <div className="ledger-tools">
+          <input
+            className="ledger-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search title, description…"
+            aria-label="Search events"
+          />
+          <select
+            className="ledger-type"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            aria-label="Filter by event type"
+          >
+            <option value="all">All types</option>
+            {types.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <button className="ledger-copy" onClick={copyVisible} title="Copy filtered events as JSON">
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+
         <div className="ledger-list">
           {events.length === 0 ? (
             <div className="empty-state">
@@ -77,7 +123,7 @@ export const EventLedgerModal: React.FC<EventLedgerModalProps> = ({ events, onCl
             <div className="empty-state">
               <Info size={24} color="var(--text-muted)" />
               <div className="empty-state-title">No {filter} events</div>
-              <div className="empty-state-hint">Loosen the severity filter to see more history.</div>
+              <div className="empty-state-hint">Loosen the severity, type, or search filters to see more history.</div>
             </div>
           ) : (
             visible.slice().reverse().map((ev) => {

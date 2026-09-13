@@ -10,6 +10,7 @@
 import { CelestialBody, ConsequenceEvent } from './types';
 import { KM_PER_AU } from './units';
 import { createId } from '../core/id';
+import { PLANNER_CONFIG } from '../core/config';
 
 export interface AssistEvent extends ConsequenceEvent {
   type: 'assist';
@@ -31,6 +32,11 @@ export class AssistTracker {
   private cooldownUntil = new Map<string, number>();
   private bestDeltaVKmS = 0;
   private bestLabel = '';
+  /** craftId -> assisted planet ids (iteration 3, GAME01 grand tour). */
+  private flybys = new Map<string, Set<string>>();
+  /** Most recent measured assists, newest first (iteration 3, GAME02). */
+  private recent: AssistEvent[] = [];
+  private readonly maxRecent = 8;
 
   public get best(): { deltaVKmS: number; label: string } {
     return { deltaVKmS: this.bestDeltaVKmS, label: this.bestLabel };
@@ -41,6 +47,20 @@ export class AssistTracker {
     this.cooldownUntil.clear();
     this.bestDeltaVKmS = 0;
     this.bestLabel = '';
+    this.flybys.clear();
+    this.recent = [];
+  }
+
+  /** Recent measured assists, newest first, for the mission debrief. */
+  public recentAssists(): AssistEvent[] {
+    return [...this.recent];
+  }
+
+  /** craftId -> assisted planet ids, for the grand-tour contract. */
+  public grandTourAtlas(): Record<string, string[]> {
+    const out: Record<string, string[]> = {};
+    for (const [craftId, planetIds] of this.flybys) out[craftId] = [...planetIds];
+    return out;
   }
 
   private passRadiusKm(planet: CelestialBody): number {
@@ -82,13 +102,13 @@ export class AssistTracker {
             this.passes.delete(key);
             const cooling = this.cooldownUntil.get(key) ?? 0;
             const dv = this.speedOf(craft) - active.entrySpeedKmS;
-            if (timeSec >= cooling && dv >= 0.03) {
+            if (timeSec >= cooling && dv >= PLANNER_CONFIG.discovery.assistMinDvKmS) {
               this.cooldownUntil.set(key, timeSec + COOLDOWN_SEC);
               if (dv > this.bestDeltaVKmS) {
                 this.bestDeltaVKmS = dv;
                 this.bestLabel = `${craft.name} @ ${planet.name}`;
               }
-              out.push({
+              const measured: AssistEvent = {
                 id: createId('assist'),
                 timestampSec: timeSec,
                 type: 'assist',
@@ -101,7 +121,12 @@ export class AssistTracker {
                 deltaVKmS: dv,
                 craftId: craft.id,
                 planetId: planet.id,
-              });
+              };
+              out.push(measured);
+              this.recent.unshift(measured);
+              this.recent = this.recent.slice(0, this.maxRecent);
+              if (!this.flybys.has(measured.craftId)) this.flybys.set(measured.craftId, new Set());
+              this.flybys.get(measured.craftId)!.add(measured.planetId);
             }
           }
         }

@@ -6,6 +6,7 @@ import { calculateHabitableZone } from '../simulation/thermal';
 import { formatSimTime } from '../simulation/units';
 import { X, Globe, Sun, Moon, Radio, FlaskConical } from 'lucide-react';
 import { useModalA11y } from './modal-a11y';
+import { createId } from '../core/id';
 
 /**
  * Pre-spawn orbital preview (UI13): predicted period, equilibrium
@@ -57,6 +58,44 @@ function SpawnPreview(props: {
   );
 }
 
+export interface SpawnValidation {
+  errors: string[];
+  warnings: string[];
+}
+
+/**
+ * Pre-spawn validation (iteration 3, UI12).
+ *
+ * Empty names and unreachable distances block the commit; duplicate names
+ * and Roche-grazing orbits warn without blocking, since both can be
+ * deliberate architect choices.
+ */
+export function validateSpawnInputs(
+  name: string,
+  distanceAu: number,
+  primary: CelestialBody | null,
+  existingBodies: CelestialBody[]
+): SpawnValidation {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  if (!name.trim()) errors.push('Name the world before spawning it.');
+  if (!Number.isFinite(distanceAu) || distanceAu < 0.05 || distanceAu > 200) {
+    errors.push('Distance must be between 0.05 and 200 AU.');
+  }
+  if (name.trim() && existingBodies.some((b) => b.name.toLowerCase() === name.trim().toLowerCase())) {
+    warnings.push(`Another body is already named "${name.trim()}".`);
+  }
+  if (primary && Number.isFinite(distanceAu)) {
+    const distKm = distanceAu * KM_PER_AU;
+    if (distKm < primary.radiusKm) {
+      errors.push('Spawn point is inside the primary.');
+    } else if (distKm < primary.radiusKm * 2.5) {
+      warnings.push('Inside 2.5 primary radii — expect tidal disruption.');
+    }
+  }
+  return { errors, warnings };
+}
+
 interface CreateBodyModalProps {
   existingBodies: CelestialBody[];
   onSpawnBody: (body: CelestialBody) => void;
@@ -77,6 +116,9 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
     existingBodies.find(b => b.type === 'star')?.id || (existingBodies[0]?.id ?? '')
   );
   const [distanceAu, setDistanceAu] = useState<number>(1.2);
+
+  const selectedPrimary = existingBodies.find((b) => b.id === primaryId) ?? null;
+  const validation = validateSpawnInputs(name, distanceAu, selectedPrimary, existingBodies);
 
   const handleCreate = () => {
     const primary = existingBodies.find(b => b.id === primaryId);
@@ -138,7 +180,7 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
 
     const spectral = SPECTRAL_CLASSES.find((c) => c.class === spectralLetter) ?? SPECTRAL_CLASSES[4];
     const newBody: CelestialBody = {
-      id: `body-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: createId('body'),
       name: name.trim() || 'Celestial Object',
       type,
       classification: type === 'planet' ? classification : undefined,
@@ -356,9 +398,21 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
           type={type}
         />
 
+        {(validation.errors.length > 0 || validation.warnings.length > 0) && (
+          <div className="spawn-validation" aria-live="polite">
+            {validation.errors.map((e) => (
+              <div key={e} className="spawn-validation-error" role="alert">{e}</div>
+            ))}
+            {validation.warnings.map((w) => (
+              <div key={w} className="spawn-validation-warning">{w}</div>
+            ))}
+          </div>
+        )}
+
         {/* Commit Button */}
         <button
           onClick={handleCreate}
+          disabled={validation.errors.length > 0}
           style={{
             background: 'var(--accent-azure)',
             color: '#03050a',
@@ -368,7 +422,8 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
             fontSize: '12px',
             fontWeight: 800,
             letterSpacing: '0.04em',
-            cursor: 'pointer',
+            cursor: validation.errors.length > 0 ? 'not-allowed' : 'pointer',
+            opacity: validation.errors.length > 0 ? 0.45 : 1,
             marginTop: '6px',
           }}
         >

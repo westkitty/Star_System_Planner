@@ -22,6 +22,9 @@ export interface AutosaveState {
 export class AutosaveManager {
   private enabled = true;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryAttempt = 0;
+  private readonly maxRetries = 3;
   private pendingProject: SavedSystemProject | null = null;
   private state: AutosaveState = { status: 'idle', lastSavedAtMs: null, lastError: null, pendingWrites: 0 };
   private listeners = new Set<(state: AutosaveState) => void>();
@@ -71,6 +74,11 @@ export class AutosaveManager {
     this.timer = setTimeout(() => void this.flush(), this.debounceMs);
   }
 
+  /** Consecutive write failures awaiting retry (iteration 3, BACK05). */
+  public getRetryCount(): number {
+    return this.retryAttempt;
+  }
+
   /** Flush immediately (e.g. before destructive actions or unload). */
   public async flush(): Promise<boolean> {
     if (this.timer) {
@@ -86,12 +94,29 @@ export class AutosaveManager {
     this.update({ status: 'saving', pendingWrites: 0 });
     try {
       await saveProjectToDb(project);
+      this.retryAttempt = 0;
       this.update({ status: 'saved', lastSavedAtMs: Date.now(), lastError: null });
       eventBus.emit('project:saved', { projectId: project.projectId, kind: 'autosave' });
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error('autosave', 'write failed', err);
+      // Iteration 3 BACK05: transient storage failures (locked DB, quota
+      // pressure) retry with exponential backoff; the pending payload is
+      // preserved, never dropped, and error only surfaces after retries.
+      if (this.retryAttempt < this.maxRetries) {
+        this.retryAttempt++;
+        this.pendingProject = project;
+        const backoffMs = 1500 * Math.pow(2, this.retryAttempt - 1);
+        logger.warn('autosave', `write failed; retry ${this.retryAttempt}/${this.maxRetries} in ${backoffMs}ms`, err);
+        this.update({ status: 'saving', lastError: message, pendingWrites: 1 });
+        if (this.retryTimer) clearTimeout(this.retryTimer);
+        this.retryTimer = setTimeout(() => {
+          this.retryTimer = null;
+          void this.flush();
+        }, backoffMs);
+        return false;
+      }
+      logger.error('autosave', 'write failed after retries', err);
       this.update({ status: 'error', lastError: message });
       return false;
     }
@@ -103,6 +128,7 @@ export class AutosaveManager {
 
   public destroy(): void {
     if (this.timer) clearTimeout(this.timer);
+    if (this.retryTimer) clearTimeout(this.retryTimer);
     this.listeners.clear();
   }
 }

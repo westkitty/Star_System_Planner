@@ -8,6 +8,7 @@
 
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { CheckCircle, Info, AlertTriangle, XOctagon, X } from 'lucide-react';
+import { createId } from '../core/id';
 
 export type ToastKind = 'info' | 'success' | 'warning' | 'error';
 
@@ -23,6 +24,21 @@ export interface ToastItem {
   detail?: string;
   action?: ToastAction;
   durationMs: number;
+  /** Coalesced repeat count (iteration 3, UI09). */
+  count?: number;
+}
+
+/** Window inside which identical toasts coalesce instead of stacking. */
+export const TOAST_DEDUPE_WINDOW_MS = 3000;
+
+export function toastDedupeKey(title: string, detail?: string): string {
+  return `${title}\u0000${detail ?? ''}`;
+}
+
+/** True when two pushes are close enough in time to coalesce. */
+export function shouldCoalesceToast(prevAtMs: number, nextAtMs: number, windowMs = TOAST_DEDUPE_WINDOW_MS): boolean {
+  const delta = nextAtMs - prevAtMs;
+  return delta >= 0 && delta <= windowMs;
 }
 
 interface ToastContextValue {
@@ -62,6 +78,7 @@ const KIND_BORDER: Record<ToastKind, string> = {
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const lastPush = useRef<{ key: string; id: string; atMs: number } | null>(null);
 
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -74,11 +91,24 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const push = useCallback(
     (toast: Omit<ToastItem, 'id' | 'durationMs'> & { durationMs?: number }) => {
-      const id = `toast-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      const key = toastDedupeKey(toast.title, toast.detail);
+      const now = Date.now();
+      const last = lastPush.current;
+      if (last && last.key === key && shouldCoalesceToast(last.atMs, now)) {
+        setToasts((prev) => prev.map((t) => (t.id === last.id ? { ...t, count: (t.count ?? 1) + 1 } : t)));
+        const oldTimer = timers.current.get(last.id);
+        if (oldTimer) clearTimeout(oldTimer);
+        const timer = setTimeout(() => dismiss(last.id), toast.durationMs ?? 4200);
+        timers.current.set(last.id, timer);
+        lastPush.current = { key, id: last.id, atMs: now };
+        return last.id;
+      }
+      const id = createId('toast');
       const item: ToastItem = { ...toast, id, durationMs: toast.durationMs ?? 4200 };
       setToasts((prev) => [...prev.slice(-4), item]);
       const timer = setTimeout(() => dismiss(id), item.durationMs);
       timers.current.set(id, timer);
+      lastPush.current = { key, id, atMs: now };
       return id;
     },
     [dismiss]
@@ -96,7 +126,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           <div key={t.id} className="toast-item" style={{ borderColor: KIND_BORDER[t.kind] }}>
             <div className="toast-icon">{KIND_ICON[t.kind]}</div>
             <div className="toast-body">
-              <div className="toast-title">{t.title}</div>
+              <div className="toast-title">{t.title}{t.count && t.count > 1 ? <span className="toast-count">\u00d7{t.count}</span> : null}</div>
               {t.detail && <div className="toast-detail">{t.detail}</div>}
               {t.action && (
                 <button

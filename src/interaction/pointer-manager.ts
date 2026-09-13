@@ -58,6 +58,7 @@ export class PointerManager {
     this.element.addEventListener('pointermove', this.handlePointerMove);
     this.element.addEventListener('pointerup', this.handlePointerUp);
     this.element.addEventListener('pointercancel', this.handlePointerCancel);
+    this.element.addEventListener('lostpointercapture', this.handleLostCapture);
   }
 
   public destroy(): void {
@@ -65,6 +66,7 @@ export class PointerManager {
     this.element.removeEventListener('pointermove', this.handlePointerMove);
     this.element.removeEventListener('pointerup', this.handlePointerUp);
     this.element.removeEventListener('pointercancel', this.handlePointerCancel);
+    this.element.removeEventListener('lostpointercapture', this.handleLostCapture);
   }
 
   private normalize(e: PointerEvent, deltaX: number = 0, deltaY: number = 0): NormalizedPointerEvent {
@@ -184,11 +186,26 @@ export class PointerManager {
     const norm = this.normalize(e, 0, 0);
     this.activePointers.delete(e.pointerId);
 
+    try {
+      this.element.releasePointerCapture(e.pointerId);
+    } catch {
+      // already released — ignore
+    }
+
     if (this.activePointers.size < 2) {
       this.prevPinchDistance = null;
       this.prevPinchCenter = null;
     }
 
     this.callbacks.onPointerCancel(norm);
+  };
+
+  /**
+   * Capture loss (S Pen barrel-button gestures, OS interruptions) cleans
+   * up exactly like an explicit cancel so gestures never wedge (BACK13).
+   */
+  private handleLostCapture = (e: PointerEvent): void => {
+    if (!this.activePointers.has(e.pointerId)) return;
+    this.handlePointerCancel(e);
   };
 }

@@ -11,6 +11,7 @@
 
 import { CelestialBody } from './types';
 import {
+  FORECAST_PROTOCOL_VERSION,
   FutureForecastRequest,
   FutureForecastResponse,
   PredictedPoint,
@@ -34,10 +35,35 @@ export class FutureClient {
   private cacheHits = 0;
   private cacheMisses = 0;
   private readonly maxCacheEntries = 8;
+  // ---- Worker health telemetry (iteration 3, BACK06) ----
+  private timeouts = 0;
+  private fallbacks = 0;
+  private workerErrors = 0;
+  private lastLatencyMs = 0;
+  private consecutiveTimeouts = 0;
+  private workerDisabled = false;
+  private dispatchAtMs = 0;
 
   /** Cache telemetry for diagnostics. */
   public getCacheStats(): { hits: number; misses: number; entries: number } {
     return { hits: this.cacheHits, misses: this.cacheMisses, entries: this.forecastCache.size };
+  }
+
+  /** Worker health telemetry for diagnostics. */
+  public getHealth(): {
+    timeouts: number;
+    fallbacks: number;
+    workerErrors: number;
+    lastLatencyMs: number;
+    workerAlive: boolean;
+  } {
+    return {
+      timeouts: this.timeouts,
+      fallbacks: this.fallbacks,
+      workerErrors: this.workerErrors,
+      lastLatencyMs: this.lastLatencyMs,
+      workerAlive: Boolean(this.worker) && !this.workerDisabled,
+    };
   }
 
   constructor(callback?: ForecastCallback) {
@@ -58,12 +84,22 @@ export class FutureClient {
           // Discard stale responses from older requests
           if (resp.requestId === this.currentRequestId) {
             this.clearTimeout();
+            const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+            this.lastLatencyMs = Math.max(0, now - this.dispatchAtMs);
+            this.consecutiveTimeouts = 0;
+            if (resp.protocolVersion !== undefined && resp.protocolVersion !== FORECAST_PROTOCOL_VERSION) {
+              logger.warn('future-worker', 'Forecast protocol mismatch; treating response as suspect', {
+                got: resp.protocolVersion,
+                want: FORECAST_PROTOCOL_VERSION,
+              });
+            }
             this.storeInCache(resp);
             this.callback?.(resp);
           }
         };
 
         this.worker.onerror = (err) => {
+          this.workerErrors++;
           logger.warn('future-worker', 'Worker error; using threaded fallback next request', err);
         };
       } catch (e) {
@@ -146,8 +182,10 @@ export class FutureClient {
   }
 
   private dispatch(payload: FutureForecastRequest): void {
-    this.lastDispatchMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    if (this.worker) {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    this.lastDispatchMs = now;
+    this.dispatchAtMs = now;
+    if (this.worker && !this.workerDisabled) {
       this.worker.postMessage(payload);
       this.armTimeout(payload);
     } else {
@@ -160,7 +198,14 @@ export class FutureClient {
     this.timeoutTimer = setTimeout(() => {
       // Worker is wedged: invalidate the in-flight request and fall back.
       if (payload.requestId === this.currentRequestId) {
-        logger.warn('future-worker', 'Forecast timed out; using synchronous fallback');
+        this.timeouts++;
+        this.consecutiveTimeouts++;
+        if (this.consecutiveTimeouts >= 3 && !this.workerDisabled) {
+          this.workerDisabled = true;
+          logger.warn('future-worker', 'Worker timed out repeatedly; parked for this session');
+        } else {
+          logger.warn('future-worker', 'Forecast timed out; using synchronous fallback');
+        }
         this.currentRequestId++;
         this.syncFallback({ ...payload, requestId: this.currentRequestId });
       }
@@ -176,6 +221,7 @@ export class FutureClient {
 
   /** Main-thread fallback: straight-line projection (never blocks). */
   private syncFallback(payload: FutureForecastRequest): void {
+    this.fallbacks++;
     setTimeout(() => {
       if (payload.requestId !== this.currentRequestId) return;
       const dummyTraj: Record<string, PredictedPoint[]> = {};

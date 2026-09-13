@@ -114,14 +114,14 @@ describe('EventBus (BACK01) and Logger (BACK02)', () => {
   it('delivers typed events and supports unsubscribe', () => {
     const seen: string[] = [];
     const off = eventBus.on('body:created', (e) => seen.push((e.payload as { bodyId: string }).bodyId));
-    eventBus.emit('body:created', { bodyId: 'x' });
+    eventBus.emit('body:created', { bodyId: 'x', name: 'X', type: 'planet' });
     off();
-    eventBus.emit('body:created', { bodyId: 'y' });
+    eventBus.emit('body:created', { bodyId: 'y', name: 'Y', type: 'planet' });
     expect(seen).toEqual(['x']);
   });
 
   it('retains recent history for diagnostics', () => {
-    eventBus.emit('branch:forked', { branchId: 'b1' });
+    eventBus.emit('branch:forked', { branchId: 'b1', name: 'B1' });
     expect(eventBus.recent(5).map((e) => e.type)).toContain('branch:forked');
   });
 
@@ -281,12 +281,12 @@ describe('ChallengeTracker (GAME14)', () => {
     tracker = new ChallengeTracker();
     const bodies = [makeStar(), makePlanet()];
     tracker.setBodyProvider(() => bodies);
-    eventBus.emit('orbit:fitted', {});
+    eventBus.emit('orbit:fitted', { bodyId: 'x', primaryId: 'y' });
     expect(tracker.list().find((s) => s.id === 'ringwright')?.completed).toBe(false);
     bodies[1].rings = [
       { id: 'r1', name: 'R', innerRadiusKm: 8000, outerRadiusKm: 14000, normal: { x: 0, y: 1, z: 0 } },
     ];
-    eventBus.emit('orbit:fitted', {});
+    eventBus.emit('orbit:fitted', { bodyId: 'x', primaryId: 'y' });
     expect(tracker.list().find((s) => s.id === 'ringwright')?.completed).toBe(true);
   });
 

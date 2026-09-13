@@ -74,6 +74,7 @@ export interface CelestialBody {
 
   // Flight-dynamics flags
   stationKeeping?: boolean; // GAME11: stations actively hold circular orbits
+  deltaVSpentKmS?: number; // Iteration 3 GAME12: cumulative flown delta-v
 
   // Visual metadata
   classification?: PlanetClassification;

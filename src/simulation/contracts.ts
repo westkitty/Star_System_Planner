@@ -7,11 +7,11 @@
  */
 
 import { CelestialBody } from './types';
-import { SOLAR_MASS_KG } from './units';
+import { KM_PER_AU, SOLAR_MASS_KG } from './units';
 import { assessHabitability } from './habitability';
 import { detectResonances } from './syzygy';
 import { findDominantPrimary } from './orbital-mechanics';
-import { calculateOsculatingElements } from './orbital-mechanics';
+import { calculateOsculatingElements, computeLagrangePoints } from './orbital-mechanics';
 
 export interface ContractProgress {
   done: boolean;
@@ -20,6 +20,8 @@ export interface ContractProgress {
 
 export interface ContractContext {
   capturedBodyIds?: string[];
+  /** craftId -> assisted planet ids, from the AssistTracker atlas. */
+  assistAtlas?: Record<string, string[]>;
 }
 
 export interface ContractDefinition {
@@ -99,6 +101,84 @@ export const CONTRACT_DEFINITIONS: ContractDefinition[] = [
       return {
         done: false,
         progress: wanderers.length > 0 ? `${wanderers.length} unbound wanderer(s) available.` : 'No wanderers in flight.',
+      };
+    },
+  },
+  {
+    id: 'trojan-shepherd',
+    title: 'Trojan Shepherd',
+    brief: 'Park a station or ship inside a star–planet L4/L5 trojan camp.',
+    check: (bodies) => {
+      const stars = bodies.filter((b) => b.type === 'star');
+      const secondaries = bodies.filter((b) => b.type === 'planet' || b.type === 'moon');
+      let best = Number.POSITIVE_INFINITY;
+      for (const star of stars) {
+        for (const secondary of secondaries) {
+          if (secondary.id === star.id) continue;
+          const points = computeLagrangePoints(star, secondary);
+          if (!points) continue;
+          for (const parked of bodies) {
+            if (parked.id === star.id || parked.id === secondary.id) continue;
+            if (parked.type !== 'station' && parked.type !== 'ship') continue;
+            const camps: Array<{ label: string; at: { x: number; y: number; z: number } }> = [
+              { label: 'L4', at: points.L4 },
+              { label: 'L5', at: points.L5 },
+            ];
+            for (const camp of camps) {
+              const d = Math.hypot(
+                parked.position.x - camp.at.x,
+                parked.position.y - camp.at.y,
+                parked.position.z - camp.at.z
+              );
+              best = Math.min(best, d);
+              if (d < 0.02 * KM_PER_AU) {
+                return { done: true, progress: `${parked.name} holds the ${camp.label} camp of ${secondary.name}.` };
+              }
+            }
+          }
+        }
+      }
+      return {
+        done: false,
+        progress: Number.isFinite(best)
+          ? `Nearest camp approach: ${(best / KM_PER_AU).toFixed(3)} AU.`
+          : 'No stations or ships in flight.',
+      };
+    },
+  },
+  {
+    id: 'heliocide-witness',
+    title: 'Heliocide Witness',
+    brief: 'Stand witness as a star collapses into a singularity.',
+    check: (bodies) => {
+      const fallen = bodies.filter((b) => b.isCollapsedSingularity);
+      if (fallen.length > 0) {
+        const names = fallen.map((f) => f.name).slice(0, 3).join(', ');
+        return { done: true, progress: `${names} burn${fallen.length > 1 ? '' : 's'} no more.` };
+      }
+      const stars = bodies.filter((b) => b.type === 'star').length;
+      return { done: false, progress: stars > 0 ? `${stars} star(s) still burning.` : 'No stars remain.' };
+    },
+  },
+  {
+    id: 'grand-tour',
+    title: 'Grand Tour',
+    brief: 'Fly one craft through gravity assists at three distinct worlds.',
+    check: (bodies, ctx) => {
+      const atlas = ctx.assistAtlas ?? {};
+      let best = 0;
+      let bestCraft = '';
+      for (const [craftId, planetIds] of Object.entries(atlas)) {
+        const distinct = new Set(planetIds).size;
+        if (distinct > best) {
+          best = distinct;
+          bestCraft = bodies.find((b) => b.id === craftId)?.name ?? craftId;
+        }
+      }
+      if (best >= 3) return { done: true, progress: `${bestCraft} toured ${best} distinct worlds.` };
+      return {
+        done: false,
+        progress: best > 0 ? `${bestCraft}: ${best}/3 worlds toured.` : 'No multi-world tours yet.',
       };
     },
   },

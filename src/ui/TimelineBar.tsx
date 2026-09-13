@@ -31,6 +31,10 @@ interface TimelineBarProps {
   eventCount: number;
   /** Divergence % per branch id vs the prime branch (GAME14). */
   divergenceByBranch?: Record<string, number>;
+  /** Live camera posture for the status pill (iteration 3, UI08). */
+  cameraMode?: 'follow' | 'top' | 'focus' | 'inertial';
+  cameraTargetName?: string | null;
+  onExitCameraMode?: () => void;
   /** Snapshot ring-buffer scrub state (UI03). */
   scrub?: {
     size: number;
@@ -77,6 +81,9 @@ export const TimelineBar: React.FC<TimelineBarProps> = ({
   onOpenBranchCompare,
   eventCount,
   divergenceByBranch,
+  cameraMode = 'inertial',
+  cameraTargetName = null,
+  onExitCameraMode,
   scrub,
 }) => {
   return (
@@ -176,6 +183,22 @@ export const TimelineBar: React.FC<TimelineBarProps> = ({
             <Map size={13} />
             TOP
           </button>
+          <button
+            className={`camera-pill ${cameraMode}`}
+            onClick={onExitCameraMode}
+            disabled={cameraMode === 'inertial' || !onExitCameraMode}
+            title={cameraMode === 'inertial' ? 'Free camera' : 'Exit camera lock'}
+            aria-label={`Camera mode: ${cameraMode}`}
+          >
+            <span className="camera-pill-dot" />
+            {cameraMode === 'follow'
+              ? `FOLLOW${cameraTargetName ? ` · ${cameraTargetName}` : ''}`
+              : cameraMode === 'top'
+                ? 'TOP-DOWN'
+                : cameraMode === 'focus'
+                  ? `FOCUS${cameraTargetName ? ` · ${cameraTargetName}` : ''}`
+                  : 'FREE CAM'}
+          </button>
         </div>
       </div>
 
@@ -193,7 +216,7 @@ export const TimelineBar: React.FC<TimelineBarProps> = ({
             return (
               <option key={b.id} value={b.id}>
                 {b.name}
-                {tag} ({formatSimTime(b.snapshot.timestampSec)})
+                {tag} · {b.snapshot.bodies.length} bodies · {b.events.length} events · {formatSimTime(b.snapshot.timestampSec)}
               </option>
             );
           })}

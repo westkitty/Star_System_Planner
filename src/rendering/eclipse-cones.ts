@@ -13,6 +13,8 @@ interface ActiveCone {
   mesh: THREE.Mesh;
   ageSec: number;
   ttlSec: number;
+  /** Peak opacity derived from occultation depth. */
+  peak: number;
 }
 
 export class EclipseConeRenderer {
@@ -28,28 +30,27 @@ export class EclipseConeRenderer {
     occluderScene: THREE.Vector3,
     viewerScene: THREE.Vector3,
     startRadiusScene: number,
-    ttlSec = 25
+    ttlSec = 25,
+    magnitude01 = 0.7
   ): void {
     if (this.cones.length >= 6) {
       const dropped = this.cones.shift();
       if (dropped) this.remove(dropped);
     }
+    // Iteration 3 ASSET12: total eclipses cast wide dark shafts; grazes
+    // whisper thin penumbrae.
+    const mag = Math.min(1, Math.max(0, magnitude01));
     const dir = viewerScene.clone().sub(occluderScene);
     const len = Math.max(0.001, dir.length());
     dir.normalize();
-    const geo = new THREE.CylinderGeometry(
-      startRadiusScene * 1.4,
-      startRadiusScene * 0.55,
-      len,
-      20,
-      1,
-      true
-    );
+    const mouth = startRadiusScene * (0.9 + mag * 0.9);
+    const geo = new THREE.CylinderGeometry(mouth, mouth * 0.4, len, 20, 1, true);
     disposalRegistry.track(geo, 'eclipse-geometry');
+    const peak = 0.28 + mag * 0.3;
     const mat = new THREE.MeshBasicMaterial({
       color: '#01020a',
       transparent: true,
-      opacity: 0.42,
+      opacity: peak,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
@@ -59,7 +60,7 @@ export class EclipseConeRenderer {
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().negate());
     mesh.renderOrder = 5;
     this.group.add(mesh);
-    this.cones.push({ mesh, ageSec: 0, ttlSec });
+    this.cones.push({ mesh, ageSec: 0, ttlSec, peak });
   }
 
   public update(deltaSec: number): void {
@@ -72,7 +73,7 @@ export class EclipseConeRenderer {
         continue;
       }
       const mat = cone.mesh.material as THREE.MeshBasicMaterial;
-      mat.opacity = 0.42 * (t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85);
+      mat.opacity = cone.peak * (t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85);
     }
   }
 

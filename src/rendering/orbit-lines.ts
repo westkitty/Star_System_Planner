@@ -12,6 +12,20 @@ import { disposalRegistry } from './disposal';
 
 export const ORBIT_LINE_SEGMENTS = 128;
 
+/**
+ * Eccentricity-graded orbit-line styling (iteration 3, ASSET08).
+ *
+ * Near-circular loops stay faint azure; eccentric loops warm toward amber
+ * so dangerous orbits read as dangerous before the forecast says so.
+ */
+export function orbitLineStyle(eccentricity: number, selected: boolean): { color: string; opacity: number } {
+  if (selected) return { color: '#ffd166', opacity: 0.8 };
+  const e = Math.min(1, Math.max(0, eccentricity));
+  if (e > 0.6) return { color: '#e8a33d', opacity: 0.5 };
+  if (e > 0.25) return { color: '#7fb3c8', opacity: 0.4 };
+  return { color: '#3d7ea6', opacity: 0.32 };
+}
+
 function ellipsePoint(
   elements: OsculatingElements,
   center: Vector3D,
@@ -87,9 +101,9 @@ export class OrbitLineRenderer {
       line.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       line.geometry.attributes.position.needsUpdate = true;
       const mat = line.material as THREE.LineBasicMaterial;
-      const selected = body.id === selectedBodyId;
-      mat.color.set(selected ? '#ffd166' : '#3d7ea6');
-      mat.opacity = selected ? 0.8 : 0.32;
+      const style = orbitLineStyle(elements.eccentricity, body.id === selectedBodyId);
+      mat.color.set(style.color);
+      mat.opacity = style.opacity;
     }
     for (const [id, line] of [...this.lines]) {
       if (!live.has(id)) {

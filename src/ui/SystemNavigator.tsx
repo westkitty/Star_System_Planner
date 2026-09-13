@@ -76,6 +76,9 @@ export const SystemNavigator: React.FC<SystemNavigatorProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [treeMode, setTreeMode] = useState(true);
+  const [sortMode, setSortMode] = useState<'rank' | 'name' | 'type' | 'distance'>('rank');
+  const [hideCraft, setHideCraft] = useState(false);
+  const center = useMemo(() => bodies.find((b) => b.type === 'star') ?? bodies[0] ?? null, [bodies]);
 
   const bookmarked = useMemo(
     () => bookmarkedIds.map((id) => bodies.find((b) => b.id === id)).filter((b): b is CelestialBody => Boolean(b)),
@@ -94,10 +97,20 @@ export const SystemNavigator: React.FC<SystemNavigatorProps> = ({
         default: return 4;
       }
     };
+    const distOf = (b: CelestialBody): number =>
+      center
+        ? Math.hypot(b.position.x - center.position.x, b.position.y - center.position.y, b.position.z - center.position.z)
+        : 0;
+    const isCraft = (b: CelestialBody): boolean => b.type === 'station' || b.type === 'ship';
     return [...bodies]
-      .filter((b) => !q || b.name.toLowerCase().includes(q) || b.type.includes(q))
-      .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
-  }, [bodies, query]);
+      .filter((b) => (!hideCraft || !isCraft(b)) && (!q || b.name.toLowerCase().includes(q) || b.type.includes(q)))
+      .sort((a, b) => {
+        if (sortMode === 'name') return a.name.localeCompare(b.name);
+        if (sortMode === 'type') return a.type.localeCompare(b.type) || a.name.localeCompare(b.name);
+        if (sortMode === 'distance') return distOf(a) - distOf(b);
+        return rank(a) - rank(b) || a.name.localeCompare(b.name);
+      });
+  }, [bodies, query, sortMode, hideCraft, center]);
 
   const tree = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -115,8 +128,9 @@ export const SystemNavigator: React.FC<SystemNavigatorProps> = ({
         }
       }
     }
-    return nodes.filter((n) => keep.has(n.body.id));
-  }, [bodies, query]);
+    const isCraft = (b: CelestialBody): boolean => b.type === 'station' || b.type === 'ship';
+    return nodes.filter((n) => keep.has(n.body.id) && (!hideCraft || !isCraft(n.body)));
+  }, [bodies, query, hideCraft]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -208,6 +222,24 @@ export const SystemNavigator: React.FC<SystemNavigatorProps> = ({
           placeholder="Search worlds, stations..."
           aria-label="Search bodies"
         />
+      </div>
+      <div className="navigator-tools">
+        <select
+          className="navigator-sort"
+          value={sortMode}
+          onChange={(e) => setSortMode(e.target.value as 'rank' | 'name' | 'type' | 'distance')}
+          aria-label="Sort bodies"
+          title="Sort order"
+        >
+          <option value="rank">Type rank</option>
+          <option value="name">Name A–Z</option>
+          <option value="type">Type A–Z</option>
+          <option value="distance">Distance ★</option>
+        </select>
+        <label className="navigator-craft-toggle" title="Hide stations and ships">
+          <input type="checkbox" checked={hideCraft} onChange={(e) => setHideCraft(e.target.checked)} />
+          Hide craft
+        </label>
       </div>
       <div className="navigator-counts">
         {Object.entries(counts).map(([type, n]) => (

@@ -1654,3 +1654,458 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   border-radius: 8px; padding: 8px 14px; cursor: pointer; backdrop-filter: blur(8px); }
 .present-btn:hover { border-color: var(--accent-azure); }
 .present-exit { position: absolute; left: 16px; top: 16px; z-index: 60; }
+
+/* ============ Iteration 3: coherence, consequence, craft ============ */
+
+/* UI06 — compact HUD density for small tablets. */
+.hud-compact {
+  --hud-pad: 6px;
+}
+.hud-compact .top-hud-bar {
+  padding: 4px 10px;
+  min-height: 44px;
+}
+.hud-compact .brand-title {
+  font-size: 11px;
+}
+.hud-compact .bottom-timeline-bar {
+  padding: 4px 10px;
+}
+.hud-compact .navigator-panel,
+.hud-compact .missions-panel {
+  font-size: 11px;
+}
+.hud-compact .navigator-row {
+  padding: 4px 8px;
+}
+.hud-compact .tool-rail-btn {
+  width: 40px;
+  height: 40px;
+}
+.hud-compact .selection-chip {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.hud-compact .forecast-banner {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+/* UI08 — camera posture pill. */
+.camera-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(3, 5, 10, 0.7);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.camera-pill:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+.camera-pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.camera-pill.follow .camera-pill-dot {
+  background: #ffd166;
+  box-shadow: 0 0 6px #ffd166;
+}
+.camera-pill.focus .camera-pill-dot {
+  background: #0cc6ff;
+  box-shadow: 0 0 6px #0cc6ff;
+}
+.camera-pill.top .camera-pill-dot {
+  background: #34d399;
+  box-shadow: 0 0 6px #34d399;
+}
+
+/* UI02 — palette recency headers. */
+.palette-section-head {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 8px 12px 2px;
+  text-transform: uppercase;
+}
+
+/* UI03 — ledger search/type/export tools. */
+.ledger-tools {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+.ledger-search {
+  flex: 1;
+  min-width: 0;
+  background: #03050a;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 6px 8px;
+  font-size: 12px;
+  outline: none;
+}
+.ledger-type {
+  background: #03050a;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  padding: 6px;
+  font-size: 11px;
+  max-width: 130px;
+}
+.ledger-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(12, 198, 255, 0.1);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+/* UI04/GAME06 — mission filters, tiers, debrief, codex. */
+.missions-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 12px 0;
+}
+.missions-filter-chips {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.missions-sort {
+  background: #03050a;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 5px 6px;
+}
+.missions-tier-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 2px 4px;
+}
+.tier-name {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.tier-initiate { color: #7df9ff; }
+.tier-architect { color: #d4a373; }
+.tier-master { color: #f0abfc; }
+.tier-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.missions-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 12px 4px;
+  text-align: center;
+}
+.debrief-strip,
+.codex-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px;
+}
+.debrief-best {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffd166;
+}
+.debrief-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.debrief-route {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.debrief-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+.codex-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: rgba(12, 198, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.codex-count {
+  color: #ffd166;
+  font-family: var(--font-mono);
+}
+
+/* UI05 — navigator sort + craft filter. */
+.navigator-tools {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px 0;
+}
+.navigator-sort {
+  flex: 1;
+  min-width: 0;
+  background: #03050a;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 5px 6px;
+}
+.navigator-craft-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* UI09 — toast coalescing badge. */
+.toast-count {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #03050a;
+  background: var(--accent-azure, #0cc6ff);
+  border-radius: 999px;
+  padding: 0 6px;
+  vertical-align: middle;
+}
+
+/* UI10 — settings quick filter. */
+.settings-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #03050a;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+}
+.settings-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+/* UI12 — spawn validation. */
+.spawn-validation {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.spawn-validation-error {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ff8fa0;
+  background: rgba(255, 77, 100, 0.08);
+  border: 1px solid rgba(255, 77, 100, 0.35);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.spawn-validation-warning {
+  font-size: 11px;
+  color: #ffd166;
+  background: rgba(251, 191, 36, 0.07);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+/* UI14 — import diagnostics dialog. */
+.import-diag-panel {
+  max-width: 560px;
+}
+.import-diag-file {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-diag-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.import-diag-note {
+  font-size: 11px;
+  color: #7df9ff;
+}
+.import-diag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+.import-diag-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(255, 77, 100, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.import-diag-path {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: #f0abfc;
+}
+.import-diag-msg {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.import-diag-more {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.import-diag-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* UI15 — present transport meta. */
+.present-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+/* BACK11 — panel error fallback. */
+.panel-error-fallback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 6px;
+}
+.panel-error-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* GAME03 — arrival burn block. */
+.transfer-plan.arrival {
+  margin-top: 8px;
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: 8px;
+}
+.transfer-note.good {
+  color: #44ee88;
+}
+
+/* GAME14 — architect score band. */
+.stats-architect-band {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: rgba(212, 163, 115, 0.07);
+  border: 1px solid rgba(212, 163, 115, 0.3);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.stats-architect-score {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid #d4a373;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #d4a373;
+  flex-shrink: 0;
+}
+
+/* GAME08 — forecast interventions. */
+.forecast-track,
+.forecast-stabilize {
+  background: rgba(12, 198, 255, 0.12);
+  border: 1px solid rgba(12, 198, 255, 0.4);
+  border-radius: 6px;
+  color: #7df9ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.forecast-stabilize {
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: #6ee7b7;
+}
+
+/* Disabled selection actions (history edges). */
+.selection-action:disabled {
+  opacity: 0.3;
+  cursor: default;
+}

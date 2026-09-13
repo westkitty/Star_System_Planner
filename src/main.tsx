@@ -4,10 +4,17 @@ import { App } from './App';
 import { ErrorBoundary, installGlobalErrorHandlers } from './ui/ErrorBoundary';
 import { eventBus } from './core/event-bus';
 import { markCleanShutdown } from './core/recovery';
+import { validatePlannerConfig } from './core/config';
 import { registerSW } from 'virtual:pwa-register';
 import './index.css';
 
 installGlobalErrorHandlers();
+
+// Iteration 3 BACK09: fail loudly at boot when central tuning is invalid.
+const configIssues = validatePlannerConfig();
+if (configIssues.length > 0) {
+  console.warn('[planner-config] invalid tuning detected:', configIssues);
+}
 
 // BACK08: orderly exits clear the crash-recovery sentinel.
 if (typeof window !== 'undefined') {

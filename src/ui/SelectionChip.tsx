@@ -7,7 +7,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { Focus, Hand, X, ChevronRight, Star, Timer } from 'lucide-react';
+import { Focus, Hand, X, ChevronLeft, ChevronRight, Star, Timer } from 'lucide-react';
 import { CelestialBody } from '../simulation/types';
 import { calculateOsculatingElements } from '../simulation/orbital-mechanics';
 import { formatCountdown } from '../simulation/units';
@@ -20,6 +20,11 @@ interface SelectionChipProps {
   onFocus: () => void;
   onGrab: () => void;
   onDeselect: () => void;
+  /** Selection-history traversal (iteration 3, UI07). */
+  onBack?: () => void;
+  onForward?: () => void;
+  canBack?: boolean;
+  canForward?: boolean;
 }
 
 export const SelectionChip: React.FC<SelectionChipProps> = ({
@@ -30,6 +35,10 @@ export const SelectionChip: React.FC<SelectionChipProps> = ({
   onFocus,
   onGrab,
   onDeselect,
+  onBack,
+  onForward,
+  canBack,
+  canForward,
 }) => {
   const apsidal = useMemo(() => {
     if (!primary || primary.id === selected.id) return null;
@@ -48,6 +57,17 @@ export const SelectionChip: React.FC<SelectionChipProps> = ({
 
   return (
     <div className="selection-chip hud-interactive" role="status" aria-label={`Selected ${selected.name}`}>
+      {onBack && onForward && (
+        <>
+          <button className="selection-action" onClick={onBack} disabled={!canBack} title="Previous selection (Alt+Left)" aria-label="Previous selection">
+            <ChevronLeft size={13} />
+          </button>
+          <button className="selection-action" onClick={onForward} disabled={!canForward} title="Next selection (Alt+Right)" aria-label="Next selection">
+            <ChevronRight size={13} />
+          </button>
+          <span className="selection-divider" />
+        </>
+      )}
       {primary && (
         <>
           <span className="selection-crumb primary">{primary.name}</span>

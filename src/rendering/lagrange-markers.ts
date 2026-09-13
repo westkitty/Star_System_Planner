@@ -32,18 +32,28 @@ export class LagrangeMarkerGroup {
       opacity: 0.9,
       depthWrite: false,
     });
+    // Iteration 3 ASSET13: the stable trojan camps glow gold; the
+    // unstable collinear points keep surveyor's tan.
+    const trojanMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#ffd166'),
+      wireframe: true,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+    });
     for (let i = 0; i < 5; i++) {
-      const marker = new THREE.Mesh(new THREE.OctahedronGeometry(1.6), markerMat);
+      const trojan = i >= 3;
+      const marker = new THREE.Mesh(new THREE.OctahedronGeometry(trojan ? 1.9 : 1.6), trojan ? trojanMat : markerMat);
       marker.name = `lagrange-${POINT_NAMES[i]}`;
       this.group.add(marker);
       this.markers.push(marker);
-      const label = this.makeLabel(POINT_NAMES[i]);
+      const label = this.makeLabel(POINT_NAMES[i], trojan ? '#ffd166' : '#f5d9a8');
       this.group.add(label);
       this.labelSprites.push(label);
     }
   }
 
-  private makeLabel(text: string): THREE.Sprite {
+  private makeLabel(text: string, fill = '#f5d9a8'): THREE.Sprite {
     let texture: THREE.CanvasTexture | null = null;
     try {
       if (typeof document !== 'undefined') {
@@ -55,7 +65,7 @@ export class LagrangeMarkerGroup {
           ctx.font = 'bold 30px monospace';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillStyle = '#f5d9a8';
+          ctx.fillStyle = fill;
           ctx.fillText(text, 48, 24);
           texture = new THREE.CanvasTexture(canvas);
         }

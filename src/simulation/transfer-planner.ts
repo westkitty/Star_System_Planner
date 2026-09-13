@@ -10,7 +10,7 @@
 import { CelestialBody } from './types';
 import { G_KM } from './units';
 import { calculateOsculatingElements } from './orbital-mechanics';
-import { ManeuverResult } from './maneuvers';
+import { ManeuverResult, circularizeOrbit, logDeltaV } from './maneuvers';
 
 export interface TransferPlan {
   targetRadiusKm: number;
@@ -86,6 +86,7 @@ export function applyTransferDeparture(
     return { applied: false, deltaVKmS: 0, detail: 'Body has no orbital motion to shape.' };
   }
   const dv = Math.abs(targetSpeed - currentSpeed);
+  logDeltaV(body, dv);
   const s = targetSpeed / currentSpeed;
   body.velocity = {
     x: primary.velocity.x + rvx * s,
@@ -97,4 +98,70 @@ export function applyTransferDeparture(
     deltaVKmS: dv,
     detail: `Departure burn: ${dv.toFixed(2)} km/s; circularize ${plan.raising ? 'at apoapsis' : 'at periapsis'} with ${plan.dv2KmS.toFixed(2)} km/s.`,
   };
+}
+
+/** Arrival intercept window: fraction of target radius that unlocks the burn. */
+export const ARRIVAL_WINDOW_FRACTION = 0.08;
+
+export interface ArrivalPlan {
+  targetRadiusKm: number;
+  currentRadiusKm: number;
+  withinWindow: boolean;
+  dvKmS: number;
+  detail: string;
+}
+
+/**
+ * Arrival burn planner (iteration 3, GAME03).
+ *
+ * The honest second half of a Hohmann leg: circularize at the destination.
+ * The plan always reports the cost, but execution only unlocks inside the
+ * intercept window so pilots cannot "arrive" from halfway across the map.
+ */
+export function planArrivalBurn(
+  body: CelestialBody,
+  primary: CelestialBody,
+  targetRadiusKm: number
+): ArrivalPlan | null {
+  if (body.id === primary.id) return null;
+  if (!Number.isFinite(targetRadiusKm) || targetRadiusKm <= primary.radiusKm) return null;
+  const mu = G_KM * primary.massKg;
+  if (!(mu > 0)) return null;
+
+  const rx = body.position.x - primary.position.x;
+  const ry = body.position.y - primary.position.y;
+  const rz = body.position.z - primary.position.z;
+  const r = Math.hypot(rx, ry, rz);
+  if (!(r > 0)) return null;
+
+  const rvx = body.velocity.x - primary.velocity.x;
+  const rvy = body.velocity.y - primary.velocity.y;
+  const rvz = body.velocity.z - primary.velocity.z;
+  const currentSpeed = Math.hypot(rvx, rvy, rvz);
+  const circularSpeed = Math.sqrt(mu / r);
+  const dv = Math.abs(currentSpeed - circularSpeed);
+  const withinWindow = Math.abs(r - targetRadiusKm) / targetRadiusKm <= ARRIVAL_WINDOW_FRACTION;
+  return {
+    targetRadiusKm,
+    currentRadiusKm: r,
+    withinWindow,
+    dvKmS: dv,
+    detail: withinWindow
+      ? `Arrival window open: circularize for ${dv.toFixed(2)} km/s.`
+      : 'Outside the arrival window — coast to the destination radius first.',
+  };
+}
+
+/** Execute the arrival burn; rejected outside the intercept window. */
+export function applyArrivalBurn(
+  body: CelestialBody,
+  primary: CelestialBody,
+  plan: ArrivalPlan
+): ManeuverResult {
+  if (!plan.withinWindow) {
+    return { applied: false, deltaVKmS: 0, detail: 'Outside the arrival window — coast closer first.' };
+  }
+  const result = circularizeOrbit(body, primary);
+  if (!result.applied) return result;
+  return { ...result, detail: `Arrival burn: ${result.detail}` };
 }

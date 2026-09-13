@@ -20,6 +20,21 @@ export interface TrajectoryPoint {
   isEscape?: boolean;
 }
 
+/**
+ * Sensitivity-fan depth color (iteration 3, ASSET09).
+ *
+ * Early fans render azure, late fans violet — the cloud now reads as a
+ * time-ordered plume instead of a monochrome puff.
+ */
+export function sensitivityFanColor(fanIndex: number, fanCount: number): string {
+  const t = fanCount <= 1 ? 0 : Math.min(1, Math.max(0, fanIndex / (fanCount - 1)));
+  const r = Math.round(0x49 + (0xa8 - 0x49) * t);
+  const g = Math.round(0xe7 + (0x55 - 0xe7) * t);
+  const b = Math.round(0xff + (0xf7 - 0xff) * t);
+  const hex = (v: number): string => v.toString(16).padStart(2, '0');
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
 export interface BodyTrajectoryData {
   bodyId: string;
   points: TrajectoryPoint[];
@@ -175,10 +190,10 @@ export class TrajectoryRenderer {
     const colArr = colAttr.array as Float32Array;
 
     let segIndex = 0;
-    const cloudColor = new THREE.Color('#49e7ff');
 
     for (let f = 0; f < fans.length; f++) {
       const path = fans[f];
+      const cloudColor = new THREE.Color(sensitivityFanColor(f, fans.length));
       for (let p = 0; p < path.length - 1; p++) {
         if (segIndex >= this.maxSensitivitySegments) break;
 

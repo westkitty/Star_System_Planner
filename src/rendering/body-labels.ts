@@ -48,6 +48,27 @@ function labelTexture(text: string, accent: string): THREE.CanvasTexture | null 
   return texture;
 }
 
+/**
+ * Per-type label accents (iteration 3, ASSET06).
+ *
+ * Stars burn gold, singularities violet, stations cyan — the nameplate
+ * color now answers "what is that?" before the architect even selects it.
+ */
+export function labelAccentForBody(b: CelestialBody, selectedBodyId: string | null): string {
+  if (b.id === selectedBodyId) return '#ffd166';
+  switch (b.type) {
+    case 'star': return '#ffdd66';
+    case 'black_hole': return '#c084fc';
+    case 'planet': return '#b8c7d9';
+    case 'dwarf_planet': return '#9fb0c3';
+    case 'moon': return '#8d99a8';
+    case 'station': return '#7df9ff';
+    case 'ship': return '#5eead4';
+    case 'megastructure': return '#f0abfc';
+    default: return '#b8c7d9';
+  }
+}
+
 export class BodyLabelRenderer {
   public readonly group = new THREE.Group();
   private sprites = new Map<string, THREE.Sprite>();
@@ -77,7 +98,7 @@ export class BodyLabelRenderer {
     for (const b of bodies) {
       live.add(b.id);
       let sprite = this.sprites.get(b.id);
-      const accent = b.id === selectedBodyId ? '#ffd166' : b.type === 'star' ? '#ffdd66' : '#b8c7d9';
+      const accent = labelAccentForBody(b, selectedBodyId);
       if (!sprite) {
         const tex = labelTexture(b.name, accent);
         if (!tex) continue;

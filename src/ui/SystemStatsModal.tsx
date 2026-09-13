@@ -13,11 +13,19 @@ import { computeSystemStatistics } from '../simulation/system-stats';
 import { formatMass, formatSimTime } from '../simulation/units';
 import { useModalA11y } from './modal-a11y';
 
+export interface ArchitectScoreCard {
+  score: number;
+  band: string;
+  breakdown: { missions: number; contracts: number; discovery: number; stability: number };
+}
+
 interface SystemStatsModalProps {
   bodies: CelestialBody[];
   simTimeSec: number;
   eventCount: number;
   onClose: () => void;
+  /** Composite architect score (iteration 3, GAME14). */
+  architect?: ArchitectScoreCard;
 }
 
 function StatRow(props: { label: string; value: string; accent?: string }): React.ReactElement {
@@ -45,6 +53,7 @@ export const SystemStatsModal: React.FC<SystemStatsModalProps> = ({
   simTimeSec,
   eventCount,
   onClose,
+  architect,
 }) => {
   const ref = useModalA11y<HTMLDivElement>(onClose);
   const stats = useMemo(() => computeSystemStatistics(bodies), [bodies]);
@@ -83,6 +92,21 @@ export const SystemStatsModal: React.FC<SystemStatsModalProps> = ({
             </div>
           </div>
         </div>
+
+        {architect && (
+          <div className="stats-architect-band">
+            <div className="stats-architect-score">
+              <span>{architect.score}</span>
+            </div>
+            <div>
+              <div className="stats-score-label">{architect.band}</div>
+              <div className="stats-score-hint">
+                Missions {architect.breakdown.missions} · Contracts {architect.breakdown.contracts} ·{' '}
+                Discovery {architect.breakdown.discovery} · Stability {architect.breakdown.stability}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="settings-section">Census</div>
         <StatRow label="Bodies" value={`${stats.bodyCount}`} />

@@ -11,7 +11,29 @@ export interface CollisionEventDetail {
   absorbedId: string;
   position: Vector3D;
   relativeSpeedKmS: number;
+  /** Larger mass / smaller mass at impact (iteration 3, GAME05). */
+  massRatio: number;
+  /** Reduced-mass kinetic energy dissipated, joules. */
+  energyJoules: number;
   event: ConsequenceEvent;
+}
+
+/** Human-scale impact energy for ledger forensics. */
+export function formatImpactEnergy(joules: number): string {
+  if (!Number.isFinite(joules) || joules < 0) return 'unknown energy';
+  if (joules >= 1e30) return `${(joules / 1e30).toFixed(2)} \u00d710\u00b3\u2070 J`;
+  if (joules >= 1e24) return `${(joules / 1e24).toFixed(2)} \u00d710\u00b2\u2074 J`;
+  if (joules >= 1e18) return `${(joules / 1e18).toFixed(2)} EJ`;
+  if (joules >= 1e12) return `${(joules / 1e12).toFixed(2)} TJ`;
+  return `${joules.toExponential(2)} J`;
+}
+
+/** 1/2 \u00b7 reduced-mass \u00b7 v\u00b2 for a perfectly inelastic merger. */
+export function impactEnergyJoules(massAKg: number, massBKg: number, relSpeedKmS: number): number {
+  if (!(massAKg > 0) || !(massBKg > 0) || !(relSpeedKmS >= 0)) return 0;
+  const reduced = (massAKg * massBKg) / (massAKg + massBKg);
+  const v = relSpeedKmS * 1000;
+  return 0.5 * reduced * v * v;
 }
 
 export interface CollisionDebrisParticle {
@@ -122,12 +144,17 @@ export function resolveCollisions(
           }
         }
 
+        const massRatio = Math.max(survivor.massKg, absorbed.massKg) / Math.max(1e-9, Math.min(survivor.massKg, absorbed.massKg));
+        const energyJoules = impactEnergyJoules(survivor.massKg, absorbed.massKg, relSpeed);
         const event: ConsequenceEvent = {
           id: `col-${timestampSec}-${survivor.id}-${absorbed.id}`,
           timestampSec,
           type: 'collision',
           title: `Collision: ${absorbed.name} collided with ${survivor.name}`,
-          description: `${absorbed.name} merged into ${survivor.name} at ${relSpeed.toFixed(1)} km/s impact speed. Total mass is now ${survivor.massKg.toExponential(2)} kg.`,
+          description:
+            `${absorbed.name} merged into ${survivor.name} at ${relSpeed.toFixed(1)} km/s impact speed. ` +
+            `Total mass is now ${survivor.massKg.toExponential(2)} kg; mass ratio ${massRatio.toFixed(1)}:1; ` +
+            `impact energy ${formatImpactEnergy(energyJoules)}.`,
           bodyIds: [survivor.id, absorbed.id],
           severity: 'catastrophe',
         };
@@ -138,6 +165,8 @@ export function resolveCollisions(
           absorbedId: absorbed.id,
           position: { ...survivor.position },
           relativeSpeedKmS: relSpeed,
+          massRatio,
+          energyJoules,
           event,
         });
       }
@@ -160,6 +189,8 @@ export interface ManualMergeResult {
   survivor: CelestialBody;
   absorbedId: string;
   relativeSpeedKmS: number;
+  massRatio: number;
+  energyJoules: number;
   event: ConsequenceEvent;
 }
 
@@ -196,6 +227,8 @@ export function mergeBodiesInelastic(
   survivor.massKg = totalMass;
   survivor.radiusKm = Math.cbrt(survivor.radiusKm ** 3 + absorbed.radiusKm ** 3);
 
+  const massRatio = Math.max(survivor.massKg, absorbed.massKg) / Math.max(1e-9, Math.min(survivor.massKg, absorbed.massKg));
+  const energyJoules = impactEnergyJoules(survivor.massKg, absorbed.massKg, relSpeed);
   const event: ConsequenceEvent = {
     id: createId('merge'),
     timestampSec,
@@ -203,9 +236,10 @@ export function mergeBodiesInelastic(
     title: `Commanded merger: ${survivor.name} + ${absorbed.name}`,
     description:
       `The architect fused ${absorbed.name} into ${survivor.name} ahead of the forecast impact. ` +
-      `Merged mass ${totalMass.toExponential(2)} kg; closing speed was ${relSpeed.toFixed(2)} km/s.`,
+      `Merged mass ${totalMass.toExponential(2)} kg; closing speed was ${relSpeed.toFixed(2)} km/s; ` +
+      `mass ratio ${massRatio.toFixed(1)}:1; impact energy ${formatImpactEnergy(energyJoules)}.`,
     bodyIds: [survivor.id, absorbed.id],
     severity: 'caution',
   };
-  return { survivor, absorbedId: absorbed.id, relativeSpeedKmS: relSpeed, event };
+  return { survivor, absorbedId: absorbed.id, relativeSpeedKmS: relSpeed, massRatio, energyJoules, event };
 }

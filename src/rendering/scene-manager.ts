@@ -25,7 +25,7 @@ import {
 import { TrajectoryRenderer } from './trajectory-renderer';
 import { GravityGridRenderer } from './gravity-grid';
 import { getPlanetTexture } from './planet-textures';
-import { createAtmosphereShell, createCoronaSprite, createNebulaVeils } from './sprite-assets';
+import { coronaGradeForLetter, createAtmosphereShell, createCoronaSprite, createNebulaVeils, disposeSpriteCaches } from './sprite-assets';
 import { AccretionDisk, createAccretionDisk } from './accretion-disk';
 import { SelectionIndicator, createSelectionIndicator } from './selection-indicator';
 import { CollisionBurstPool } from './collision-bursts';
@@ -33,7 +33,7 @@ import { HabitableZoneRenderer } from './habitable-rings';
 import { LagrangeMarkerGroup } from './lagrange-markers';
 import { InstancedBeltRenderer } from './instanced-belts';
 import { OrbitLineRenderer } from './orbit-lines';
-import { BodyLabelRenderer } from './body-labels';
+import { BodyLabelRenderer, clearLabelTextureCache } from './body-labels';
 import { AuRulerRenderer } from './au-ruler';
 import { CometTailRenderer, COMET_ACTIVE_RADIUS_KM, COMET_MIN_ECCENTRICITY } from './comet-tails';
 import { EclipseConeRenderer } from './eclipse-cones';
@@ -66,6 +66,7 @@ export class SceneManager {
   private selectionIndicators: Map<string, SelectionIndicator> = new Map();
   private accretionDisks: Map<string, AccretionDisk> = new Map();
   private beltRenderers: Map<string, InstancedBeltRenderer> = new Map();
+  private nebulaSeed = 0;
   private lastBodies: CelestialBody[] = [];
   private frameCounter = 0;
   private starfieldFullCount = 0;
@@ -541,7 +542,10 @@ export class SceneManager {
       }
     } else if (b.type === 'station' || b.type === 'ship' || b.type === 'megastructure') {
       // ASSET15: built station kit instead of a placeholder globe.
-      const kit = buildStationKit(b.color || '#9fd8ff');
+      const kit = buildStationKit(
+        b.color || '#9fd8ff',
+        b.type === 'ship' ? 'ship' : b.type === 'megastructure' ? 'megastructure' : 'station'
+      );
       this.stationKits.set(b.id, kit);
       group.add(kit.group);
       const mat = new THREE.MeshBasicMaterial({ visible: false });
@@ -553,7 +557,7 @@ export class SceneManager {
       const mat = createStarMaterial(spectral.color, b.starsilkBleed);
       coreMesh = new THREE.Mesh(sphereGeo, mat);
       // ASSET04: pulsing corona flare.
-      const corona = createCoronaSprite(spectral.color, spectral.coronaColor, 1);
+      const corona = createCoronaSprite(spectral.color, spectral.coronaColor, 1, coronaGradeForLetter(spectral.letter));
       if (corona) group.add(corona);
     } else {
       // ASSET02: procedural classification texture on the globe.
@@ -588,20 +592,24 @@ export class SceneManager {
   }
 
   /** Resolve the spectral class recorded on the body, or infer from mass. */
-  private spectralClassForBody(b: CelestialBody): { color: string; coronaColor: string } {
+  private spectralClassForBody(b: CelestialBody): { color: string; coronaColor: string; letter: string } {
     const recorded = (b as unknown as { spectralClass?: string }).spectralClass;
     if (recorded && /^[OBAFGKM]$/.test(recorded)) {
-      return spectralClassByLetter(recorded as SpectralLetter);
+      return { ...spectralClassByLetter(recorded as SpectralLetter), letter: recorded };
     }
-    return spectralClassForMass(b.massKg);
+    const inferred = spectralClassForMass(b.massKg);
+    return { ...inferred, letter: (inferred as { class?: string }).class ?? 'G' };
   }
 
   private updateBodyRings(b: CelestialBody, group: THREE.Group, dispRadius: number): void {
     for (const ring of b.rings || []) {
       let ringMesh = group.getObjectByName(`ring-${ring.id}`) as THREE.Mesh;
       if (!ringMesh) {
-        const innerR = 1.4;
-        const outerR = 2.4;
+        // Iteration 3 ASSET02: ring geometry honors the authored structure
+        // radii instead of fixed decoration multiples.
+        const bodyR = Math.max(1, b.radiusKm);
+        const innerR = Math.min(3, Math.max(1.15, ring.innerRadiusKm / bodyR));
+        const outerR = Math.min(4, Math.max(innerR + 0.15, ring.outerRadiusKm / bodyR));
         const geo = new THREE.RingGeometry(innerR, outerR, 96, 1);
         // ASSET02: remap planar UVs to true (radial, angular) coordinates
         // so the ring shaders' band math works as documented.
@@ -640,6 +648,13 @@ export class SceneManager {
     // Refresh Lagrange markers immediately for the new pair.
     const selected = this.lastBodies.find(bb => bb.id === id) ?? null;
     this.lagrangeMarkers.update(selected, this.lastBodies);
+  }
+
+  /** Gold target-lock styling while follow-camera tracks a body (iteration 3, ASSET07). */
+  public setFollowBody(id: string | null): void {
+    for (const [bodyId, indicator] of this.selectionIndicators) {
+      indicator.setFollow(bodyId === id);
+    }
   }
 
   /** Hover highlight for pointer proximity (ASSET07 companion). */
@@ -683,13 +698,24 @@ export class SceneManager {
     this.shockwaves.push({ mesh: ring, ageSec: 0 });
   }
 
+  /**
+   * Re-seed the deep-field backdrop per project (iteration 3, ASSET05).
+   */
+  public setNebulaSeed(seed: number): void {
+    if (seed === this.nebulaSeed) return;
+    this.nebulaSeed = seed;
+    const old = this.scene.getObjectByName('NebulaVeils');
+    if (old) this.scene.remove(old);
+    this.scene.add(createNebulaVeils(seed));
+  }
+
   /** Render a shadow shaft for a fresh eclipse (ASSET10). */
-  public spawnEclipseCone(viewerId: string, occluderId: string): void {
+  public spawnEclipseCone(viewerId: string, occluderId: string, magnitude01 = 0.7): void {
     const viewer = this.bodyMeshes.get(viewerId);
     const occluder = this.bodyMeshes.get(occluderId);
     if (!viewer || !occluder) return;
     const core = occluder.getObjectByName('core') as THREE.Mesh | undefined;
-    this.eclipseCones.spawn(occluder.position, viewer.position, core ? core.scale.x : 3);
+    this.eclipseCones.spawn(occluder.position, viewer.position, core ? core.scale.x : 3, 25, magnitude01);
   }
 
   /** Sync engine ejecta debris into a fading point cloud (ASSET13). */
@@ -1023,6 +1049,8 @@ export class SceneManager {
     this.lagrangeMarkers.dispose();
     this.orbitLines.dispose();
     this.bodyLabels.dispose();
+    clearLabelTextureCache();
+    disposeSpriteCaches();
     this.auRuler.dispose();
     this.cometTails.dispose();
     this.eclipseCones.dispose();

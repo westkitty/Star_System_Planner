@@ -324,3 +324,55 @@ export function computeLagrangePoints(primary: CelestialBody, secondary: Celesti
 
   return { L1, L2, L3, L4, L5 };
 }
+
+export interface TrojanBerth {
+  position: Vector3D;
+  velocity: Vector3D;
+}
+
+export interface TrojanPairPlan {
+  l4: TrojanBerth;
+  l5: TrojanBerth;
+}
+
+/**
+ * Trojan camp berths (iteration 3, GAME11).
+ *
+ * Honest L4/L5 co-orbital slots: equilateral-triangle positions from the
+ * Lagrange solver, with rigid-rotation velocities derived from the
+ * planet's own angular velocity so spawned camps actually stay camped.
+ */
+export function planTrojanPair(planet: CelestialBody, primary: CelestialBody): TrojanPairPlan | null {
+  if (planet.id === primary.id) return null;
+  const points = computeLagrangePoints(primary, planet);
+  if (!points) return null;
+
+  const rx = planet.position.x - primary.position.x;
+  const ry = planet.position.y - primary.position.y;
+  const rz = planet.position.z - primary.position.z;
+  const vx = planet.velocity.x - primary.velocity.x;
+  const vy = planet.velocity.y - primary.velocity.y;
+  const vz = planet.velocity.z - primary.velocity.z;
+  const r2 = rx * rx + ry * ry + rz * rz;
+  if (!(r2 > 0)) return null;
+  // omega = (r x v) / |r|^2
+  const ox = (ry * vz - rz * vy) / r2;
+  const oy = (rz * vx - rx * vz) / r2;
+  const oz = (rx * vy - ry * vx) / r2;
+
+  const berth = (at: Vector3D): TrojanBerth => {
+    const dx = at.x - primary.position.x;
+    const dy = at.y - primary.position.y;
+    const dz = at.z - primary.position.z;
+    // v = v_primary + omega x d
+    return {
+      position: { x: at.x, y: at.y, z: at.z },
+      velocity: {
+        x: primary.velocity.x + (oy * dz - oz * dy),
+        y: primary.velocity.y + (oz * dx - ox * dz),
+        z: primary.velocity.z + (ox * dy - oy * dx),
+      },
+    };
+  };
+  return { l4: berth(points.L4), l5: berth(points.L5) };
+}

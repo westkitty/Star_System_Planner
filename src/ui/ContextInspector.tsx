@@ -13,7 +13,7 @@ import { calculateOsculatingElements, detectResonance } from '../simulation/orbi
 import { escapeMarginKmS, NudgeDirection } from '../simulation/maneuvers';
 import { assessHabitability } from '../simulation/habitability';
 import { estimateTidalLock, formatLockTimescale } from '../simulation/tidal-locking';
-import { planHohmann } from '../simulation/transfer-planner';
+import { planArrivalBurn, planHohmann } from '../simulation/transfer-planner';
 import { UnitSystem } from '../core/settings';
 import { audioSynth } from '../audio/audio-synth';
 import { Trash2, Focus, Move, Sparkles, Copy, ChevronDown, Rocket, Crosshair, Anchor, ClipboardCopy, Check, Download, Satellite, Leaf } from 'lucide-react';
@@ -31,18 +31,49 @@ interface ContextInspectorProps {
   onCircularize?: (body: CelestialBody) => void;
   onMatchVelocity?: (body: CelestialBody, targetId: string) => void;
   onTransferBurn?: (body: CelestialBody, targetRadiusKm: number) => void;
+  onArrivalBurn?: (body: CelestialBody, targetRadiusKm: number) => void;
+  onParkTrojans?: (body: CelestialBody) => void;
   onToggleStationKeeping?: (body: CelestialBody) => void;
   onExportEphemeris?: (body: CelestialBody) => void;
   unitSystem?: UnitSystem;
 }
 
+const SECTION_MEMORY_KEY = 'starsilk-inspector-sections-v1';
+
+function loadSectionMemory(): Record<string, boolean> {
+  try {
+    if (typeof localStorage === 'undefined') return {};
+    return JSON.parse(localStorage.getItem(SECTION_MEMORY_KEY) ?? '{}') as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+/** Section titles with dynamic suffixes ("Orbit · rel X") key by prefix. */
+function sectionMemoryKey(title: string): string {
+  return title.split('·')[0].trim();
+}
+
 function Section(props: { title: string; defaultOpen?: boolean; children: React.ReactNode }): React.ReactElement {
-  const [open, setOpen] = useState(props.defaultOpen ?? true);
+  const [open, setOpen] = useState(() => loadSectionMemory()[sectionMemoryKey(props.title)] ?? props.defaultOpen ?? true);
+  const toggle = (): void => {
+    const next = !open;
+    setOpen(next);
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const mem = loadSectionMemory();
+        mem[sectionMemoryKey(props.title)] = next;
+        localStorage.setItem(SECTION_MEMORY_KEY, JSON.stringify(mem));
+      }
+    } catch {
+      /* private mode: memory lasts the session */
+    }
+  };
   return (
     <section className="inspector-section">
       <button
         className="inspector-section-toggle"
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         aria-expanded={open}
       >
         <span>{props.title}</span>
@@ -116,6 +147,7 @@ function TransferSection(props: {
   primary: CelestialBody;
   siblings: CelestialBody[];
   onBurn: (body: CelestialBody, targetRadiusKm: number) => void;
+  onArrival?: (body: CelestialBody, targetRadiusKm: number) => void;
 }): React.ReactElement {
   const [target, setTarget] = useState<string>('custom');
   const [customAu, setCustomAu] = useState('1.5');
@@ -141,6 +173,10 @@ function TransferSection(props: {
       : (options.find((o) => o.id === target)?.radiusKm ?? 0);
   const plan = useMemo(
     () => (targetRadiusKm > 0 ? planHohmann(props.body, props.primary, targetRadiusKm) : null),
+    [props.body, props.primary, targetRadiusKm]
+  );
+  const arrival = useMemo(
+    () => (targetRadiusKm > 0 ? planArrivalBurn(props.body, props.primary, targetRadiusKm) : null),
     [props.body, props.primary, targetRadiusKm]
   );
   return (
@@ -202,6 +238,23 @@ function TransferSection(props: {
       ) : (
         <div className="transfer-note">Choose a destination orbit to preview the Hohmann leg.</div>
       )}
+      {props.onArrival && arrival && (
+        <div className="transfer-plan arrival">
+          <div className="kv-row">
+            <span>Arrival burn</span>
+            <span>{formatDeltaV(arrival.dvKmS)}</span>
+          </div>
+          <div className={arrival.withinWindow ? 'transfer-note good' : 'transfer-note'}>{arrival.detail}</div>
+          <button
+            className="action-btn ghost"
+            disabled={!arrival.withinWindow}
+            onClick={() => props.onArrival && props.onArrival(props.body, arrival.targetRadiusKm)}
+            title="Circularize at the destination (unlocks inside the arrival window)"
+          >
+            <Anchor size={14} /> EXECUTE ARRIVAL
+          </button>
+        </div>
+      )}
     </Section>
   );
 }
@@ -219,6 +272,8 @@ export const ContextInspector: React.FC<ContextInspectorProps> = ({
   onCircularize,
   onMatchVelocity,
   onTransferBurn,
+  onArrivalBurn,
+  onParkTrojans,
   onToggleStationKeeping,
   onExportEphemeris,
   unitSystem,
@@ -522,6 +577,12 @@ export const ContextInspector: React.FC<ContextInspectorProps> = ({
               </button>
             ))}
           </div>
+          {(selectedBody.deltaVSpentKmS ?? 0) > 0 && (
+            <div className="kv-row" title="Lifetime flown delta-v across every maneuver and transfer">
+              <span>Flight log Δv</span>
+              <span>{formatDeltaV(selectedBody.deltaVSpentKmS ?? 0)}</span>
+            </div>
+          )}
           <button className="action-btn azure" onClick={() => onCircularize(selectedBody)} title="Rewrite velocity for a circular orbit at current radius">
             <Anchor size={14} /> CIRCULARIZE ORBIT
           </button>
@@ -551,7 +612,7 @@ export const ContextInspector: React.FC<ContextInspectorProps> = ({
       )}
 
       {primary && onTransferBurn && (
-        <TransferSection body={selectedBody} primary={primary} siblings={allBodies} onBurn={onTransferBurn} />
+        <TransferSection body={selectedBody} primary={primary} siblings={allBodies} onBurn={onTransferBurn} onArrival={onArrivalBurn} />
       )}
 
       <Section title="Actions">
@@ -575,6 +636,15 @@ export const ContextInspector: React.FC<ContextInspectorProps> = ({
             title="Sample this body's trajectory forward and download a CSV ephemeris"
           >
             <Download size={14} /> EXPORT EPHEMERIS
+          </button>
+        )}
+        {selectedBody.type === 'planet' && primary?.type === 'star' && onParkTrojans && (
+          <button
+            className="action-btn ghost"
+            onClick={() => onParkTrojans(selectedBody)}
+            title="Spawn co-orbital stations at this planet's L4/L5 trojan camps"
+          >
+            <Satellite size={14} /> PARK TROJAN PAIR
           </button>
         )}
         {selectedBody.type === 'star' && (

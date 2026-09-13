@@ -54,7 +54,7 @@ function fuzzyScore(query: string, text: string): number {
 
 export function searchCommands(query: string, limit = 12): PlannerCommand[] {
   const q = query.trim();
-  if (!q) return listCommands().slice(0, limit);
+  if (!q) return recentFirst(listCommands(), limit);
   return listCommands()
     .map((c) => ({
       cmd: c,
@@ -71,4 +71,76 @@ export function searchCommands(query: string, limit = 12): PlannerCommand[] {
 
 export function clearCommandsForTests(): void {
   commands.clear();
+}
+
+/**
+ * Recently-used command recall (iteration 3, UI02).
+ *
+ * Command ids executed through the palette persist across sessions; an
+ * empty query surfaces them first so repeat workflows stay one keypress
+ * away instead of buried in registration order.
+ */
+const RECENT_KEY = 'starsilk-palette-recent-v1';
+const MAX_RECENT = 8;
+
+function loadRecentIds(): string[] {
+  try {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem(RECENT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+let recentIds: string[] | null = null;
+
+function recentIdList(): string[] {
+  if (!recentIds) recentIds = loadRecentIds();
+  return recentIds;
+}
+
+/** Record a palette execution for recency ranking. */
+export function recordCommandUse(id: string): void {
+  const list = recentIdList().filter((x) => x !== id);
+  list.unshift(id);
+  recentIds = list.slice(0, MAX_RECENT);
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(RECENT_KEY, JSON.stringify(recentIds));
+  } catch {
+    /* private mode: recency lasts the session */
+  }
+}
+
+/** Ids of recently used commands, most recent first. */
+export function getRecentIds(): string[] {
+  return [...recentIdList()];
+}
+
+/** Recently used commands that are still registered, most recent first. */
+export function getRecentCommands(limit = 5): PlannerCommand[] {
+  const out: PlannerCommand[] = [];
+  for (const id of recentIdList()) {
+    const cmd = commands.get(id);
+    if (cmd) out.push(cmd);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function recentFirst(all: PlannerCommand[], limit: number): PlannerCommand[] {
+  const recents = getRecentCommands(limit);
+  const seen = new Set(recents.map((c) => c.id));
+  return [...recents, ...all.filter((c) => !seen.has(c.id))].slice(0, limit);
+}
+
+export function clearRecentForTests(): void {
+  recentIds = [];
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(RECENT_KEY);
+  } catch {
+    /* ignore */
+  }
 }

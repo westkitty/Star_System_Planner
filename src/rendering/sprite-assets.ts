@@ -40,8 +40,32 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+/**
+ * Spectral-class corona grading (iteration 3, ASSET04).
+ *
+ * O giants blaze wide and hot; M dwarfs smolder small and dim. The grade
+ * scales sprite size and opacity so spectral class reads at a glance.
+ */
+export function coronaGradeForLetter(letter: string): { size: number; intensity: number } {
+  switch (letter) {
+    case 'O': return { size: 9.5, intensity: 1.0 };
+    case 'B': return { size: 8.5, intensity: 1.0 };
+    case 'A': return { size: 7.8, intensity: 1.0 };
+    case 'F': return { size: 7.2, intensity: 1.0 };
+    case 'G': return { size: 7.0, intensity: 1.0 };
+    case 'K': return { size: 6.2, intensity: 0.9 };
+    case 'M': return { size: 5.2, intensity: 0.75 };
+    default: return { size: 7.0, intensity: 1.0 };
+  }
+}
+
 /** ASSET04 — stellar corona sprite sized in display units. */
-export function createCoronaSprite(starColor: string, coronaColor: string, displayRadius: number): THREE.Sprite | null {
+export function createCoronaSprite(
+  starColor: string,
+  coronaColor: string,
+  displayRadius: number,
+  grade?: { size: number; intensity: number }
+): THREE.Sprite | null {
   const key = `${starColor}|${coronaColor}`;
   let texture = coronaCache.get(key);
   if (!texture) {
@@ -61,9 +85,10 @@ export function createCoronaSprite(starColor: string, coronaColor: string, displ
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    opacity: Math.min(1, grade?.intensity ?? 1),
   });
   const sprite = new THREE.Sprite(material);
-  const size = displayRadius * 7;
+  const size = displayRadius * (grade?.size ?? 7);
   sprite.scale.set(size, size, 1);
   sprite.name = 'corona';
   return sprite;
@@ -102,13 +127,18 @@ export function createAtmosphereShell(atmosphereColor: string, displayRadius: nu
 }
 
 /** ASSET13 — deep-field nebula veils placed far behind the system. */
-export function createNebulaVeils(): THREE.Group {
+export function createNebulaVeils(seed = 0): THREE.Group {
   const group = new THREE.Group();
   group.name = 'NebulaVeils';
+  // Iteration 3 ASSET05: the backdrop drifts per project seed so every
+  // saved universe gets its own sky instead of the same three veils.
+  const u = seed >>> 0;
+  const palette = ['#0a3a5c', '#3c0a2e', '#0a2a44', '#1a2a5c', '#2e0a3c', '#0a3a44'];
+  const jitter = (i: number, span: number): number => (((u >> (i * 5)) % 100) / 100 - 0.5) * span;
   const veils: Array<{ color: string; position: [number, number, number]; size: number; opacity: number }> = [
-    { color: '#0a3a5c', position: [-14000, 3000, -18000], size: 22000, opacity: 0.5 },
-    { color: '#3c0a2e', position: [12000, -4000, -20000], size: 26000, opacity: 0.4 },
-    { color: '#0a2a44', position: [2000, 9000, -22000], size: 18000, opacity: 0.45 },
+    { color: palette[u % palette.length], position: [-14000 + jitter(0, 6000), 3000, -18000], size: 22000 + jitter(1, 6000), opacity: 0.5 },
+    { color: palette[(u + 2) % palette.length], position: [12000 + jitter(2, 6000), -4000, -20000], size: 26000 + jitter(3, 6000), opacity: 0.4 },
+    { color: palette[(u + 4) % palette.length], position: [2000 + jitter(4, 6000), 9000, -22000], size: 18000 + jitter(5, 5000), opacity: 0.45 },
   ];
   for (const veil of veils) {
     const texture = bakeRadialSprite([

@@ -15,6 +15,7 @@ import { CelestialBody, ConsequenceEvent, RingStructure, SourceCanonStatus, Plan
 import { SimulationEngine } from '../simulation/engine';
 import { getCompendiumUrl } from './manifest';
 import { createId } from '../core/id';
+import { G_KM } from '../simulation/units';
 
 export interface CanonMacro {
   id: string;
@@ -31,6 +32,51 @@ export interface CanonMacro {
   requiresMultipleStars?: boolean;
   requiresPlanet?: boolean;
   apply: (engine: SimulationEngine, targetBodyId?: string) => ConsequenceEvent | null;
+}
+
+/** AU in km, for remnant-debris orbits. */
+const AU_KM = 149597870.7;
+
+/**
+ * Seed honest Newtonian debris after a stellar collapse (iteration 3, GAME10).
+ *
+ * Three remnant shards on circular coplanar orbits just outside the
+ * singularity's grasp — aftermath the architect can visit, slingshot, or
+ * shepherd instead of a bare event line.
+ */
+function seedCollapseRemnants(engine: SimulationEngine, star: CelestialBody): string[] {
+  const names: string[] = [];
+  const numerals = ['I', 'II', 'III'];
+  for (let i = 0; i < 3; i++) {
+    const r = (0.03 + i * 0.015) * AU_KM;
+    const speed = Math.sqrt((G_KM * star.massKg) / r);
+    const theta = (i / 3) * Math.PI * 2 + 0.7;
+    const shard: CelestialBody = {
+      id: createId('remnant'),
+      name: `${star.name} Remnant ${numerals[i]}`,
+      type: 'dwarf_planet',
+      massKg: Math.max(1e18, star.massKg * 1e-9),
+      radiusKm: Math.max(60, star.radiusKm * 0.02),
+      position: {
+        x: star.position.x + r * Math.cos(theta),
+        y: star.position.y,
+        z: star.position.z + r * Math.sin(theta),
+      },
+      velocity: {
+        x: star.velocity.x - Math.sin(theta) * speed,
+        y: star.velocity.y,
+        z: star.velocity.z + Math.cos(theta) * speed,
+      },
+      color: '#b0622a',
+      classification: 'remnant',
+      primaryId: star.id,
+      sourceCanonStatus: 'unknown',
+      plannerClassification: 'CANON-INSPIRED SANDBOX',
+    };
+    engine.addBody(shard);
+    names.push(shard.name);
+  }
+  return names;
 }
 
 export const CANON_MACROS: CanonMacro[] = [
@@ -59,6 +105,7 @@ export const CANON_MACROS: CanonMacro[] = [
 
       // Compact singularity scale
       star.radiusKm = Math.max(30.0, star.radiusKm * 0.0001);
+      const remnants = seedCollapseRemnants(engine, star);
 
       // 2. Irreversible system-level destroyed state
       engine.systemStatus = 'destroyed_by_starsilk_collapse';
@@ -68,7 +115,7 @@ export const CANON_MACROS: CanonMacro[] = [
         timestampSec: engine.timeSec,
         type: 'starsilk_pull',
         title: `Starsilk Extraction: ${star.name} Collapsed`,
-        description: `Stellar core engaged and Starsilk drawn. Immediate loss of stellar stability caused host star ${star.name} to collapse toward a black hole. Active system destroyed.`,
+        description: `Stellar core engaged and Starsilk drawn. Immediate loss of stellar stability caused host star ${star.name} to collapse toward a black hole. Active system destroyed. Collapse debris seeds ${remnants.length} remnant shards (${remnants.join(', ')}) in close orbit.`,
         bodyIds: [star.id],
         severity: 'catastrophe',
       };
@@ -104,6 +151,9 @@ export const CANON_MACROS: CanonMacro[] = [
         collapsedNames.push(s.name);
       }
 
+      let remnantCount = 0;
+      for (const s of stars) remnantCount += seedCollapseRemnants(engine, s).length;
+
       // Mark system destroyed
       engine.systemStatus = 'destroyed_by_starsilk_collapse';
 
@@ -112,7 +162,7 @@ export const CANON_MACROS: CanonMacro[] = [
         timestampSec: engine.timeSec,
         type: 'starsilk_pull',
         title: `Starbinding Study: ${stars.length} Stars Collapsed`,
-        description: `Simultaneous stellar extraction collapsed ${collapsedNames.join(', ')} into black holes. Note: Local study only, not the galaxy-scale canon event. System destroyed.`,
+        description: `Simultaneous stellar extraction collapsed ${collapsedNames.join(', ')} into black holes. Note: Local study only, not the galaxy-scale canon event. System destroyed. ${remnantCount} remnant shards orbit the new singularities.`,
         bodyIds: stars.map(s => s.id),
         severity: 'catastrophe',
       };

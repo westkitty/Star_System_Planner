@@ -8,7 +8,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from 'lucide-react';
-import { searchCommands } from './command-registry';
+import { getRecentCommands, recordCommandUse, searchCommands } from './command-registry';
 import { useModalA11y } from './modal-a11y';
 
 interface CommandPaletteProps {
@@ -21,6 +21,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ onClose }) => {
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const results = useMemo(() => searchCommands(query), [query]);
+  const emptyQuery = query.trim().length === 0;
+  const recents = useMemo(() => (emptyQuery ? getRecentCommands(5) : []), [emptyQuery, query]);
+  // searchCommands('') already ranks recents first; count them for headers.
+  const recentCount = emptyQuery ? Math.min(recents.length, results.length) : 0;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -33,6 +37,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ onClose }) => {
   const execute = (index: number): void => {
     const cmd = results[index];
     if (!cmd) return;
+    recordCommandUse(cmd.id);
     onClose();
     // Defer so the palette unmounts before side effects (modal stacking).
     setTimeout(() => cmd.run(), 0);
@@ -81,18 +86,23 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ onClose }) => {
             <div className="palette-empty">No matching commands. Try “fork”, “step”, or a body name.</div>
           )}
           {results.map((cmd, i) => (
-            <button
-              key={cmd.id}
-              role="option"
-              aria-selected={i === active}
-              className={`palette-row ${i === active ? 'active' : ''}`}
-              onMouseEnter={() => setActive(i)}
-              onClick={() => execute(i)}
-            >
-              <span className="palette-section">{cmd.section}</span>
-              <span className="palette-title">{cmd.title}</span>
-              {cmd.hint && <span className="palette-hint">{cmd.hint}</span>}
-            </button>
+            <React.Fragment key={cmd.id}>
+              {i === 0 && recentCount > 0 && <div className="palette-section-head">Recent</div>}
+              {i === recentCount && recentCount > 0 && recentCount < results.length && (
+                <div className="palette-section-head">All commands</div>
+              )}
+              <button
+                role="option"
+                aria-selected={i === active}
+                className={`palette-row ${i === active ? 'active' : ''}`}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => execute(i)}
+              >
+                <span className="palette-section">{cmd.section}</span>
+                <span className="palette-title">{cmd.title}</span>
+                {cmd.hint && <span className="palette-hint">{cmd.hint}</span>}
+              </button>
+            </React.Fragment>
           ))}
         </div>
       </div>

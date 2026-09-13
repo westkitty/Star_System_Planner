@@ -16,7 +16,10 @@ export const COMET_ACTIVE_RADIUS_KM = 3.5 * KM_PER_AU;
 interface CometVisual {
   group: THREE.Group;
   coma: THREE.Sprite;
+  /** Narrow azure ion tail along the anti-sunward axis. */
   tail: THREE.Mesh;
+  /** Broad amber dust tail lagging the ion stream. */
+  dustTail: THREE.Mesh;
 }
 
 function makeGlowTexture(inner: string, outer: string): THREE.CanvasTexture | null {
@@ -88,9 +91,22 @@ export class CometTailRenderer {
         });
         disposalRegistry.track(tailMat, 'comet-material');
         const tail = new THREE.Mesh(tailGeo, tailMat);
+        const dustGeo = new THREE.PlaneGeometry(1, 1);
+        disposalRegistry.track(dustGeo, 'comet-geometry');
+        const dustMat = new THREE.MeshBasicMaterial({
+          map: tex,
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          color: '#e8a33d',
+        });
+        disposalRegistry.track(dustMat, 'comet-material');
+        const dustTail = new THREE.Mesh(dustGeo, dustMat);
         group.add(coma);
         group.add(tail);
-        vis = { group, coma, tail };
+        group.add(dustTail);
+        vis = { group, coma, tail, dustTail };
         this.visuals.set(a.id, vis);
         this.group.add(group);
       }
@@ -98,12 +114,21 @@ export class CometTailRenderer {
       const dir = a.awayScene.clone().sub(a.headScene);
       const len = Math.max(0.001, dir.length());
       dir.normalize();
-      // Orient the tail plane along the anti-sunward axis.
+      const up = new THREE.Vector3(0, 1, 0);
+      // Ion tail: narrow, long, azure.
       vis.tail.position.copy(dir.clone().multiplyScalar(len / 2));
-      vis.tail.scale.set(Math.max(0.6, len * 0.12), len, 1);
-      vis.tail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      vis.tail.scale.set(Math.max(0.4, len * 0.07), len, 1);
+      vis.tail.quaternion.setFromUnitVectors(up, dir);
+      // Dust tail: broad, shorter, amber, fanned slightly off-axis.
+      const dustDir = dir.clone();
+      dustDir.x += 0.12;
+      dustDir.normalize();
+      vis.dustTail.position.copy(dustDir.clone().multiplyScalar(len * 0.35));
+      vis.dustTail.scale.set(Math.max(0.8, len * 0.16), len * 0.7, 1);
+      vis.dustTail.quaternion.setFromUnitVectors(up, dustDir);
       (vis.coma.material as THREE.SpriteMaterial).opacity = 0.35 + a.intensity01 * 0.65;
       (vis.tail.material as THREE.MeshBasicMaterial).opacity = 0.15 + a.intensity01 * 0.6;
+      (vis.dustTail.material as THREE.MeshBasicMaterial).opacity = 0.1 + a.intensity01 * 0.45;
       const comaScale = 1.5 + a.intensity01 * 3;
       vis.coma.scale.set(comaScale, comaScale, 1);
     }
@@ -113,6 +138,8 @@ export class CometTailRenderer {
         disposalRegistry.release(vis.coma.material as THREE.Material);
         disposalRegistry.release(vis.tail.geometry);
         disposalRegistry.release(vis.tail.material as THREE.Material);
+        disposalRegistry.release(vis.dustTail.geometry);
+        disposalRegistry.release(vis.dustTail.material as THREE.Material);
         this.visuals.delete(id);
       }
     }
@@ -124,6 +151,8 @@ export class CometTailRenderer {
       disposalRegistry.release(vis.coma.material as THREE.Material);
       disposalRegistry.release(vis.tail.geometry);
       disposalRegistry.release(vis.tail.material as THREE.Material);
+      disposalRegistry.release(vis.dustTail.geometry);
+      disposalRegistry.release(vis.dustTail.material as THREE.Material);
     }
     this.visuals.clear();
     disposalRegistry.release(this.glowTex);

@@ -37,6 +37,8 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   { id: 'open-stats', keys: ['S'], label: 'Open system statistics', group: 'Panels' },
   { id: 'open-help', keys: ['?'], label: 'Open keyboard shortcut help', group: 'Panels' },
   { id: 'command-palette', keys: ['Ctrl+K'], label: 'Command palette', group: 'Panels' },
+  { id: 'selection-back', keys: ['Alt+\u2190'], label: 'Previous selection', group: 'System' },
+  { id: 'selection-forward', keys: ['Alt+\u2192'], label: 'Next selection', group: 'System' },
   { id: 'present-capture', keys: ['P'], label: 'Capture showcase PNG (PRESENT mode)', group: 'System' },
   { id: 'close-top', keys: ['Esc'], label: 'Close modal / deselect', group: 'Panels' },
 ];
@@ -56,6 +58,11 @@ export function shortcutIdForEvent(e: KeyboardEvent): string | null {
   const key = e.key;
   if ((e.ctrlKey || e.metaKey) && (key === 'z' || key === 'Z')) return 'undo';
   if ((e.ctrlKey || e.metaKey) && (key === 'k' || key === 'K')) return 'command-palette';
+  if (e.altKey && !e.ctrlKey && !e.metaKey) {
+    if (key === 'ArrowLeft') return 'selection-back';
+    if (key === 'ArrowRight') return 'selection-forward';
+    return null;
+  }
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   switch (key) {
     case ' ': return 'toggle-pause';
@@ -97,4 +104,17 @@ export function shortcutIdForEvent(e: KeyboardEvent): string | null {
     case 'Escape': return 'close-top';
     default: return null;
   }
+}
+
+/**
+ * Canonical palette hint for a shortcut id (iteration 3, UI01).
+ *
+ * The command palette duplicated key hints by hand and drifted (wrong
+ * navigator key, phantom tool number, bracket rate keys). Deriving hints
+ * from this registry keeps every surface honest by construction.
+ */
+export function shortcutHintFor(id: string): string | undefined {
+  if (id === 'faster') return '+';
+  if (id === 'slower') return '\u2212';
+  return SHORTCUT_DEFINITIONS.find((d) => d.id === id)?.keys[0];
 }

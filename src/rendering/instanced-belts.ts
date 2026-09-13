@@ -37,7 +37,9 @@ export class InstancedBeltRenderer {
     // Low-poly icosahedron for asteroid rock geometry
     const geometry = new THREE.DodecahedronGeometry(0.35, 0);
     const material = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(belt.color || '#7e7e88'),
+      // Iteration 3 ASSET03: base white — per-instance mineral tints
+      // carry the belt hue with seeded variation.
+      color: new THREE.Color('#ffffff'),
       roughness: 0.9,
       metalness: 0.1,
       flatShading: true,
@@ -47,6 +49,34 @@ export class InstancedBeltRenderer {
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
     this.initParticles();
+    this.tintParticles();
+  }
+
+  /**
+   * Seeded per-rock mineral variation with soft belt-edge falloff
+   * (iteration 3, ASSET03). Deterministic from the belt seed so reloads
+   * reproduce the identical field.
+   */
+  private tintParticles(): void {
+    const count = this.beltData.particleCount;
+    const base = new THREE.Color(this.beltData.color || '#7e7e88');
+    const tint = new THREE.Color();
+    const rMin = this.beltData.innerRadiusKm;
+    const rMax = this.beltData.outerRadiusKm;
+    let s = ((this.beltData.seed || 12345) ^ 0x9e3779b9) >>> 0;
+    const rand = (): number => {
+      s = (s * 1664525 + 1013904223) % 4294967296;
+      return s / 4294967296;
+    };
+    for (let i = 0; i < count; i++) {
+      tint.copy(base).offsetHSL((rand() - 0.5) * 0.03, (rand() - 0.5) * 0.12, (rand() - 0.5) * 0.22);
+      const a = this.semiMajorAxes[i];
+      const t = (a - rMin) / Math.max(1e-9, rMax - rMin);
+      const edge = Math.min(1, Math.min(t, 1 - t) * 6);
+      tint.multiplyScalar(0.45 + 0.55 * Math.max(0, edge));
+      this.mesh.setColorAt(i, tint);
+    }
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 
   public getMesh(): THREE.InstancedMesh {

@@ -52,6 +52,12 @@ export class SimulationEngine {
   private maxSubstepsPerTick: number = PLANNER_CONFIG.physics.maxSubstepsPerTick;
   private lastTickStats: EngineTickStats = { physicsMs: 0, collisionMs: 0, thermalMs: 0, substeps: 0 };
 
+  /** Clamp and apply a time scale; returns the applied value (iteration 3, BACK14). */
+  public setTimeScale(scale: number): number {
+    this.timeScale = normalizeTimeScale(scale);
+    return this.timeScale;
+  }
+
   /** Subsystem timing of the most recent tick (BACK11 diagnostics). */
   public getLastTickStats(): EngineTickStats {
     return { ...this.lastTickStats };
@@ -69,7 +75,7 @@ export class SimulationEngine {
    * Advance simulation by real-world delta time in seconds.
    */
   public update(realDeltaSec: number): void {
-    if (this.isPaused || this.timeScale <= 0) return;
+    if (this.isPaused || !Number.isFinite(this.timeScale) || this.timeScale <= 0) return;
 
     // Cap delta time to prevent spiral of death on tab switch / lag
     const clampedRealDt = Math.min(PLANNER_CONFIG.physics.maxRealDeltaSec, Math.max(0.001, realDeltaSec));
@@ -90,7 +96,7 @@ export class SimulationEngine {
       if (!ok) {
         this.isPaused = true;
         this.events.push({
-          id: `nan-${Date.now()}`,
+          id: createId('nan'),
           timestampSec: this.timeSec,
           type: 'orbit_unbound',
           title: 'Simulation Instability Detected',
@@ -272,4 +278,20 @@ export class SimulationEngine {
     this.hookshotRoutes = JSON.parse(JSON.stringify(snapshot.hookshotRoutes ?? []));
     updateBodyTemperatures(this.bodies);
   }
+}
+
+/** Tablet-safe time acceleration bounds. */
+export const MIN_TIME_SCALE = 1;
+export const MAX_TIME_SCALE = 100000;
+
+/**
+ * Normalize a requested time scale (iteration 3, BACK14).
+ *
+ * Sliders, palette verbs, and persisted sessions can all hand the engine
+ * NaN, infinities, or out-of-ladder values; the clamp keeps the integrator
+ * honest instead of wedged or accidentally frozen.
+ */
+export function normalizeTimeScale(scale: number): number {
+  if (!Number.isFinite(scale)) return MIN_TIME_SCALE;
+  return Math.min(MAX_TIME_SCALE, Math.max(MIN_TIME_SCALE, scale));
 }

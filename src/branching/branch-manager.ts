@@ -11,6 +11,7 @@ import { SimulationEngine } from '../simulation/engine';
 import { CelestialBody } from '../simulation/types';
 import { KM_PER_AU } from '../simulation/units';
 import { TimelineBranch, BranchComparisonResult } from './branch-types';
+import { createId } from '../core/id';
 
 /**
  * Timeline divergence (GAME14): mean positional drift of bodies shared by
@@ -69,7 +70,7 @@ export class BranchManager {
     // Save current active branch state first
     this.saveCurrentState(engine);
 
-    const newId = `branch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const newId = createId('branch');
     const newBranch: TimelineBranch = {
       id: newId,
       name: name.trim() || `Fork @ ${Math.round(engine.timeSec)}s`,
@@ -80,7 +81,7 @@ export class BranchManager {
       events: [
         ...engine.events,
         {
-          id: `fork-${Date.now()}`,
+          id: createId('fork'),
           timestampSec: engine.timeSec,
           type: 'branch_fork',
           title: `Branched Timeline: ${name}`,

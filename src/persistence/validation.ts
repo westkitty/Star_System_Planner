@@ -90,6 +90,10 @@ export function validateProjectStructure(project: unknown): ValidationReport {
         issues.push({ path: `${bPath}.snapshot`, message: 'branch snapshot must be an object' });
         return;
       }
+      const snapshotTimestamp = (branch.snapshot as Record<string, unknown>).timestampSec;
+      if (snapshotTimestamp !== undefined && !isFiniteNumber(snapshotTimestamp)) {
+        issues.push({ path: `${bPath}.snapshot.timestampSec`, message: 'snapshot timestampSec must be a finite number when present' });
+      }
       const bodies = (branch.snapshot as Record<string, unknown>).bodies;
       if (!Array.isArray(bodies)) {
         issues.push({ path: `${bPath}.snapshot.bodies`, message: 'snapshot bodies must be an array' });
@@ -99,6 +103,41 @@ export function validateProjectStructure(project: unknown): ValidationReport {
         issues.push({ path: `${bPath}.snapshot.bodies`, message: 'snapshot exceeds 512-body safety limit' });
       }
       bodies.forEach((body, idx) => checkBody(`${bPath}.snapshot.bodies[${idx}]`, body, issues));
+      // Iteration 3 BACK04: census integrity — unique ids, resolvable primaries.
+      const bodyIds = new Set<string>();
+      bodies.forEach((body, idx) => {
+        if (isRecord(body) && typeof body.id === 'string' && body.id.length > 0) {
+          if (bodyIds.has(body.id)) {
+            issues.push({ path: `${bPath}.snapshot.bodies[${idx}].id`, message: `duplicate body id "${body.id}"` });
+          } else {
+            bodyIds.add(body.id);
+          }
+        }
+      });
+      bodies.forEach((body, idx) => {
+        if (isRecord(body) && typeof body.primaryId === 'string' && body.primaryId.length > 0 && !bodyIds.has(body.primaryId)) {
+          issues.push({ path: `${bPath}.snapshot.bodies[${idx}].primaryId`, message: `unknown primaryId "${body.primaryId}"` });
+        }
+      });
+      if (branch.events !== undefined) {
+        if (!Array.isArray(branch.events)) {
+          issues.push({ path: `${bPath}.events`, message: 'branch events must be an array when present' });
+        } else {
+          branch.events.forEach((ev, idx) => {
+            if (!isRecord(ev) || typeof ev.id !== 'string' || typeof ev.type !== 'string') {
+              issues.push({ path: `${bPath}.events[${idx}]`, message: 'event must be an object with string id and type' });
+            }
+          });
+        }
+      }
+    });
+    // Iteration 3 BACK04: branch parent linkage must resolve within the file.
+    project.branches.forEach((branch, bi) => {
+      if (!isRecord(branch)) return;
+      const parent = branch.parentBranchId;
+      if (parent !== null && parent !== undefined && (typeof parent !== 'string' || !seenIds.has(parent))) {
+        issues.push({ path: `$.branches[${bi}].parentBranchId`, message: 'parentBranchId must be null or a known branch id' });
+      }
     });
     if (typeof project.activeBranchId === 'string' && !seenIds.has(project.activeBranchId)) {
       issues.push({ path: '$.activeBranchId', message: 'activeBranchId does not match any branch' });

@@ -67,6 +67,41 @@ export class SimulationEventMonitor {
     return { ...this.summary };
   }
 
+  // ---- Pair-budget load shedding (iteration 3, BACK07) ----
+  private pairBudget = Number.POSITIVE_INFINITY;
+  private lastPairInput = 0;
+  private lastShedCount = 0;
+
+  /**
+   * Cap the body census used for O(n^2)-class pair detectors (syzygies,
+   * resonances). Conjunctions keep the full census — the spatial hash
+   * makes them cheap. Sampling strides the census so coverage stays
+   * representative instead of truncating to the oldest bodies.
+   */
+  public setPairBudget(maxBodies: number): void {
+    this.pairBudget = maxBodies > 0 && Number.isFinite(maxBodies) ? maxBodies : Number.POSITIVE_INFINITY;
+  }
+
+  /** Load-shedding telemetry for diagnostics. */
+  public getLoadStats(): { budget: number; lastInput: number; lastShed: number } {
+    return { budget: this.pairBudget, lastInput: this.lastPairInput, lastShed: this.lastShedCount };
+  }
+
+  private sampleForPairs(bodies: CelestialBody[]): CelestialBody[] {
+    this.lastPairInput = bodies.length;
+    if (bodies.length <= this.pairBudget || !(this.pairBudget > 0)) {
+      this.lastShedCount = 0;
+      return bodies;
+    }
+    const anchors = bodies.filter((b) => b.type === 'star' || b.type === 'black_hole');
+    const rest = bodies.filter((b) => b.type !== 'star' && b.type !== 'black_hole');
+    const stride = Math.max(1, Math.ceil(bodies.length / this.pairBudget));
+    const picked = rest.filter((_, i) => i % stride === 0);
+    const sample = [...anchors, ...picked];
+    this.lastShedCount = Math.max(0, bodies.length - sample.length);
+    return sample;
+  }
+
   /**
    * Inspect bodies and return freshly-detected consequence events.
    * Pure with respect to the engine: the caller appends returned events.
@@ -196,6 +231,7 @@ export class SimulationEventMonitor {
   /** Pairwise discovery: conjunctions, syzygies, resonances. */
   private detectPairs(bodies: CelestialBody[], timeSec: number, events: ConsequenceEvent[]): void {
     const byId = new Map(bodies.map((b) => [b.id, b]));
+    const pairSample = this.sampleForPairs(bodies);
 
     // GAME03 — close approaches via spatial hash.
     const conjunctions = detectConjunctions(bodies, PLANNER_CONFIG.discovery.conjunctionKm, this.hash);
@@ -218,7 +254,7 @@ export class SimulationEventMonitor {
     }
 
     // GAME02 — eclipses and transits.
-    for (const s of detectSyzygies(bodies)) {
+    for (const s of detectSyzygies(pairSample)) {
       const key = `${s.kind}|${s.viewerId}|${s.occluderId}|${s.starId}`;
       if ((this.syzygyCooldown.get(key) ?? 0) > timeSec) continue;
       this.syzygyCooldown.set(key, timeSec + PLANNER_CONFIG.discovery.syzygyCooldownSec);
@@ -250,7 +286,7 @@ export class SimulationEventMonitor {
     }
 
     // GAME04 — mean-motion resonances (one-shot per pair).
-    for (const r of detectResonances(bodies, PLANNER_CONFIG.discovery.resonanceTolerance)) {
+    for (const r of detectResonances(pairSample, PLANNER_CONFIG.discovery.resonanceTolerance)) {
       const key = [r.bodyAId, r.bodyBId].sort().join('|');
       if (this.announcedResonances.has(key)) continue;
       this.announcedResonances.add(key);

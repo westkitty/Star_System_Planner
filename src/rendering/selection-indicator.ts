@@ -11,6 +11,8 @@ import * as THREE from 'three';
 export interface SelectionIndicator {
   group: THREE.Group;
   setHover: (hovered: boolean) => void;
+  /** Gold target-lock styling while the camera follows this body. */
+  setFollow: (following: boolean) => void;
   update: (elapsedSec: number, reducedMotion: boolean) => void;
 }
 
@@ -64,6 +66,7 @@ export function createSelectionIndicator(): SelectionIndicator {
   group.add(hoverRing);
 
   let hovered = false;
+  let following = false;
 
   return {
     group,
@@ -71,11 +74,16 @@ export function createSelectionIndicator(): SelectionIndicator {
       hovered = value;
       hoverMat.opacity = value ? 0.55 : 0.0;
     },
+    setFollow: (value: boolean) => {
+      following = value;
+      ringMat.color.set(value ? '#ffd166' : '#0cc6ff');
+      tickMat.color.set(value ? '#ffe9b0' : '#b6f6ff');
+    },
     update: (elapsedSec: number, reducedMotion: boolean) => {
       if (!reducedMotion) {
-        lockRing.rotation.z = elapsedSec * 0.35;
+        lockRing.rotation.z = elapsedSec * (following ? 0.6 : 0.35);
         ticks.rotation.y = -elapsedSec * 0.22;
-        const pulse = 1 + Math.sin(elapsedSec * 2.4) * 0.025;
+        const pulse = 1 + Math.sin(elapsedSec * (following ? 4.5 : 2.4)) * (following ? 0.045 : 0.025);
         group.scale.set(pulse, pulse, pulse);
       }
       if (hovered && !reducedMotion) {

@@ -134,6 +134,18 @@ function paintTexture(
       }
       ctx.stroke();
     }
+    // Iteration 3 ASSET01: wind-raked ash dunes over the basalt.
+    ctx.strokeStyle = 'rgba(20,8,6,0.5)';
+    for (let d = 0; d < 12; d++) {
+      ctx.lineWidth = rng.range(2, 5);
+      ctx.beginPath();
+      const y = rng.range(0, S);
+      ctx.moveTo(0, y);
+      for (let x = 0; x <= S; x += 16) {
+        ctx.lineTo(x, y + Math.sin((x / S) * Math.PI * 3 + d) * 7);
+      }
+      ctx.stroke();
+    }
     ctx.shadowBlur = 0;
     return;
   }
@@ -154,6 +166,23 @@ function paintTexture(
     ctx.arc(x, y, r, Math.PI * 1.1, Math.PI * 1.7);
     ctx.stroke();
   }
+  if (classification === 'remnant') {
+    // Iteration 3 ASSET01: impact-glass veins spidering the regolith.
+    ctx.strokeStyle = 'rgba(148,196,255,0.5)';
+    for (let i = 0; i < 10; i++) {
+      ctx.lineWidth = rng.range(0.6, 1.4);
+      ctx.beginPath();
+      let x = rng.range(0, S);
+      let y = rng.range(0, S);
+      ctx.moveTo(x, y);
+      for (let sgm = 0; sgm < 4; sgm++) {
+        x += rng.range(-46, 46);
+        y += rng.range(-46, 46);
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
   if (classification === 'artificial') {
     // City-grid light lattice.
     ctx.strokeStyle = 'rgba(73, 231, 255, 0.35)';
@@ -169,6 +198,15 @@ function paintTexture(
       ctx.moveTo(0, gy);
       ctx.lineTo(S, gy);
       ctx.stroke();
+    }
+    // Iteration 3 ASSET01: night-side city glow knots on the lattice.
+    for (let i = 0; i < 60; i++) {
+      const gx = Math.round(rng.range(0, S / 16)) * 16;
+      const gy = Math.round(rng.range(0, S / 16)) * 16;
+      ctx.fillStyle = rng.nextFloat() < 0.7 ? 'rgba(255,214,120,0.8)' : 'rgba(73,231,255,0.8)';
+      ctx.beginPath();
+      ctx.arc(gx, gy, rng.range(0.8, 1.8), 0, Math.PI * 2);
+      ctx.fill();
     }
   } else {
     for (let i = 0; i < 900; i++) {

@@ -8,9 +8,11 @@
 
 import { eventBus } from './event-bus';
 
-export const SETTINGS_SCHEMA_VERSION = 2;
+export const SETTINGS_SCHEMA_VERSION = 3;
 
 export type UnitSystem = 'metric' | 'imperial';
+
+export type HudDensity = 'comfortable' | 'compact';
 
 export interface PlannerSettings {
   settingsVersion: number;
@@ -31,6 +33,8 @@ export interface PlannerSettings {
   orbitLinesVisible: boolean;
   approachAutopilot: boolean;
   unitSystem: UnitSystem;
+  // Iteration 3 additions (schema v3).
+  hudDensity: HudDensity;
 }
 
 export const DEFAULT_SETTINGS: PlannerSettings = {
@@ -50,6 +54,7 @@ export const DEFAULT_SETTINGS: PlannerSettings = {
   orbitLinesVisible: true,
   approachAutopilot: true,
   unitSystem: 'metric',
+  hudDensity: 'comfortable',
   onboardingCompleted: false,
 };
 

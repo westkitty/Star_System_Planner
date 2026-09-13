@@ -39,7 +39,12 @@ export interface FutureForecastResponse {
   trajectories: Record<string, PredictedPoint[]>;
   collisions: PredictedCollision[];
   sensitivityFans?: Vector3D[][];
+  /** Worker protocol version (iteration 3, BACK12). */
+  protocolVersion?: number;
 }
+
+/** Bump when the forecast request/response shape changes. */
+export const FORECAST_PROTOCOL_VERSION = 1;
 
 // Pairwise acceleration for worker simulation
 function computeWorkerAccs(
@@ -93,7 +98,7 @@ self.onmessage = (event: MessageEvent<FutureForecastRequest>) => {
 
   const n = bodies.length;
   if (n === 0) {
-    self.postMessage({ requestId, trajectories: {}, collisions: [] } as FutureForecastResponse);
+    self.postMessage({ requestId, trajectories: {}, collisions: [], protocolVersion: FORECAST_PROTOCOL_VERSION } as FutureForecastResponse);
     return;
   }
 
@@ -269,5 +274,6 @@ self.onmessage = (event: MessageEvent<FutureForecastRequest>) => {
     sensitivityFans,
   };
 
+  response.protocolVersion = FORECAST_PROTOCOL_VERSION;
   self.postMessage(response);
 };

@@ -16,6 +16,17 @@ export interface ManeuverResult {
   detail: string;
 }
 
+/**
+ * Accumulate flown delta-v on the hull (iteration 3, GAME12).
+ *
+ * Every maneuver helper calls this on success, so the inspector's flight
+ * log and the mission debrief report honest lifetime propellant spend.
+ */
+export function logDeltaV(body: CelestialBody, dvKmS: number): void {
+  if (!(dvKmS > 0) || !Number.isFinite(dvKmS)) return;
+  body.deltaVSpentKmS = (body.deltaVSpentKmS ?? 0) + dvKmS;
+}
+
 function magnitude(v: Vector3D): number {
   return Math.hypot(v.x, v.y, v.z);
 }
@@ -71,6 +82,7 @@ export function applyNudge(body: CelestialBody, primary: CelestialBody, directio
     y: body.velocity.y + axis.y * dvKmS,
     z: body.velocity.z + axis.z * dvKmS,
   };
+  logDeltaV(body, dvKmS);
   return { applied: true, deltaVKmS: dvKmS, detail: `${direction} burn of ${dvKmS.toFixed(2)} km/s` };
 }
 
@@ -104,6 +116,7 @@ export function circularizeOrbit(body: CelestialBody, primary: CelestialBody): M
     y: primary.velocity.y + newRelV.y,
     z: primary.velocity.z + newRelV.z,
   };
+  logDeltaV(body, dv);
   return { applied: true, deltaVKmS: dv, detail: `Circularized at ${(radius / 149597870.7).toFixed(3)} AU (Δv ${dv.toFixed(2)} km/s)` };
 }
 
@@ -118,6 +131,7 @@ export function matchVelocity(body: CelestialBody, target: CelestialBody): Maneu
     target.velocity.z - body.velocity.z
   );
   body.velocity = { ...target.velocity };
+  logDeltaV(body, dv);
   return { applied: true, deltaVKmS: dv, detail: `Matched velocity with ${target.name} (Δv ${dv.toFixed(2)} km/s)` };
 }
 

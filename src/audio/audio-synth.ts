@@ -401,6 +401,78 @@ export class AudioSynthesizer {
     osc.start();
     osc.stop(ctx.currentTime + 0.1);
   }
+
+  /** Hushed eclipse chord: low veil plus a high shimmer (iteration 3, ASSET14). */
+  public playEclipseHush(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const out = this.output();
+    if (!out) return;
+    const now = ctx.currentTime;
+    const parts: Array<{ freq: number; dur: number; gain: number; type: OscillatorType }> = [
+      { freq: 196, dur: 0.9, gain: 0.06, type: 'sine' },
+      { freq: 1470, dur: 0.5, gain: 0.02, type: 'triangle' },
+    ];
+    for (const part of parts) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = part.type;
+      osc.frequency.setValueAtTime(part.freq, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(part.gain, now + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + part.dur);
+      osc.connect(gain);
+      gain.connect(out);
+      osc.start(now);
+      osc.stop(now + part.dur + 0.05);
+    }
+  }
+
+  /** Warm rising chord for gravitational captures (iteration 3, ASSET14). */
+  public playCaptureChord(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const out = this.output();
+    if (!out) return;
+    const freqs = [392, 523.25, 659.25];
+    const now = ctx.currentTime;
+    for (let i = 0; i < freqs.length; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freqs[i], now);
+      gain.gain.setValueAtTime(0.0001, now + i * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.07, now + i * 0.08 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.5);
+      osc.connect(gain);
+      gain.connect(out);
+      osc.start(now + i * 0.08);
+      osc.stop(now + i * 0.08 + 0.55);
+    }
+  }
+
+  /** Contract fanfare: a longer, brighter success arc (iteration 3, ASSET14). */
+  public playContractFanfare(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const out = this.output();
+    if (!out) return;
+    const freqs = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+    const now = ctx.currentTime;
+    for (let i = 0; i < freqs.length; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freqs[i], now);
+      gain.gain.setValueAtTime(0.0001, now + i * 0.09);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + i * 0.09 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.4);
+      osc.connect(gain);
+      gain.connect(out);
+      osc.start(now + i * 0.09);
+      osc.stop(now + i * 0.09 + 0.45);
+    }
+  }
 }
 
 export const audioSynth = new AudioSynthesizer();

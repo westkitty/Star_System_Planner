@@ -8,8 +8,9 @@
 
 import { CelestialBody, ConsequenceEvent, SystemStatus } from './types';
 import { SimulationEngine } from './engine';
+import { createId } from '../core/id';
 
-export type UndoKind = 'delete-body' | 'macro' | 'preset-load' | 'bulk' | 'merge' | 'time-scrub';
+export type UndoKind = 'delete-body' | 'macro' | 'preset-load' | 'bulk' | 'merge' | 'time-scrub' | 'maneuver';
 
 export interface UndoEntry {
   id: string;
@@ -59,7 +60,7 @@ export class UndoStack {
   /** Capture pre-action state. Call BEFORE the destructive mutation. */
   public checkpoint(engine: SimulationEngine, kind: UndoKind, label: string): UndoEntry {
     const entry: UndoEntry = {
-      id: `undo-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+      id: createId('undo'),
       kind,
       label,
       atMs: Date.now(),
@@ -85,7 +86,7 @@ export class UndoStack {
     engine.systemStatus = entry.systemStatus;
     engine.timeSec = entry.timeSec;
     engine.events.push({
-      id: `undo-${Date.now()}`,
+      id: createId('undo'),
       timestampSec: engine.timeSec,
       type: 'body_created',
       title: `Undone: ${entry.label}`,
