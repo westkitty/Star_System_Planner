@@ -1,6 +1,6 @@
 /**
  * Primary Simulation Engine Orchestrator.
- * 
+ *
  * Manages:
  * - Fixed sub-stepping integration
  * - Time scale management (Pause, 1x, 10x, 100x, 1000x, 10000x)
@@ -14,6 +14,8 @@ import { CelestialBody, ConsequenceEvent, SimulationSnapshot, AsteroidBelt, Hook
 import { stepVelocityVerlet } from './integrator';
 import { resolveCollisions, CollisionDebrisParticle } from './collisions';
 import { updateBodyTemperatures } from './thermal';
+import { PLANNER_CONFIG, stepSizeForTimeScale } from '../core/config';
+import { eventBus } from '../core/event-bus';
 
 export interface SimulationEngineConfig {
   enableCollisions: boolean;
@@ -34,8 +36,7 @@ export class SimulationEngine {
   public systemStatus: SystemStatus = 'active';
 
   private accumulatorSec: number = 0;
-  private readonly fixedStepSec: number = 60.0; // 1 minute fixed physics step
-  private maxSubstepsPerTick: number = 64; // Safety budget per frame
+  private maxSubstepsPerTick: number = PLANNER_CONFIG.physics.maxSubstepsPerTick;
 
   constructor(initialBodies: CelestialBody[] = [], config?: Partial<SimulationEngineConfig>) {
     this.bodies = initialBodies.map(b => ({ ...b, position: { ...b.position }, velocity: { ...b.velocity } }));
@@ -52,20 +53,11 @@ export class SimulationEngine {
     if (this.isPaused || this.timeScale <= 0) return;
 
     // Cap delta time to prevent spiral of death on tab switch / lag
-    const clampedRealDt = Math.min(0.1, Math.max(0.001, realDeltaSec));
+    const clampedRealDt = Math.min(PLANNER_CONFIG.physics.maxRealDeltaSec, Math.max(0.001, realDeltaSec));
     const simDt = clampedRealDt * this.timeScale;
 
-    // Determine appropriate fixed step size for current time acceleration
-    let stepSize = this.fixedStepSec;
-    if (this.timeScale >= 10000) {
-      stepSize = 3600 * 4; // 4 hours per step at extreme speeds
-    } else if (this.timeScale >= 1000) {
-      stepSize = 3600; // 1 hour
-    } else if (this.timeScale >= 100) {
-      stepSize = 600; // 10 minutes
-    } else if (this.timeScale >= 10) {
-      stepSize = 120; // 2 minutes
-    }
+    // Adaptive fixed step from central tuning ladder (BACK12).
+    const stepSize = stepSizeForTimeScale(this.timeScale);
 
     this.accumulatorSec += simDt;
     let substepsDone = 0;
@@ -94,6 +86,11 @@ export class SimulationEngine {
         const colResults = resolveCollisions(this.bodies, this.timeSec, this.debris);
         for (const cr of colResults) {
           this.events.push(cr.event);
+          eventBus.emit('collision:occurred', {
+            eventId: cr.event.id,
+            bodyIds: cr.event.bodyIds ?? [],
+            timestampSec: this.timeSec,
+          });
         }
       }
     }
@@ -133,6 +130,7 @@ export class SimulationEngine {
       bodyIds: [body.id],
       severity: 'info',
     });
+    eventBus.emit('body:created', { bodyId: body.id, name: body.name, type: body.type });
   }
 
   public removeBody(id: string): void {
@@ -149,7 +147,33 @@ export class SimulationEngine {
         severity: 'info',
       });
       updateBodyTemperatures(this.bodies);
+      eventBus.emit('body:removed', { bodyId: id, name: removed.name });
     }
+  }
+
+  /**
+   * Advance exactly one adaptive physics step while paused (GAME01).
+   * Frame-stepping for precise slingshot setup and collision forensics.
+   */
+  public stepOnce(): boolean {
+    const stepSize = stepSizeForTimeScale(Math.max(1, this.timeScale));
+    const ok = stepVelocityVerlet(this.bodies, stepSize);
+    if (!ok) return false;
+    this.timeSec += stepSize;
+    this.accumulatorSec = 0;
+    if (this.enableCollisions && this.bodies.length > 1) {
+      const colResults = resolveCollisions(this.bodies, this.timeSec, this.debris);
+      for (const cr of colResults) {
+        this.events.push(cr.event);
+        eventBus.emit('collision:occurred', {
+          eventId: cr.event.id,
+          bodyIds: cr.event.bodyIds ?? [],
+          timestampSec: this.timeSec,
+        });
+      }
+    }
+    updateBodyTemperatures(this.bodies);
+    return true;
   }
 
   public createSnapshot(): SimulationSnapshot {

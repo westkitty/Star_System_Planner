@@ -9,7 +9,32 @@
 
 export class AudioSynthesizer {
   private ctx: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
   public isEnabled: boolean = false;
+  private volume = 0.8;
+
+  /** Live master volume 0..1 (UI15 settings). */
+  public setVolume(volume: number): void {
+    this.volume = Math.max(0, Math.min(1, volume));
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setTargetAtTime(this.volume, this.ctx.currentTime, 0.02);
+    }
+  }
+
+  public getVolume(): number {
+    return this.volume;
+  }
+
+  private output(): AudioNode | null {
+    const ctx = this.getContext();
+    if (!ctx) return null;
+    if (!this.masterGain) {
+      this.masterGain = ctx.createGain();
+      this.masterGain.gain.value = this.volume;
+      this.masterGain.connect(ctx.destination);
+    }
+    return this.masterGain;
+  }
 
   private getContext(): AudioContext | null {
     if (!this.isEnabled) return null;
@@ -46,7 +71,8 @@ export class AudioSynthesizer {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.02);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    const out = this.output();
+    if (out) gain.connect(out);
 
     osc.start();
     osc.stop(ctx.currentTime + 0.02);
@@ -71,7 +97,8 @@ export class AudioSynthesizer {
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4 + i * 0.04);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      const out = this.output();
+    if (out) gain.connect(out);
 
       osc.start(now + i * 0.04);
       osc.stop(now + 0.4 + i * 0.04);
@@ -93,7 +120,8 @@ export class AudioSynthesizer {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    const out = this.output();
+    if (out) gain.connect(out);
 
     osc.start();
     osc.stop(ctx.currentTime + 0.6);
@@ -114,7 +142,8 @@ export class AudioSynthesizer {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    const out = this.output();
+    if (out) gain.connect(out);
 
     osc.start();
     osc.stop(ctx.currentTime + 0.3);
@@ -137,10 +166,89 @@ export class AudioSynthesizer {
     gain.gain.setValueAtTime(0.0, ctx.currentTime + 1.2); // Sudden void cutoff
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    const out = this.output();
+    if (out) gain.connect(out);
 
     osc.start();
     osc.stop(ctx.currentTime + 1.25);
+  }
+
+  /** Bright ascending chime for branch forks and challenge completion. */
+  public playSuccess(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const freqs = [659.25, 830.61, 987.77, 1318.5];
+    const now = ctx.currentTime;
+    for (let i = 0; i < freqs.length; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freqs[i], now);
+      gain.gain.setValueAtTime(0.0001, now + i * 0.07);
+      gain.gain.exponentialRampToValueAtTime(0.09, now + i * 0.07 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.35);
+      osc.connect(gain);
+      const out = this.output();
+      if (out) gain.connect(out);
+      osc.start(now + i * 0.07);
+      osc.stop(now + i * 0.07 + 0.4);
+    }
+  }
+
+  /** Low percussive thump for collision mergers. */
+  public playCollisionThump(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(180, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(42, ctx.currentTime + 0.35);
+    gain.gain.setValueAtTime(0.22, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.connect(gain);
+    const out = this.output();
+    if (out) gain.connect(out);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.42);
+  }
+
+  /** Urgent dual-pulse siren for imminent forecast impacts. */
+  public playImpactSiren(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    for (let i = 0; i < 2; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const t0 = ctx.currentTime + i * 0.22;
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(620, t0);
+      osc.frequency.linearRampToValueAtTime(880, t0 + 0.16);
+      gain.gain.setValueAtTime(0.045, t0);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.18);
+      osc.connect(gain);
+      const out = this.output();
+      if (out) gain.connect(out);
+      osc.start(t0);
+      osc.stop(t0 + 0.2);
+    }
+  }
+
+  /** Soft confirmation blip for selections and toggles. */
+  public playSelect(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(740, ctx.currentTime);
+    gain.gain.setValueAtTime(0.07, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.09);
+    osc.connect(gain);
+    const out = this.output();
+    if (out) gain.connect(out);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.1);
   }
 }
 

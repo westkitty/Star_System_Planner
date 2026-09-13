@@ -10,6 +10,7 @@
 import { BranchManager } from '../branching/branch-manager';
 import { SimulationEngine } from '../simulation/engine';
 import { SavedSystemProject } from './db';
+import { CURRENT_SCHEMA_VERSION } from './migrations';
 
 export interface VisualSettingsPayload {
   scaleMode: 'true' | 'readable';
@@ -39,7 +40,7 @@ export function createSerializableProject(
   const activeBranch = branchManager.getActiveBranch();
 
   return {
-    schemaVersion: '1.0.0',
+    schemaVersion: CURRENT_SCHEMA_VERSION as SavedSystemProject['schemaVersion'],
     projectId,
     projectName: projectName.trim() || 'Untitled System',
     seed: 42,

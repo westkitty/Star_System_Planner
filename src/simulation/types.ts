@@ -114,11 +114,12 @@ export interface HookshotRoute {
 export interface ConsequenceEvent {
   id: string;
   timestampSec: number;
-  type: 
+  type:
     | 'body_created'
     | 'body_removed'
     | 'throw_released'
     | 'collision'
+    | 'forecast_warning'
     | 'orbit_unbound'
     | 'roche_violation'
     | 'hill_instability'

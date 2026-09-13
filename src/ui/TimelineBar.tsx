@@ -1,6 +1,14 @@
+/**
+ * Bottom timeline transport bar (UI13 continuous time control).
+ *
+ * Play/pause, single-step advance (GAME01), logarithmic acceleration
+ * slider across six orders of magnitude, mission-clock readout, follow /
+ * top-down camera modes (GAME02/03), and branch + ledger controls.
+ */
+
 import React from 'react';
-import { Play, Pause, GitFork, ListOrdered, GitCompare } from 'lucide-react';
-import { formatSimTime } from '../simulation/units';
+import { Play, Pause, GitFork, ListOrdered, GitCompare, StepForward, Video, Map } from 'lucide-react';
+import { formatMissionClock, formatSimTime } from '../simulation/units';
 import { TimelineBranch } from '../branching/branch-types';
 
 interface TimelineBarProps {
@@ -9,6 +17,11 @@ interface TimelineBarProps {
   isPaused: boolean;
   onTogglePause: () => void;
   onSetTimeScale: (scale: number) => void;
+  onStepOnce: () => void;
+  followEnabled: boolean;
+  onToggleFollow: () => void;
+  topDownEnabled: boolean;
+  onToggleTopDown: () => void;
   branches: TimelineBranch[];
   activeBranchId: string;
   onSwitchBranch: (id: string) => void;
@@ -18,7 +31,20 @@ interface TimelineBarProps {
   eventCount: number;
 }
 
-const PRESET_RATES = [1, 10, 100, 1000, 10000];
+const MIN_LOG = 0; // 10^0 = 1×
+const MAX_LOG = 5; // 10^5 = 100,000×
+const PRESET_RATES = [1, 100, 10000];
+
+function scaleToSlider(scale: number): number {
+  return Math.max(MIN_LOG, Math.min(MAX_LOG, Math.log10(Math.max(1, scale))));
+}
+
+function sliderToScale(value: number): number {
+  const raw = Math.pow(10, value);
+  // Snap near powers of ten for stable detents.
+  const snapped = Math.pow(10, Math.round(value));
+  return Math.abs(raw - snapped) / snapped < 0.12 ? snapped : Math.round(raw);
+}
 
 export const TimelineBar: React.FC<TimelineBarProps> = ({
   timeSec,
@@ -26,6 +52,11 @@ export const TimelineBar: React.FC<TimelineBarProps> = ({
   isPaused,
   onTogglePause,
   onSetTimeScale,
+  onStepOnce,
+  followEnabled,
+  onToggleFollow,
+  topDownEnabled,
+  onToggleTopDown,
   branches,
   activeBranchId,
   onSwitchBranch,
@@ -35,70 +66,89 @@ export const TimelineBar: React.FC<TimelineBarProps> = ({
   eventCount,
 }) => {
   return (
-    <footer className="bottom-timeline-bar hud-interactive">
-      {/* Time Play / Rate Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        {/* Play/Pause Button */}
+    <footer className="bottom-timeline-bar hud-interactive" aria-label="Simulation transport">
+      <div className="timeline-transport">
         <button
           onClick={onTogglePause}
-          style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            background: isPaused ? 'rgba(7, 19, 30, 0.9)' : 'var(--accent-azure)',
-            color: isPaused ? 'var(--text-primary)' : '#03050a',
-            border: '1px solid var(--border-subtle)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-          title={isPaused ? 'Resume Simulation' : 'Pause Simulation'}
+          className={`transport-play ${isPaused ? 'paused' : ''}`}
+          title={isPaused ? 'Resume Simulation (Space)' : 'Pause Simulation (Space)'}
+          aria-label={isPaused ? 'Resume simulation' : 'Pause simulation'}
         >
           {isPaused ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />}
         </button>
 
-        {/* Preset Rate Buttons */}
-        <div className="time-rate-group">
-          {PRESET_RATES.map((rate) => (
-            <button
-              key={rate}
-              className={`rate-btn ${!isPaused && timeScale === rate ? 'active' : ''}`}
-              onClick={() => {
-                if (isPaused) onTogglePause();
-                onSetTimeScale(rate);
-              }}
-            >
-              {rate.toLocaleString()}×
-            </button>
-          ))}
+        <button
+          onClick={onStepOnce}
+          className="transport-step"
+          title="Advance one physics step (.)"
+          aria-label="Step forward one physics step"
+        >
+          <StepForward size={15} />
+        </button>
+
+        <div className="time-scale-cluster">
+          <input
+            type="range"
+            min={MIN_LOG}
+            max={MAX_LOG}
+            step={0.05}
+            value={scaleToSlider(timeScale)}
+            onChange={(e) => onSetTimeScale(sliderToScale(parseFloat(e.target.value)))}
+            className="time-slider"
+            aria-label="Time acceleration"
+            title={`Time acceleration: ${timeScale.toLocaleString()}×`}
+          />
+          <div className="time-rate-group">
+            {PRESET_RATES.map((rate) => (
+              <button
+                key={rate}
+                className={`rate-btn ${!isPaused && timeScale === rate ? 'active' : ''}`}
+                onClick={() => {
+                  if (isPaused) onTogglePause();
+                  onSetTimeScale(rate);
+                }}
+                title={`${rate.toLocaleString()}× speed`}
+              >
+                {rate >= 1000 ? `${rate / 1000}k×` : `${rate}×`}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Elapsed Sim Time */}
-        <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-          <span style={{ color: 'var(--text-muted)' }}>T+ </span>
-          <span style={{ color: 'var(--accent-azure)', fontWeight: 600 }}>{formatSimTime(timeSec)}</span>
+        <div className="mission-clock" title={formatMissionClock(timeSec)}>
+          <span className="mission-clock-scale">{isPaused ? 'HELD' : `${timeScale.toLocaleString()}×`}</span>
+          <span className="mission-clock-time">{formatSimTime(timeSec)}</span>
+        </div>
+
+        <div className="camera-modes">
+          <button
+            onClick={onToggleFollow}
+            className={`camera-mode-btn ${followEnabled ? 'active' : ''}`}
+            title="Follow selected body (Shift+F)"
+            aria-pressed={followEnabled}
+          >
+            <Video size={13} />
+            FOLLOW
+          </button>
+          <button
+            onClick={onToggleTopDown}
+            className={`camera-mode-btn ${topDownEnabled ? 'active' : ''}`}
+            title="Top-down tactical view (T)"
+            aria-pressed={topDownEnabled}
+          >
+            <Map size={13} />
+            TOP
+          </button>
         </div>
       </div>
 
-      {/* Branch & Event Ledger Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {/* Branch Selector Dropdown */}
+      <div className="timeline-branches">
         <select
           value={activeBranchId}
           onChange={(e) => onSwitchBranch(e.target.value)}
-          style={{
-            background: 'rgba(7, 19, 30, 0.9)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-primary)',
-            fontSize: '11px',
-            fontFamily: 'var(--font-mono)',
-            padding: '6px 10px',
-            borderRadius: '6px',
-            outline: 'none',
-            cursor: 'pointer',
-          }}
+          className="branch-select"
           title="Active Timeline Branch"
+          aria-label="Active timeline branch"
         >
           {branches.map((b) => (
             <option key={b.id} value={b.id}>
@@ -107,69 +157,19 @@ export const TimelineBar: React.FC<TimelineBarProps> = ({
           ))}
         </select>
 
-        {/* FORK FUTURE Button */}
-        <button
-          onClick={onForkBranch}
-          style={{
-            background: 'rgba(12, 198, 255, 0.15)',
-            border: '1px solid var(--accent-azure)',
-            color: 'var(--accent-azure)',
-            padding: '6px 12px',
-            borderRadius: '6px',
-            fontSize: '11px',
-            fontWeight: 700,
-            letterSpacing: '0.04em',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            cursor: 'pointer',
-          }}
-          title="Fork Future: Branch into an alternate causal timeline"
-        >
+        <button onClick={onForkBranch} className="fork-btn" title="Fork Future into an alternate causal timeline (B)">
           <GitFork size={13} />
           FORK FUTURE
         </button>
 
-        {/* Compare Branches Button (if > 1 branch) */}
         {branches.length > 1 && (
-          <button
-            onClick={onOpenBranchCompare}
-            style={{
-              background: 'rgba(7, 19, 30, 0.8)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-secondary)',
-              padding: '6px 10px',
-              borderRadius: '6px',
-              fontSize: '11px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-            title="Compare Causal Consequences Between Branches"
-          >
+          <button onClick={onOpenBranchCompare} className="ledger-btn" title="Compare causal consequences between branches">
             <GitCompare size={13} />
             DIFF
           </button>
         )}
 
-        {/* Event Ledger Button */}
-        <button
-          onClick={onOpenLedger}
-          style={{
-            background: 'rgba(7, 19, 30, 0.8)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-secondary)',
-            padding: '6px 10px',
-            borderRadius: '6px',
-            fontSize: '11px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-          }}
-          title="Open Causal Event Ledger"
-        >
+        <button onClick={onOpenLedger} className="ledger-btn" title="Open causal event ledger (L)">
           <ListOrdered size={14} />
           <span>LEDGER ({eventCount})</span>
         </button>

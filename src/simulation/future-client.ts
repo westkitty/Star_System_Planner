@@ -1,9 +1,12 @@
 /**
  * Future Forecast Worker Client.
- * 
+ *
  * Manages asynchronous communication with the future prediction Web Worker,
  * handles request token invalidation so stale calculations never overwrite newer states,
  * and provides a synchronous fallback for test / headless environments.
+ *
+ * BACK09 hardening: request coalescing window, dispatch timeout with
+ * main-thread fallback, and strict stale-response guards.
  */
 
 import { CelestialBody } from './types';
@@ -12,6 +15,8 @@ import {
   FutureForecastResponse,
   PredictedPoint,
 } from '../workers/future.worker';
+import { PLANNER_CONFIG } from '../core/config';
+import { logger } from '../core/logger';
 
 export type ForecastCallback = (response: FutureForecastResponse) => void;
 
@@ -19,6 +24,10 @@ export class FutureClient {
   private worker: Worker | null = null;
   private currentRequestId = 0;
   private callback: ForecastCallback | null = null;
+  private lastDispatchMs = 0;
+  private pendingPayload: FutureForecastRequest | null = null;
+  private coalesceTimer: ReturnType<typeof setTimeout> | null = null;
+  private timeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(callback?: ForecastCallback) {
     if (callback) this.callback = callback;
@@ -36,16 +45,17 @@ export class FutureClient {
         this.worker.onmessage = (e: MessageEvent<FutureForecastResponse>) => {
           const resp = e.data;
           // Discard stale responses from older requests
-          if (resp.requestId === this.currentRequestId && this.callback) {
-            this.callback(resp);
+          if (resp.requestId === this.currentRequestId) {
+            this.clearTimeout();
+            this.callback?.(resp);
           }
         };
 
         this.worker.onerror = (err) => {
-          console.warn('[Future Worker] Error:', err);
+          logger.warn('future-worker', 'Worker error; using threaded fallback next request', err);
         };
       } catch (e) {
-        console.warn('[Future Worker] Worker initialization fallback:', e);
+        logger.warn('future-worker', 'Worker initialization fallback', e);
         this.worker = null;
       }
     }
@@ -57,7 +67,8 @@ export class FutureClient {
 
   /**
    * Request a new future prediction forecast.
-   * Increments requestId to automatically invalidate any in-flight previous request.
+   * BACK09: requests are coalesced inside a short window, guarded by a
+   * timeout with synchronous fallback, and stale responses are discarded.
    */
   public requestForecast(
     bodies: CelestialBody[],
@@ -71,8 +82,8 @@ export class FutureClient {
     this.currentRequestId++;
     const requestId = this.currentRequestId;
 
-    const steps = options?.steps ?? 240;
-    const dtSeconds = options?.dtSeconds ?? 300;
+    const steps = options?.steps ?? PLANNER_CONFIG.forecast.steps;
+    const dtSeconds = options?.dtSeconds ?? PLANNER_CONFIG.forecast.dtSeconds;
 
     const payload: FutureForecastRequest = {
       requestId,
@@ -83,29 +94,86 @@ export class FutureClient {
       calculateSensitivity: options?.calculateSensitivity ?? false,
     };
 
-    if (this.worker) {
-      this.worker.postMessage(payload);
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const elapsed = now - this.lastDispatchMs;
+    if (elapsed >= PLANNER_CONFIG.forecast.minIntervalMs) {
+      this.dispatch(payload);
     } else {
-      // Synchronous fallback (e.g. In Vitest)
-      setTimeout(() => {
-        if (this.currentRequestId === requestId && this.callback) {
-          const dummyTraj: Record<string, PredictedPoint[]> = {};
-          for (const b of bodies) {
-            dummyTraj[b.id] = [{ positionKm: { ...b.position }, timestampSec: 0 }];
-          }
-          this.callback({
-            requestId,
-            trajectories: dummyTraj,
-            collisions: [],
-          });
-        }
-      }, 0);
+      // Coalesce: keep only the newest payload for the window edge.
+      this.pendingPayload = payload;
+      if (!this.coalesceTimer) {
+        this.coalesceTimer = setTimeout(
+          () => {
+            this.coalesceTimer = null;
+            if (this.pendingPayload) {
+              const next = this.pendingPayload;
+              this.pendingPayload = null;
+              this.dispatch(next);
+            }
+          },
+          PLANNER_CONFIG.forecast.minIntervalMs - elapsed
+        );
+      }
     }
 
     return requestId;
   }
 
+  private dispatch(payload: FutureForecastRequest): void {
+    this.lastDispatchMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (this.worker) {
+      this.worker.postMessage(payload);
+      this.armTimeout(payload);
+    } else {
+      this.syncFallback(payload);
+    }
+  }
+
+  private armTimeout(payload: FutureForecastRequest): void {
+    this.clearTimeout();
+    this.timeoutTimer = setTimeout(() => {
+      // Worker is wedged: invalidate the in-flight request and fall back.
+      if (payload.requestId === this.currentRequestId) {
+        logger.warn('future-worker', 'Forecast timed out; using synchronous fallback');
+        this.currentRequestId++;
+        this.syncFallback({ ...payload, requestId: this.currentRequestId });
+      }
+    }, PLANNER_CONFIG.forecast.timeoutMs);
+  }
+
+  private clearTimeout(): void {
+    if (this.timeoutTimer) {
+      clearTimeout(this.timeoutTimer);
+      this.timeoutTimer = null;
+    }
+  }
+
+  /** Main-thread fallback: straight-line projection (never blocks). */
+  private syncFallback(payload: FutureForecastRequest): void {
+    setTimeout(() => {
+      if (payload.requestId !== this.currentRequestId) return;
+      const dummyTraj: Record<string, PredictedPoint[]> = {};
+      for (const b of payload.bodies) {
+        const points: PredictedPoint[] = [];
+        for (let i = 0; i <= 12; i++) {
+          points.push({
+            positionKm: {
+              x: b.position.x + b.velocity.x * payload.dtSeconds * i,
+              y: b.position.y + b.velocity.y * payload.dtSeconds * i,
+              z: b.position.z + b.velocity.z * payload.dtSeconds * i,
+            },
+            timestampSec: payload.dtSeconds * i,
+          });
+        }
+        dummyTraj[b.id] = points;
+      }
+      this.callback?.({ requestId: payload.requestId, trajectories: dummyTraj, collisions: [] });
+    }, 0);
+  }
+
   public destroy(): void {
+    if (this.coalesceTimer) clearTimeout(this.coalesceTimer);
+    this.clearTimeout();
     if (this.worker) {
       this.worker.terminate();
       this.worker = null;

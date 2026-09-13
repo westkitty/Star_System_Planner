@@ -40,6 +40,9 @@ jobs:
       - name: Build Production Distribution
         run: npm run build
 
+      - name: Bundle Budget + PWA Artifact Gate
+        run: npm run bundle:report
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:

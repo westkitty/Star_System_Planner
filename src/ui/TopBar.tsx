@@ -1,9 +1,22 @@
-import React from 'react';
-import { Eye, Volume2, VolumeX, Grid, Download, Upload, Sparkles } from 'lucide-react';
+/**
+ * Top command bar: brand + sigil, system presets (incl. procedural
+ * seed worlds — GAME13), mode switcher, lens toggles (gravity grid,
+ * habitable zones), undo (GAME08), panels (navigator, missions, stats,
+ * settings, shortcuts), autosave status (BACK04), and perf readout (BACK07).
+ */
+
+import React, { useState } from 'react';
+import {
+  Eye, Volume2, VolumeX, Grid, Download, Upload, Sparkles, Undo2, ListTree,
+  Trophy, BarChart3, Settings, Keyboard, Leaf, Dices, ChevronDown, Activity,
+} from 'lucide-react';
 import { ScaleMode } from '../rendering/scale-transform';
 import { SystemStatus } from '../simulation/types';
+import { AutosaveStatus } from '../persistence/autosave';
+import { formatRelativeTime } from '../simulation/units';
 
 export type AppMode = 'BUILD' | 'SIMULATE' | 'FORECAST' | 'CANON LAB' | 'PRESENT';
+export type PresetKind = 'demo' | 'meridian' | 'blank' | 'procedural';
 
 interface TopBarProps {
   projectName: string;
@@ -19,228 +32,207 @@ interface TopBarProps {
   onToggleAudio: () => void;
   gravityGridVisible: boolean;
   onToggleGravityGrid: () => void;
+  hzVisible: boolean;
+  onToggleHz: () => void;
   onExport: () => void;
   onImport: () => void;
-  onLoadPreset: (name: 'demo' | 'meridian' | 'blank') => void;
+  onLoadPreset: (name: PresetKind) => void;
+  undoDepth: number;
+  onUndo: () => void;
+  autosaveStatus: AutosaveStatus;
+  autosaveAtMs: number | null;
+  fps: number | null;
+  navigatorVisible: boolean;
+  onToggleNavigator: () => void;
+  missionsVisible: boolean;
+  onToggleMissions: () => void;
+  missionsDone: number;
+  missionsTotal: number;
+  onOpenStats: () => void;
+  onOpenSettings: () => void;
+  onOpenHelp: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({
-  projectName,
-  sigilSvg,
-  systemStatus,
-  mode,
-  onSetMode,
-  scaleMode,
-  onToggleScaleMode,
-  collisionsEnabled,
-  onToggleCollisions,
-  audioEnabled,
-  onToggleAudio,
-  gravityGridVisible,
-  onToggleGravityGrid,
-  onExport,
-  onImport,
-  onLoadPreset,
-}) => {
+function IconBtn(props: {
+  onClick: () => void;
+  title: string;
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+}): React.ReactElement {
   return (
-    <header className="top-hud-bar hud-interactive">
-      {/* Brand & Sigil */}
+    <button
+      onClick={props.onClick}
+      className={`topbar-icon-btn ${props.active ? 'active' : ''}`}
+      title={props.title}
+      aria-label={props.label}
+      aria-pressed={props.active}
+      disabled={props.disabled}
+    >
+      {props.children}
+    </button>
+  );
+}
+
+const AUTOSAVE_DOT: Record<AutosaveStatus, string> = {
+  idle: 'var(--text-muted)',
+  saving: '#fbbf24',
+  saved: '#34d399',
+  error: '#ff4d64',
+  disabled: 'var(--text-muted)',
+};
+
+export const TopBar: React.FC<TopBarProps> = (props) => {
+  const {
+    projectName, sigilSvg, systemStatus, mode, onSetMode, scaleMode, onToggleScaleMode,
+    collisionsEnabled, onToggleCollisions, audioEnabled, onToggleAudio,
+    gravityGridVisible, onToggleGravityGrid, hzVisible, onToggleHz,
+    onExport, onImport, onLoadPreset,
+  } = props;
+  const [presetOpen, setPresetOpen] = useState(false);
+
+  const choosePreset = (kind: PresetKind): void => {
+    setPresetOpen(false);
+    onLoadPreset(kind);
+  };
+
+  return (
+    <header className="top-hud-bar hud-interactive" role="banner">
       <div className="brand-section">
         <div
           className="brand-sigil"
           dangerouslySetInnerHTML={{ __html: sigilSvg }}
           title="System Sigil — Deterministic Architectural Fingerprint"
         />
-        <div>
+        <div className="brand-text">
           <div className="brand-title">STARSILK SYSTEM PLANNER</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="brand-subrow">
             <span className="brand-subtitle">{projectName}</span>
             {systemStatus === 'destroyed_by_starsilk_collapse' && (
-              <span style={{
-                fontSize: '9px',
-                fontWeight: 800,
-                letterSpacing: '0.06em',
-                color: '#ff4d64',
-                background: 'rgba(136, 0, 16, 0.5)',
-                border: '1px solid #ff4d64',
-                padding: '1px 6px',
-                borderRadius: '3px',
-                textTransform: 'uppercase',
-              }}>
-                SYSTEM DESTROYED
-              </span>
+              <span className="badge-destroyed">SYSTEM DESTROYED</span>
             )}
           </div>
         </div>
+        <div
+          className="autosave-pill"
+          title={
+            props.autosaveStatus === 'saved'
+              ? `Autosaved ${formatRelativeTime(props.autosaveAtMs)}`
+              : props.autosaveStatus === 'error'
+                ? 'Autosave failed — export .ssp.json to be safe'
+                : props.autosaveStatus === 'disabled'
+                  ? 'Autosave disabled in settings'
+                  : 'Autosave idle'
+          }
+        >
+          <span className="autosave-dot" style={{ background: AUTOSAVE_DOT[props.autosaveStatus] }} />
+          <span className="autosave-label">
+            {props.autosaveStatus === 'saved'
+              ? `Saved ${formatRelativeTime(props.autosaveAtMs)}`
+              : props.autosaveStatus.toUpperCase()}
+          </span>
+        </div>
       </div>
 
-      {/* Preset Selector */}
-      <div style={{ display: 'flex', gap: '6px' }}>
-        <button
-          onClick={() => onLoadPreset('demo')}
-          style={{
-            background: 'rgba(7, 19, 30, 0.8)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-secondary)',
-            fontSize: '11px',
-            padding: '4px 8px',
-            borderRadius: '6px',
-            cursor: 'pointer',
-          }}
-          title="Load demonstration system"
-        >
-          Demo System
-        </button>
-        <button
-          onClick={() => onLoadPreset('meridian')}
-          style={{
-            background: 'rgba(7, 19, 30, 0.8)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-secondary)',
-            fontSize: '11px',
-            padding: '4px 8px',
-            borderRadius: '6px',
-            cursor: 'pointer',
-          }}
-          title="Load source-backed Virgil & Meridian Station scenario"
-        >
-          Meridian Study
-        </button>
-        <button
-          onClick={() => onLoadPreset('blank')}
-          style={{
-            background: 'rgba(7, 19, 30, 0.8)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-secondary)',
-            fontSize: '11px',
-            padding: '4px 8px',
-            borderRadius: '6px',
-            cursor: 'pointer',
-          }}
-          title="Empty void for new creation"
-        >
-          Blank System
-        </button>
-      </div>
-
-      {/* Center Modes */}
-      <nav className="mode-switcher">
-        {(['BUILD', 'SIMULATE', 'FORECAST', 'CANON LAB', 'PRESENT'] as AppMode[]).map((m) => (
+      <div className="topbar-center">
+        <div className="preset-menu-wrap">
           <button
-            key={m}
-            className={`mode-tab ${mode === m ? 'active' : ''}`}
-            onClick={() => onSetMode(m)}
+            className="preset-menu-btn"
+            onClick={() => setPresetOpen(!presetOpen)}
+            aria-haspopup="menu"
+            aria-expanded={presetOpen}
+            title="Load a star-system preset"
           >
-            {m === 'CANON LAB' && <Sparkles size={12} />}
-            {m}
+            Systems <ChevronDown size={13} />
           </button>
-        ))}
-      </nav>
+          {presetOpen && (
+            <div className="preset-menu" role="menu">
+              <button role="menuitem" onClick={() => choosePreset('demo')}>Kallisto Demo System</button>
+              <button role="menuitem" onClick={() => choosePreset('meridian')}>Virgil &amp; Meridian Study</button>
+              <button role="menuitem" onClick={() => choosePreset('procedural')}>
+                <Dices size={13} /> Procedural Seed World
+              </button>
+              <button role="menuitem" onClick={() => choosePreset('blank')}>Blank Void</button>
+            </div>
+          )}
+        </div>
 
-      {/* Right Controls / Lenses */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {/* Scale Toggle */}
-        <button
-          onClick={onToggleScaleMode}
-          style={{
-            background: scaleMode === 'true' ? '#0cc6ff' : 'rgba(7, 19, 30, 0.8)',
-            color: scaleMode === 'true' ? '#03050a' : 'var(--text-primary)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '6px',
-            padding: '6px 10px',
-            fontSize: '11px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-          }}
-          title={scaleMode === 'true' ? 'True astronomical scale (empty void)' : 'Readable exaggerated scale'}
-        >
+        <nav className="mode-switcher" aria-label="Planner mode">
+          {(['BUILD', 'SIMULATE', 'FORECAST', 'CANON LAB', 'PRESENT'] as AppMode[]).map((m) => (
+            <button
+              key={m}
+              className={`mode-tab ${mode === m ? 'active' : ''}`}
+              onClick={() => onSetMode(m)}
+              aria-pressed={mode === m}
+            >
+              {m === 'CANON LAB' && <Sparkles size={12} />}
+              {m}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      <div className="topbar-right">
+        <button onClick={onToggleScaleMode} className="topbar-pill-btn" title={scaleMode === 'true' ? 'True astronomical scale' : 'Readable exaggerated scale'}>
           <Eye size={13} />
-          {scaleMode === 'true' ? 'TRUE SCALE' : 'READABLE'}
+          {scaleMode === 'true' ? 'TRUE' : 'READABLE'}
         </button>
 
-        {/* Collisions Toggle */}
         <button
           onClick={onToggleCollisions}
-          style={{
-            background: collisionsEnabled ? 'rgba(12, 198, 255, 0.15)' : 'rgba(7, 19, 30, 0.8)',
-            color: collisionsEnabled ? 'var(--accent-azure)' : 'var(--text-muted)',
-            border: `1px solid ${collisionsEnabled ? 'var(--accent-azure)' : 'var(--border-subtle)'}`,
-            borderRadius: '6px',
-            padding: '6px 10px',
-            fontSize: '11px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
+          className={`topbar-pill-btn ${collisionsEnabled ? 'active' : ''}`}
           title="Toggle physical collisions and momentum merges"
+          aria-pressed={collisionsEnabled}
         >
-          COLLISIONS: {collisionsEnabled ? 'ON' : 'OFF'}
+          {collisionsEnabled ? 'COLLIDE ON' : 'COLLIDE OFF'}
         </button>
 
-        {/* Gravity Field Grid */}
-        <button
-          onClick={onToggleGravityGrid}
-          style={{
-            background: gravityGridVisible ? 'rgba(12, 198, 255, 0.15)' : 'rgba(7, 19, 30, 0.8)',
-            color: gravityGridVisible ? 'var(--accent-azure)' : 'var(--text-muted)',
-            border: `1px solid ${gravityGridVisible ? 'var(--accent-azure)' : 'var(--border-subtle)'}`,
-            borderRadius: '6px',
-            padding: '6px 8px',
-            cursor: 'pointer',
-          }}
-          title="Toggle Newtonian Potential Gravity Grid"
-        >
+        <IconBtn onClick={onToggleGravityGrid} title="Newtonian potential gravity grid (G)" label="Toggle gravity grid" active={gravityGridVisible}>
           <Grid size={14} />
-        </button>
-
-        {/* Audio Toggle */}
-        <button
-          onClick={onToggleAudio}
-          style={{
-            background: audioEnabled ? 'rgba(12, 198, 255, 0.15)' : 'rgba(7, 19, 30, 0.8)',
-            color: audioEnabled ? 'var(--accent-azure)' : 'var(--text-muted)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '6px',
-            padding: '6px 8px',
-            cursor: 'pointer',
-          }}
-          title={audioEnabled ? 'Sound ON' : 'Sound OFF (Web Audio)'}
-        >
+        </IconBtn>
+        <IconBtn onClick={onToggleHz} title="Habitable-zone overlay (H)" label="Toggle habitable zones" active={hzVisible}>
+          <Leaf size={14} />
+        </IconBtn>
+        <IconBtn onClick={onToggleAudio} title={audioEnabled ? 'Sound ON' : 'Sound OFF'} label="Toggle audio" active={audioEnabled}>
           {audioEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-        </button>
-
-        {/* Export / Import */}
-        <button
-          onClick={onExport}
-          style={{
-            background: 'rgba(7, 19, 30, 0.8)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-secondary)',
-            borderRadius: '6px',
-            padding: '6px 8px',
-            cursor: 'pointer',
-          }}
-          title="Export System (.ssp.json)"
+        </IconBtn>
+        <IconBtn
+          onClick={props.onUndo}
+          title={props.undoDepth > 0 ? `Undo last destructive action (Ctrl+Z, ${props.undoDepth} available)` : 'Nothing to undo'}
+          label="Undo"
+          disabled={props.undoDepth === 0}
         >
+          <Undo2 size={14} />
+        </IconBtn>
+        <IconBtn onClick={props.onToggleNavigator} title="System navigator (V)" label="Toggle navigator" active={props.navigatorVisible}>
+          <ListTree size={14} />
+        </IconBtn>
+        <IconBtn onClick={props.onToggleMissions} title={`Architect missions — ${props.missionsDone}/${props.missionsTotal} complete (M)`} label="Toggle missions" active={props.missionsVisible}>
+          <Trophy size={14} />
+        </IconBtn>
+        <IconBtn onClick={props.onOpenStats} title="System statistics (S)" label="Open statistics">
+          <BarChart3 size={14} />
+        </IconBtn>
+        <IconBtn onClick={props.onOpenSettings} title="Planner settings" label="Open settings">
+          <Settings size={14} />
+        </IconBtn>
+        <IconBtn onClick={props.onOpenHelp} title="Keyboard shortcuts (?)" label="Open shortcut help">
+          <Keyboard size={14} />
+        </IconBtn>
+        <IconBtn onClick={onExport} title="Export system (.ssp.json)" label="Export system">
           <Download size={14} />
-        </button>
-
-        <button
-          onClick={onImport}
-          style={{
-            background: 'rgba(7, 19, 30, 0.8)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-secondary)',
-            borderRadius: '6px',
-            padding: '6px 8px',
-            cursor: 'pointer',
-          }}
-          title="Import System (.ssp.json)"
-        >
+        </IconBtn>
+        <IconBtn onClick={onImport} title="Import system (.ssp.json)" label="Import system">
           <Upload size={14} />
-        </button>
+        </IconBtn>
+
+        {props.fps !== null && (
+          <span className="perf-pill" title="Render frame rate">
+            <Activity size={12} />
+            {Math.round(props.fps)}
+          </span>
+        )}
       </div>
     </header>
   );

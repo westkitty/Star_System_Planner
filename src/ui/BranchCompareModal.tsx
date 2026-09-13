@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { TimelineBranch } from '../branching/branch-types';
 import { BranchManager } from '../branching/branch-manager';
 import { formatSimTime } from '../simulation/units';
-import { X, GitCompare } from 'lucide-react';
+import { X, GitCompare, GitFork } from 'lucide-react';
+import { useModalA11y } from './modal-a11y';
 
 interface BranchCompareModalProps {
   branches: TimelineBranch[];
@@ -15,48 +16,31 @@ export const BranchCompareModal: React.FC<BranchCompareModalProps> = ({
   branchManager,
   onClose,
 }) => {
+  const ref = useModalA11y<HTMLDivElement>(onClose);
   const [branchAId, setBranchAId] = useState(branches[0]?.id || '');
   const [branchBId, setBranchBId] = useState(branches[1]?.id || branches[0]?.id || '');
 
   const comparison = branchManager.compareBranches(branchAId, branchBId);
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'rgba(3, 5, 10, 0.75)',
-        backdropFilter: 'blur(6px)',
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-      className="hud-interactive"
-    >
-      <div style={{
-        background: '#07131e',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: '12px',
-        padding: '18px',
-        width: '460px',
-        maxWidth: '90vw',
-        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.7)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="modal-backdrop hud-interactive" onClick={onClose}>
+      <div
+        ref={ref}
+        className="modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Causal branch comparison"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <GitCompare size={16} color="#0cc6ff" />
-            <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-primary)' }}>
+            <h3 className="modal-title">
               CAUSAL BRANCH COMPARISON
             </h3>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+          <button onClick={onClose} className="modal-x" aria-label="Close comparison">
             <X size={16} />
           </button>
         </div>
@@ -112,8 +96,20 @@ export const BranchCompareModal: React.FC<BranchCompareModalProps> = ({
           </div>
         </div>
 
+        {/* Single-branch guidance (UI09 empty state) */}
+        {branches.length < 2 && (
+          <div className="empty-state">
+            <GitFork size={26} color="var(--text-muted)" />
+            <div className="empty-state-title">Only one timeline exists</div>
+            <div className="empty-state-hint">
+              Fork the future from the timeline bar, let the branches diverge, then return here to
+              audit the causal consequences side by side.
+            </div>
+          </div>
+        )}
+
         {/* Comparison Output */}
-        {comparison && (
+        {comparison && branches.length >= 2 && (
           <div style={{
             background: 'rgba(3, 5, 10, 0.6)',
             border: '1px solid var(--border-subtle)',

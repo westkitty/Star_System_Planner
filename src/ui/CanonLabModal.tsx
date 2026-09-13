@@ -4,6 +4,7 @@ import { CANON_MANIFEST } from '../canon/manifest';
 import { CelestialBody } from '../simulation/types';
 import { HoldToConfirmController } from '../interaction/hold-to-confirm';
 import { X, ExternalLink, Sparkles, ShieldAlert } from 'lucide-react';
+import { useModalA11y } from './modal-a11y';
 
 interface CanonLabModalProps {
   selectedBody: CelestialBody | null;
@@ -58,25 +59,19 @@ export const CanonLabModal: React.FC<CanonLabModalProps> = ({
   }, []);
 
   const starCount = allBodies.filter(b => b.type === 'star').length;
+  const modalRef = useModalA11y<HTMLDivElement>(onClose);
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'rgba(3, 5, 10, 0.75)',
-        backdropFilter: 'blur(6px)',
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-      className="hud-interactive"
-    >
-      <div className="canon-lab-modal">
+    <div className="modal-backdrop hud-interactive" onClick={onClose}>
+      <div
+        ref={modalRef}
+        className="canon-lab-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Starsilk canon laboratory"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', marginBottom: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

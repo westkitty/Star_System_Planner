@@ -1,6 +1,6 @@
 /**
  * Signature Interaction: Grab & Throw.
- * 
+ *
  * Select a body, drag it through the 3D scene, watch the velocity vector and
  * orbital prediction update continuously, then release to launch it into Newtonian physics.
  */
@@ -8,6 +8,8 @@
 import * as THREE from 'three';
 import { CelestialBody, Vector3D } from '../simulation/types';
 import { SceneManager } from '../rendering/scene-manager';
+import { ThrowVector, createThrowVector } from '../rendering/velocity-arrow';
+import { PLANNER_CONFIG } from '../core/config';
 
 export interface PointerSample {
   posKm: Vector3D;
@@ -25,7 +27,7 @@ export class GrabAndThrowController {
 
   public activeBody: CelestialBody | null = null;
   private pointerSamples: PointerSample[] = [];
-  private vectorArrow: THREE.ArrowHelper | null = null;
+  private throwVector: ThrowVector | null = null;
 
   // Plane Y offset in display space
   private dragPlaneY: number = 0;
@@ -48,14 +50,14 @@ export class GrabAndThrowController {
     const disp = this.sceneManager.scaleTransform.getDisplayPosition(rel);
     this.dragPlaneY = disp.y;
 
-    // Create 3D vector arrow visualization
-    if (!this.vectorArrow) {
-      const dir = new THREE.Vector3(1, 0, 0);
-      const origin = new THREE.Vector3(disp.x, disp.y, disp.z);
-      this.vectorArrow = new THREE.ArrowHelper(dir, origin, 10, 0x0cc6ff, 3, 1.5);
-      this.sceneManager.scene.add(this.vectorArrow);
+    // Create gradient throw-vector visualization (ASSET08)
+    if (!this.throwVector) {
+      this.throwVector = createThrowVector();
+      this.sceneManager.scene.add(this.throwVector.group);
     }
-    this.vectorArrow.visible = true;
+    this.throwVector.group.position.set(disp.x, disp.y, disp.z);
+    this.throwVector.setVector(new THREE.Vector3(1, 0, 0), 10);
+    this.throwVector.setVisible(false);
 
     // Record initial sample
     this.pointerSamples.push({
@@ -92,18 +94,19 @@ export class GrabAndThrowController {
     const computedVelocity = this.computeFilteredVelocity();
     this.activeBody.velocity = computedVelocity;
 
-    // Update visual vector arrow
-    if (this.vectorArrow) {
-      this.vectorArrow.position.set(hitDisp.x, hitDisp.y, hitDisp.z);
+    // Update gradient throw-vector visualization
+    if (this.throwVector) {
+      this.throwVector.group.position.set(hitDisp.x, hitDisp.y, hitDisp.z);
       const speed = Math.hypot(computedVelocity.x, computedVelocity.y, computedVelocity.z);
       if (speed > 0.1) {
-        this.vectorArrow.setDirection(new THREE.Vector3(computedVelocity.x, computedVelocity.y, computedVelocity.z).normalize());
-        // Scale arrow length in display units
         const arrowLen = Math.min(60, Math.max(5, speed * 1.5));
-        this.vectorArrow.setLength(arrowLen, Math.min(arrowLen * 0.3, 4), Math.min(arrowLen * 0.15, 2));
-        this.vectorArrow.visible = true;
+        this.throwVector.setVector(
+          new THREE.Vector3(computedVelocity.x, computedVelocity.y, computedVelocity.z),
+          arrowLen
+        );
+        this.throwVector.setVisible(true);
       } else {
-        this.vectorArrow.visible = false;
+        this.throwVector.setVisible(false);
       }
     }
 
@@ -116,9 +119,7 @@ export class GrabAndThrowController {
     const finalVelocity = this.computeFilteredVelocity();
     this.activeBody.velocity = finalVelocity;
 
-    if (this.vectorArrow) {
-      this.vectorArrow.visible = false;
-    }
+    this.throwVector?.setVisible(false);
 
     const thrown = this.activeBody;
     this.activeBody = null;
@@ -130,9 +131,7 @@ export class GrabAndThrowController {
   public cancelGrab(): void {
     this.activeBody = null;
     this.pointerSamples = [];
-    if (this.vectorArrow) {
-      this.vectorArrow.visible = false;
-    }
+    this.throwVector?.setVisible(false);
   }
 
   private computeFilteredVelocity(): Vector3D {
@@ -164,9 +163,25 @@ export class GrabAndThrowController {
   }
 
   public destroy(): void {
-    if (this.vectorArrow) {
-      this.sceneManager.scene.remove(this.vectorArrow);
-      this.vectorArrow = null;
+    if (this.throwVector) {
+      this.sceneManager.scene.remove(this.throwVector.group);
+      this.throwVector.group.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        const material = mesh.material as THREE.Material | undefined;
+        if (material) material.dispose();
+      });
+      this.throwVector = null;
     }
   }
 }
+
+// Re-exported for tuning discoverability (BACK12 central config).
+export const THROW_TUNING = {
+  get smoothing() {
+    return PLANNER_CONFIG.interaction.throwVelocitySmoothing;
+  },
+  get sampleWindow() {
+    return PLANNER_CONFIG.interaction.throwSampleWindow;
+  },
+};

@@ -3,6 +3,7 @@ import { FittedOrbit } from '../interaction/orbit-loom';
 import { CelestialBody } from '../simulation/types';
 import { KM_PER_AU } from '../simulation/units';
 import { Check, X, Disc, Globe } from 'lucide-react';
+import { useModalA11y } from './modal-a11y';
 
 interface OrbitLoomConfirmModalProps {
   fittedOrbit: FittedOrbit;
@@ -31,9 +32,15 @@ export const OrbitLoomConfirmModal: React.FC<OrbitLoomConfirmModalProps> = ({
   // Potential target body for applying orbit
   const canApplyToSelected = selectedBody && primaryBody && selectedBody.id !== primaryBody.id;
   const eligibleBodies = allBodies.filter(b => b.id !== primaryBody?.id && b.type !== 'star');
+  const modalRef = useModalA11y<HTMLDivElement>(onCancel);
 
   return (
     <div
+      ref={modalRef}
+      role="dialog"
+      aria-modal="false"
+      aria-label="Orbit loom conic fit confirmation"
+      tabIndex={-1}
       style={{
         position: 'absolute',
         bottom: '84px',

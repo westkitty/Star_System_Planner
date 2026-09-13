@@ -104,3 +104,65 @@ export function formatSimTime(seconds: number): string {
   }
   return `${Math.round(seconds)} s`;
 }
+
+/**
+ * Format a maneuver delta-v budget (BACK11).
+ */
+export function formatDeltaV(kmPerSec: number): string {
+  if (kmPerSec >= 10) return `${kmPerSec.toFixed(1)} km/s Δv`;
+  if (kmPerSec >= 1) return `${kmPerSec.toFixed(2)} km/s Δv`;
+  return `${(kmPerSec * 1000).toFixed(0)} m/s Δv`;
+}
+
+/**
+ * Format an energy quantity in joules with SI scaling (BACK11).
+ */
+export function formatEnergy(joules: number): string {
+  const abs = Math.abs(joules);
+  const sign = joules < 0 ? '−' : '';
+  if (abs >= 1e30) return `${sign}${(abs / 1e30).toFixed(2)} ×10³⁰ J`;
+  if (abs >= 1e24) return `${sign}${(abs / 1e24).toFixed(2)} ×10²⁴ J`;
+  if (abs >= 1e18) return `${sign}${(abs / 1e18).toFixed(2)} EJ`;
+  if (abs >= 1e12) return `${sign}${(abs / 1e12).toFixed(2)} TJ`;
+  if (abs >= 1e9) return `${sign}${(abs / 1e9).toFixed(2)} GJ`;
+  return `${joules.toExponential(2)} J`;
+}
+
+/**
+ * Format a wall-clock timestamp as a relative "x ago" phrase (BACK11).
+ */
+export function formatRelativeTime(atMs: number | null, nowMs?: number): string {
+  if (atMs === null) return 'never';
+  const deltaSec = Math.max(0, ((nowMs ?? Date.now()) - atMs) / 1000);
+  if (deltaSec < 5) return 'just now';
+  if (deltaSec < 60) return `${Math.floor(deltaSec)}s ago`;
+  const minutes = Math.floor(deltaSec / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(atMs).toLocaleDateString();
+}
+
+/**
+ * Format simulation elapsed time as a mission-clock stamp (BACK11).
+ */
+export function formatMissionClock(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const days = Math.floor(s / SECONDS_PER_DAY);
+  const hours = Math.floor((s % SECONDS_PER_DAY) / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const seconds = s % 60;
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return `T+${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
+
+/**
+ * Format a countdown to a future sim-time event (BACK11).
+ */
+export function formatCountdown(seconds: number): string {
+  if (seconds < 0) return 'overdue';
+  if (seconds < 90) return `${Math.round(seconds)}s`;
+  if (seconds < 5400) return `${(seconds / 60).toFixed(1)} min`;
+  if (seconds < 172800) return `${(seconds / 3600).toFixed(1)} h`;
+  return formatSimTime(seconds);
+}

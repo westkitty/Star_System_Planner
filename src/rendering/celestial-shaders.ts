@@ -180,16 +180,64 @@ export function createStarsilkRibbonMaterial(): THREE.ShaderMaterial {
  * Drakken Blood Ring Material.
  * Deep vitrified crimson glass scar with architectural density.
  */
-export function createBloodRingMaterial(): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color: new THREE.Color('#4a0006'),
-    emissive: new THREE.Color('#7a0010'),
-    emissiveIntensity: 0.35,
-    roughness: 0.15,
-    metalness: 0.85,
-    side: THREE.DoubleSide,
+/**
+ * Drakken Blood Ring Material (ASSET06).
+ * Animated vitrified-crimson shader: crawling fracture veins, slow shimmer
+ * sweep, and pulsing inner glow — the atrocity-structure reads as alive.
+ */
+export function createBloodRingMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
     transparent: true,
-    opacity: 0.92,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    uniforms: {
+      uTime: { value: 0 },
+      uDeep: { value: new THREE.Color('#2a0004') },
+      uBlood: { value: new THREE.Color('#a80018') },
+      uGlint: { value: new THREE.Color('#ff6a7a') },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform vec3 uDeep;
+      uniform vec3 uBlood;
+      uniform vec3 uGlint;
+      varying vec2 vUv;
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+      }
+
+      void main() {
+        float r = vUv.x;
+        float angle = vUv.y * 6.28318;
+
+        // Crawling fracture veins rotating differentially by radius.
+        float veins = sin(angle * 9.0 + uTime * (1.4 - r) + sin(r * 40.0 + uTime * 0.7) * 2.0);
+        veins = smoothstep(0.75, 1.0, veins);
+
+        // Slow shimmer sweep orbiting the ring.
+        float sweep = pow(0.5 + 0.5 * sin(angle * 2.0 - uTime * 0.9), 6.0);
+
+        // Vitrified grain.
+        float grain = mix(0.8, 1.0, hash(floor(vUv * vec2(160.0, 40.0))));
+
+        vec3 color = mix(uDeep, uBlood, 0.35 + 0.45 * r);
+        color = mix(color, uGlint, veins * 0.75);
+        color += uGlint * sweep * 0.35 * (1.0 - r * 0.5);
+        color *= grain;
+
+        float edgeFade = smoothstep(0.0, 0.06, r) * (1.0 - smoothstep(0.92, 1.0, r));
+        float pulse = 0.82 + 0.10 * sin(uTime * 1.6);
+        gl_FragColor = vec4(color, edgeFade * pulse);
+      }
+    `,
   });
 }
 
@@ -243,7 +291,8 @@ export function createOrdinaryRingMaterial(color: string = '#c0b49c'): THREE.Sha
  */
 export function createPlanetMaterial(
   colorHex: string,
-  atmosphereColorHex?: string
+  atmosphereColorHex?: string,
+  surfaceMap?: THREE.Texture | null
 ): THREE.ShaderMaterial {
   const surfaceColor = new THREE.Color(colorHex);
   const atmoColor = new THREE.Color(atmosphereColorHex || '#49e7ff');
@@ -255,14 +304,18 @@ export function createPlanetMaterial(
       uAtmoColor: { value: atmoColor },
       uHasAtmo: { value: hasAtmo ? 1.0 : 0.0 },
       uLightDir: { value: new THREE.Vector3(1, 0, 0) }, // Dynamic light direction toward primary
+      uSurfaceMap: { value: surfaceMap ?? null },
+      uHasMap: { value: surfaceMap ? 1.0 : 0.0 },
     },
     vertexShader: `
       varying vec3 vNormal;
       varying vec3 vWorldPos;
       varying vec3 vViewDir;
+      varying vec2 vUv;
 
       void main() {
         vNormal = normalize(normalMatrix * normal);
+        vUv = uv;
         vec4 worldPos = modelMatrix * vec4(position, 1.0);
         vWorldPos = worldPos.xyz;
         vViewDir = normalize(- (modelViewMatrix * vec4(position, 1.0)).xyz);
@@ -274,10 +327,13 @@ export function createPlanetMaterial(
       uniform vec3 uAtmoColor;
       uniform float uHasAtmo;
       uniform vec3 uLightDir;
+      uniform sampler2D uSurfaceMap;
+      uniform float uHasMap;
 
       varying vec3 vNormal;
       varying vec3 vWorldPos;
       varying vec3 vViewDir;
+      varying vec2 vUv;
 
       void main() {
         // N dot L with crisp cel-shaded threshold
@@ -292,7 +348,14 @@ export function createPlanetMaterial(
           celLight = 0.25;
         }
 
-        vec3 litSurface = uColor * celLight;
+        // ASSET02: procedural albedo texture modulates the base tint.
+        vec3 albedo = uColor;
+        if (uHasMap > 0.5) {
+          vec3 texel = texture2D(uSurfaceMap, vUv).rgb;
+          albedo = mix(uColor, texel, 0.82);
+        }
+
+        vec3 litSurface = albedo * celLight;
 
         // Atmospheric rim if present
         if (uHasAtmo > 0.5) {

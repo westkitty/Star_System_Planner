@@ -1,22 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
   <defs>
-    <radialGradient id="void-glow-sm" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#0cc6ff" stop-opacity="0.2" />
-      <stop offset="80%" stop-color="#03050a" stop-opacity="1" />
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#0a2a44"/>
+      <stop offset="60%" stop-color="#050c16"/>
+      <stop offset="100%" stop-color="#03050a"/>
+    </radialGradient>
+    <radialGradient id="star" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#ffeeaa"/>
+      <stop offset="65%" stop-color="#0cc6ff"/>
+      <stop offset="100%" stop-color="#0cc6ff" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <rect width="192" height="192" fill="#03050a" rx="36" />
-  <circle cx="96" cy="96" r="85" fill="url(#void-glow-sm)" />
-  <ellipse cx="96" cy="96" rx="80" ry="40" fill="none" stroke="#0cc6ff" stroke-width="1.5" stroke-opacity="0.4" transform="rotate(-25 96 96)" />
-  <circle cx="96" cy="96" r="34" fill="#03050a" stroke="#0cc6ff" stroke-width="2" />
-  <circle cx="96" cy="96" r="32" fill="#000000" />
-  <g transform="rotate(-25 96 96)">
-    <rect x="80" y="60" width="2" height="72" fill="#0cc6ff" />
-    <rect x="84" y="56" width="3" height="80" fill="#49e7ff" />
-    <rect x="90" y="52" width="4" height="88" fill="#0cc6ff" />
-    <rect x="96" y="48" width="2" height="96" fill="#b6f6ff" />
-    <rect x="100" y="52" width="3" height="88" fill="#49e7ff" />
-    <rect x="106" y="58" width="3" height="76" fill="#0cc6ff" />
-    <line x1="60" y1="96" x2="132" y2="96" stroke="#49e7ff" stroke-width="1" stroke-opacity="0.8" />
+  <rect width="192" height="192" rx="42" fill="url(#bg)"/>
+  <g stroke="#0cc6ff" fill="none" opacity="0.9">
+    <ellipse cx="96" cy="96" rx="66" ry="24" stroke-width="4" transform="rotate(-20 96 96)"/>
+    <ellipse cx="96" cy="96" rx="48" ry="17" stroke-width="2.5" stroke="#49e7ff" opacity="0.8" transform="rotate(-20 96 96)"/>
+    <ellipse cx="96" cy="96" rx="30" ry="11" stroke-width="2" stroke="#b6f6ff" opacity="0.6" transform="rotate(-20 96 96)"/>
   </g>
+  <g fill="#0cc6ff" opacity="0.85" transform="rotate(-15 96 96)">
+    <rect x="66" y="76" width="3" height="40" rx="1"/>
+    <rect x="72" y="70" width="5" height="52" rx="1"/>
+    <rect x="79" y="78" width="2.5" height="36" rx="1"/>
+    <rect x="84" y="72" width="4" height="48" rx="1" fill="#b6f6ff"/>
+    <rect x="90" y="76" width="2.5" height="40" rx="1"/>
+    <rect x="95" y="70" width="5" height="52" rx="1"/>
+    <rect x="102" y="78" width="3" height="36" rx="1" fill="#b6f6ff"/>
+    <rect x="108" y="74" width="4" height="44" rx="1"/>
+    <rect x="114" y="79" width="2.5" height="34" rx="1"/>
+    <rect x="119" y="73" width="4" height="46" rx="1"/>
+  </g>
+  <circle cx="96" cy="96" r="30" fill="url(#star)" opacity="0.55"/>
+  <circle cx="96" cy="96" r="14" fill="#03050a" stroke="#0cc6ff" stroke-width="3"/>
+  <circle cx="96" cy="96" r="5" fill="#ffffff"/>
+  <circle cx="152" cy="52" r="4" fill="#b6f6ff"/>
+  <circle cx="40" cy="140" r="3" fill="#ffffff" opacity="0.85"/>
+  <circle cx="150" cy="142" r="2.4" fill="#49e7ff" opacity="0.8"/>
 </svg>

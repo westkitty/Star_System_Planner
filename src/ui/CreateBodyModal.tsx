@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { BodyType, CelestialBody, PlanetClassification } from '../simulation/types';
 import { KM_PER_AU, SOLAR_MASS_KG, EARTH_MASS_KG, MOON_MASS_KG, JUPITER_MASS_KG, G_KM } from '../simulation/units';
+import { SPECTRAL_CLASSES, SpectralLetter } from '../rendering/star-palette';
 import { X, Globe, Sun, Moon, Radio } from 'lucide-react';
+import { useModalA11y } from './modal-a11y';
 
 interface CreateBodyModalProps {
   existingBodies: CelestialBody[];
@@ -17,6 +19,8 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
   const [name, setName] = useState('New Planet');
   const [type, setType] = useState<BodyType>('planet');
   const [classification, setClassification] = useState<PlanetClassification>('rocky');
+  const [spectralLetter, setSpectralLetter] = useState<SpectralLetter>('G');
+  const modalRef = useModalA11y<HTMLDivElement>(onClose);
   const [primaryId, setPrimaryId] = useState<string>(
     existingBodies.find(b => b.type === 'star')?.id || (existingBodies[0]?.id ?? '')
   );
@@ -32,10 +36,12 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
     let luminosityW: number | undefined;
 
     if (type === 'star') {
-      mass = SOLAR_MASS_KG;
-      radius = 696000;
-      color = '#ffcc00';
-      luminosityW = 3.828e26;
+      // ASSET01: honest spectral-class anchors for mass/radius/luminosity.
+      const spectral = SPECTRAL_CLASSES.find((c) => c.class === spectralLetter) ?? SPECTRAL_CLASSES[4];
+      mass = spectral.massSolar * SOLAR_MASS_KG;
+      radius = spectral.radiusSolar * 696340;
+      color = spectral.color;
+      luminosityW = spectral.luminositySolar * 3.828e26;
     } else if (type === 'moon') {
       mass = MOON_MASS_KG;
       radius = 1737;
@@ -78,6 +84,7 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
       velZ = primary.velocity.z + vCirc;
     }
 
+    const spectral = SPECTRAL_CLASSES.find((c) => c.class === spectralLetter) ?? SPECTRAL_CLASSES[4];
     const newBody: CelestialBody = {
       id: `body-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: name.trim() || 'Celestial Object',
@@ -87,50 +94,34 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
       radiusKm: radius,
       luminosityW,
       color,
+      temperatureK: type === 'star' ? spectral.temperatureK : undefined,
       primaryId: primary ? primary.id : null,
       position: { x: posX, y: posY, z: posZ },
       velocity: { x: velX, y: velY, z: velZ },
       canonClassification: 'NON-CANON SANDBOX',
-    };
+      ...(type === 'star' ? { spectralClass: spectralLetter } : {}),
+    } as CelestialBody;
 
     onSpawnBody(newBody);
     onClose();
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: 'rgba(3, 5, 10, 0.75)',
-        backdropFilter: 'blur(6px)',
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-      className="hud-interactive"
-    >
-      <div style={{
-        background: '#07131e',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: '12px',
-        padding: '18px',
-        width: '380px',
-        maxWidth: '90vw',
-        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.7)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-primary)' }}>
+    <div className="modal-backdrop hud-interactive" onClick={onClose}>
+      <div
+        ref={modalRef}
+        className="modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create celestial body"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header-row">
+          <h3 className="modal-title">
             CREATE CELESTIAL BODY
           </h3>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+          <button onClick={onClose} className="modal-x" aria-label="Close create body">
             <X size={16} />
           </button>
         </div>
@@ -191,6 +182,41 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
             }}
           />
         </div>
+
+        {/* Spectral class picker for stars (ASSET01) */}
+        {type === 'star' && (
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+              Spectral Class
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }} role="radiogroup" aria-label="Spectral class">
+              {SPECTRAL_CLASSES.map((c) => (
+                <button
+                  key={c.class}
+                  role="radio"
+                  aria-checked={spectralLetter === c.class}
+                  title={c.label}
+                  onClick={() => setSpectralLetter(c.class)}
+                  style={{
+                    background: spectralLetter === c.class ? c.color : 'rgba(3, 5, 10, 0.6)',
+                    color: spectralLetter === c.class ? '#03050a' : c.color,
+                    border: `1px solid ${c.color}`,
+                    borderRadius: '6px',
+                    padding: '7px 0',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {c.class}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>
+              {(SPECTRAL_CLASSES.find((c) => c.class === spectralLetter) ?? SPECTRAL_CLASSES[4]).label}
+            </div>
+          </div>
+        )}
 
         {/* Classification if planet */}
         {type === 'planet' && (

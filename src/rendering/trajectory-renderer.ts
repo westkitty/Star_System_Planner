@@ -1,6 +1,6 @@
 /**
  * Batched Trajectory and Sensitivity Cloud Line Renderer.
- * 
+ *
  * Invariants:
  * - Uses batched line geometries with dynamic buffers instead of thousands of meshes.
  * - Primary trajectory gets prominent azure emphasis (#0CC6FF).
@@ -41,11 +41,33 @@ export class TrajectoryRenderer {
   private sensitivityLines: THREE.LineSegments | null = null;
   private maxSensitivitySegments = 1500;
 
+  // ASSET09: pooled impact-warning markers at forecast collision sites.
+  private collisionMarkerGroup: THREE.Group;
+  private collisionMarkerPool: THREE.Mesh[] = [];
+  private markerPulseSec = 0;
+
   constructor(scaleTransform: ScaleTransform) {
     this.scaleTransform = scaleTransform;
     this.group = new THREE.Group();
     this.group.name = 'TrajectoryRendererGroup';
     this.initSensitivityMesh();
+    this.collisionMarkerGroup = new THREE.Group();
+    this.collisionMarkerGroup.name = 'ForecastCollisionMarkers';
+    this.group.add(this.collisionMarkerGroup);
+    const markerMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#ff3344'),
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    for (let i = 0; i < 8; i++) {
+      const marker = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.35, 8, 4), markerMat);
+      marker.visible = false;
+      this.collisionMarkerGroup.add(marker);
+      this.collisionMarkerPool.push(marker);
+    }
   }
 
   public getGroup(): THREE.Group {
@@ -107,6 +129,7 @@ export class TrajectoryRenderer {
 
     const baseColor = new THREE.Color(data.isSelected ? '#0cc6ff' : (data.colorHex || '#1e3a5f'));
     const collisionColor = new THREE.Color('#ff3344');
+    const escapeColor = new THREE.Color('#a855f7');
 
     for (let i = 0; i < ptCount; i++) {
       const pt = data.points[i];
@@ -116,9 +139,9 @@ export class TrajectoryRenderer {
       positions[i * 3 + 1] = disp.y;
       positions[i * 3 + 2] = disp.z;
 
-      // Color fade along future trajectory
+      // Color fade along future trajectory (violet past escape, red at impacts)
       const alpha = 1.0 - (i / ptCount) * 0.75;
-      const c = pt.isCollision ? collisionColor : baseColor;
+      const c = pt.isCollision ? collisionColor : pt.isEscape ? escapeColor : baseColor;
 
       colors[i * 3] = c.r * alpha;
       colors[i * 3 + 1] = c.g * alpha;
@@ -189,6 +212,36 @@ export class TrajectoryRenderer {
     colAttr.needsUpdate = true;
   }
 
+  /**
+   * Place pulsing diamond impact markers at forecast collision sites.
+   */
+  public setCollisionMarkers(sitesKm: Vector3D[]): void {
+    for (let i = 0; i < this.collisionMarkerPool.length; i++) {
+      const marker = this.collisionMarkerPool[i];
+      const site = sitesKm[i];
+      if (site) {
+        const disp = this.scaleTransform.getDisplayPosition(site);
+        marker.position.set(disp.x, disp.y, disp.z);
+        marker.visible = true;
+      } else {
+        marker.visible = false;
+      }
+    }
+  }
+
+  /** Animate marker pulse; call each frame. */
+  public update(deltaSec: number, reducedMotion: boolean): void {
+    this.markerPulseSec += deltaSec;
+    for (const marker of this.collisionMarkerPool) {
+      if (!marker.visible) continue;
+      if (!reducedMotion) {
+        marker.rotation.y = this.markerPulseSec * 1.8;
+        const s = 1 + Math.sin(this.markerPulseSec * 5) * 0.18;
+        marker.scale.set(s, s, s);
+      }
+    }
+  }
+
   public clearBody(bodyId: string): void {
     const entry = this.lineMap.get(bodyId);
     if (entry) {
@@ -206,5 +259,22 @@ export class TrajectoryRenderer {
     if (this.sensitivityLines) {
       this.sensitivityLines.visible = false;
     }
+    this.setCollisionMarkers([]);
+  }
+
+  public dispose(): void {
+    this.clearAll();
+    if (this.sensitivityLines) {
+      this.sensitivityLines.geometry.dispose();
+      (this.sensitivityLines.material as THREE.Material).dispose();
+      this.sensitivityLines = null;
+    }
+    for (const marker of this.collisionMarkerPool) {
+      marker.geometry.dispose();
+    }
+    if (this.collisionMarkerPool.length > 0) {
+      (this.collisionMarkerPool[0].material as THREE.Material).dispose();
+    }
+    this.collisionMarkerPool = [];
   }
 }

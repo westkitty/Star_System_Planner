@@ -26,12 +26,14 @@ export const ToolRail: React.FC<ToolRailProps> = ({
   onResetCamera,
 }) => {
   return (
-    <aside className="left-tool-rail hud-interactive">
+    <aside className="left-tool-rail hud-interactive" role="toolbar" aria-label="Planner tools" aria-orientation="vertical">
       {/* Select / Pointer */}
       <button
         className={`tool-button ${activeTool === 'select' ? 'active' : ''}`}
         onClick={() => onSelectTool('select')}
-        title="Pointer / Selection (S Pen / Finger)"
+        title="Pointer / Selection — S Pen / Finger (1)"
+        aria-label="Select tool"
+        aria-pressed={activeTool === 'select'}
       >
         <MousePointer size={18} />
         <span>SELECT</span>
@@ -41,7 +43,9 @@ export const ToolRail: React.FC<ToolRailProps> = ({
       <button
         className={`tool-button ${activeTool === 'grab_throw' ? 'active' : ''}`}
         onClick={() => onSelectTool('grab_throw')}
-        title="Grab & Throw: Drag a body to adjust position or throw into orbit"
+        title="Grab & Throw: Drag a body to adjust position or throw into orbit (2)"
+        aria-label="Grab and throw tool"
+        aria-pressed={activeTool === 'grab_throw'}
       >
         <Hand size={18} color="#f59e0b" />
         <span>GRAB</span>
@@ -51,7 +55,8 @@ export const ToolRail: React.FC<ToolRailProps> = ({
       <button
         className="tool-button"
         onClick={onOpenCreateModal}
-        title="Create Celestial Body (Star, Planet, Moon, Station)"
+        title="Create Celestial Body — Star, Planet, Moon, Station (N)"
+        aria-label="Create celestial body"
       >
         <PlusCircle size={18} color="#0cc6ff" />
         <span>CREATE</span>
@@ -61,7 +66,9 @@ export const ToolRail: React.FC<ToolRailProps> = ({
       <button
         className={`tool-button ${activeTool === 'orbit_loom' ? 'active' : ''}`}
         onClick={() => onSelectTool('orbit_loom')}
-        title="Orbit Loom: Sketch an orbit with S Pen to fit conic ellipses"
+        title="Orbit Loom: Sketch an orbit with S Pen to fit conic ellipses (3)"
+        aria-label="Orbit loom tool"
+        aria-pressed={activeTool === 'orbit_loom'}
       >
         <Compass size={18} color="#49e7ff" />
         <span>LOOM</span>
@@ -72,6 +79,8 @@ export const ToolRail: React.FC<ToolRailProps> = ({
         className={`tool-button ${showFuture ? 'active' : ''}`}
         onClick={onToggleShowFuture}
         title="Show Future: Predict trajectories and collisions"
+        aria-label="Toggle future trajectories"
+        aria-pressed={showFuture}
       >
         <GitCommit size={18} />
         <span>FUTURE</span>
@@ -82,6 +91,8 @@ export const ToolRail: React.FC<ToolRailProps> = ({
         className={`tool-button ${showSensitivity ? 'active' : ''}`}
         onClick={onToggleShowSensitivity}
         title="Sensitivity Cloud: 30 perturbed futures showing dynamical sensitivity"
+        aria-label="Toggle sensitivity cloud"
+        aria-pressed={showSensitivity}
       >
         <Waves size={18} />
         <span>SENSITIVITY</span>
@@ -93,6 +104,7 @@ export const ToolRail: React.FC<ToolRailProps> = ({
           className="tool-button"
           onClick={onOpenCanonLab}
           title="Starsilk Canon Lab: Cosmological Mechanisms"
+          aria-label="Open canon lab"
         >
           <BookOpen size={18} color="#d4a373" />
           <span>CANON</span>
@@ -105,7 +117,8 @@ export const ToolRail: React.FC<ToolRailProps> = ({
       <button
         className="tool-button"
         onClick={onResetCamera}
-        title="Center / Reset Camera View"
+        title="Center / Reset Camera View (C)"
+        aria-label="Reset camera"
       >
         <Focus size={18} />
         <span>CENTER</span>

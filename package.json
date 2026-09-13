@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm run test && npm run build",
-    "canon:refresh": "node scripts/refresh-canon.mjs"
+    "canon:refresh": "node scripts/refresh-canon.mjs",
+    "bundle:report": "node scripts/bundle-report.mjs",
+    "check": "npm run typecheck && npm run test && npm run build && npm run bundle:report"
   },
   "dependencies": {
     "lucide-react": "^1.16.0",

@@ -1,6 +1,6 @@
 /**
  * Master Scene Manager and Three.js Render Pipeline.
- * 
+ *
  * Orchestrates:
  * - High-DPR Three.js WebGLRenderer with tone mapping
  * - Dynamic mesh lifecycle for celestial bodies (stars, black holes, planets, rings, stations)
@@ -12,7 +12,7 @@
  */
 
 import * as THREE from 'three';
-import { CelestialBody, Vector3D } from '../simulation/types';
+import { AsteroidBelt, CelestialBody, Vector3D } from '../simulation/types';
 import { FloatingOrigin } from './floating-origin';
 import { ScaleTransform } from './scale-transform';
 import {
@@ -24,6 +24,16 @@ import {
 } from './celestial-shaders';
 import { TrajectoryRenderer } from './trajectory-renderer';
 import { GravityGridRenderer } from './gravity-grid';
+import { getPlanetTexture } from './planet-textures';
+import { createAtmosphereShell, createCoronaSprite, createNebulaVeils } from './sprite-assets';
+import { AccretionDisk, createAccretionDisk } from './accretion-disk';
+import { SelectionIndicator, createSelectionIndicator } from './selection-indicator';
+import { CollisionBurstPool } from './collision-bursts';
+import { HabitableZoneRenderer } from './habitable-rings';
+import { LagrangeMarkerGroup } from './lagrange-markers';
+import { InstancedBeltRenderer } from './instanced-belts';
+import { SeededRng } from '../core/seeded-rng';
+import { spectralClassByLetter, spectralClassForMass, SpectralLetter } from './star-palette';
 
 export type CameraViewMode = 'inertial' | 'focus_selected' | 'follow_selected' | 'top_down';
 
@@ -36,9 +46,21 @@ export class SceneManager {
   public scaleTransform: ScaleTransform;
   public trajectoryRenderer: TrajectoryRenderer;
   public gravityGrid: GravityGridRenderer;
+  public habitableZones: HabitableZoneRenderer;
+  public lagrangeMarkers: LagrangeMarkerGroup;
+  public collisionBursts: CollisionBurstPool;
 
   // Visual mesh dictionary keyed by body ID
   private bodyMeshes: Map<string, THREE.Group> = new Map();
+  private selectionIndicators: Map<string, SelectionIndicator> = new Map();
+  private accretionDisks: Map<string, AccretionDisk> = new Map();
+  private beltRenderers: Map<string, InstancedBeltRenderer> = new Map();
+  private lastBodies: CelestialBody[] = [];
+  private frameCounter = 0;
+  private starfieldFullCount = 0;
+
+  /** Honors reduced-motion preference across pulses and rotation. */
+  public reducedMotion = false;
 
   // Camera state & damping
   public viewMode: CameraViewMode = 'inertial';
@@ -91,10 +113,28 @@ export class SceneManager {
 
     // Background starfield
     this.initBackgroundStarfield();
+
+    // Deep-field nebula veils (ASSET13)
+    this.scene.add(createNebulaVeils());
+
+    // Habitable-zone overlay (ASSET11, hidden until toggled)
+    this.habitableZones = new HabitableZoneRenderer(this.scaleTransform);
+    this.habitableZones.setVisible(false);
+    this.scene.add(this.habitableZones.getGroup());
+
+    // Lagrange markers for the selected pair (ASSET12)
+    this.lagrangeMarkers = new LagrangeMarkerGroup(this.scaleTransform);
+    this.scene.add(this.lagrangeMarkers.getGroup());
+
+    // Collision-burst VFX pool (ASSET10)
+    this.collisionBursts = new CollisionBurstPool();
+    this.scene.add(this.collisionBursts.getGroup());
   }
 
   private initBackgroundStarfield(): void {
     const starCount = 3500;
+    // BACK10: deterministic starfield — identical sky on every boot.
+    const rng = new SeededRng(20260913);
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(starCount * 3);
     const colors = new Float32Array(starCount * 3);
@@ -108,15 +148,15 @@ export class SceneManager {
 
     for (let i = 0; i < starCount; i++) {
       // Distribute on distant sphere
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(Math.random() * 2 - 1);
-      const r = 25000 + Math.random() * 5000;
+      const theta = rng.range(0, Math.PI * 2);
+      const phi = Math.acos(rng.range(-1, 1));
+      const r = rng.range(25000, 30000);
 
       positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = r * Math.cos(phi);
 
-      const c = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+      const c = rng.pick(colorPalette);
       colors[i * 3] = c.r;
       colors[i * 3 + 1] = c.g;
       colors[i * 3 + 2] = c.b;
@@ -134,20 +174,25 @@ export class SceneManager {
     });
 
     this.starfield = new THREE.Points(geometry, material);
+    this.starfieldFullCount = starCount;
     this.scene.add(this.starfield);
   }
 
   /**
    * Synchronize 3D meshes with current simulation bodies.
    */
-  public syncBodies(bodies: CelestialBody[]): void {
+  public syncBodies(bodies: CelestialBody[], belts?: AsteroidBelt[]): void {
     const activeIds = new Set(bodies.map(b => b.id));
+    this.lastBodies = bodies;
 
-    // Remove obsolete meshes
+    // Remove obsolete meshes (with GPU disposal — BACK08)
     for (const [id, group] of this.bodyMeshes) {
       if (!activeIds.has(id)) {
         this.scene.remove(group);
+        this.disposeGroup(group);
         this.bodyMeshes.delete(id);
+        this.selectionIndicators.delete(id);
+        this.accretionDisks.delete(id);
       }
     }
 
@@ -194,14 +239,80 @@ export class SceneManager {
         }
       }
 
+      // Rescale attached sprite assets to the live display radius.
+      const corona = group.getObjectByName('corona') as THREE.Sprite | undefined;
+      if (corona) {
+        const size = dispRadius * 7;
+        corona.scale.set(size, size, 1);
+      }
+      const atmosphere = group.getObjectByName('atmosphere') as THREE.Mesh | undefined;
+      if (atmosphere) {
+        atmosphere.scale.set(dispRadius, dispRadius, dispRadius);
+      }
+      const disk = this.accretionDisks.get(b.id);
+      if (disk) {
+        disk.group.scale.set(dispRadius, dispRadius, dispRadius);
+      }
+      const indicator = this.selectionIndicators.get(b.id);
+      if (indicator) {
+        indicator.group.scale.set(dispRadius, dispRadius, dispRadius);
+      }
+
       // Update rings if attached
       if (b.rings && b.rings.length > 0) {
         this.updateBodyRings(b, group, dispRadius);
       }
     }
 
+    // Prune rings whose structures were removed.
+    for (const [id, group] of this.bodyMeshes) {
+      const body = bodies.find(bb => bb.id === id);
+      const liveRingIds = new Set((body?.rings ?? []).map(r => `ring-${r.id}`));
+      for (const child of [...group.children]) {
+        if (child.name.startsWith('ring-') && !liveRingIds.has(child.name)) {
+          group.remove(child);
+          this.disposeObject(child);
+        }
+      }
+    }
+
     // Update gravity grid
     this.gravityGrid.update(bodies);
+
+    // Sync asteroid belt instancing (ASSET13 environment dressing).
+    this.syncBelts(belts ?? []);
+
+    // Throttled overlay refresh (every 20 frames).
+    this.frameCounter++;
+    if (this.frameCounter % 20 === 0) {
+      if (this.habitableZones.isVisible()) {
+        this.habitableZones.update(bodies);
+      }
+      const selected = bodies.find(bb => bb.id === this.selectedBodyId) ?? null;
+      this.lagrangeMarkers.update(selected, bodies);
+    }
+  }
+
+  private syncBelts(belts: AsteroidBelt[]): void {
+    const liveIds = new Set(belts.map(b => b.id));
+    for (const [id, renderer] of [...this.beltRenderers]) {
+      if (!liveIds.has(id)) {
+        this.scene.remove(renderer.getMesh());
+        renderer.dispose();
+        this.beltRenderers.delete(id);
+      }
+    }
+    for (const belt of belts) {
+      if (!this.beltRenderers.has(belt.id)) {
+        try {
+          const renderer = new InstancedBeltRenderer(belt, this.scaleTransform);
+          this.beltRenderers.set(belt.id, renderer);
+          this.scene.add(renderer.getMesh());
+        } catch {
+          // Belt instancing is decorative; never break the frame loop.
+        }
+      }
+    }
   }
 
   private createBodyMesh(b: CelestialBody): THREE.Group {
@@ -214,32 +325,51 @@ export class SceneManager {
     if (b.type === 'black_hole') {
       const mat = createBlackHoleMaterial();
       coreMesh = new THREE.Mesh(sphereGeo, mat);
+      // ASSET05: accretion disk + photon ring for singularities.
+      const disk = createAccretionDisk(1);
+      this.accretionDisks.set(b.id, disk);
+      group.add(disk.group);
     } else if (b.type === 'star') {
-      const mat = createStarMaterial(b.color, b.starsilkBleed);
+      // ASSET01: spectral-class tint anchors the star color honestly.
+      const spectral = this.spectralClassForBody(b);
+      const mat = createStarMaterial(spectral.color, b.starsilkBleed);
       coreMesh = new THREE.Mesh(sphereGeo, mat);
+      // ASSET04: pulsing corona flare.
+      const corona = createCoronaSprite(spectral.color, spectral.coronaColor, 1);
+      if (corona) group.add(corona);
     } else {
-      const mat = createPlanetMaterial(b.color, b.atmosphereColor);
+      // ASSET02: procedural classification texture on the globe.
+      const texture = b.classification
+        ? getPlanetTexture(b.classification, b.surfaceSeed ?? SeededRng.hashString(b.id))
+        : null;
+      const mat = createPlanetMaterial(b.color, b.atmosphereColor, texture);
       coreMesh = new THREE.Mesh(sphereGeo, mat);
+      // ASSET03: atmospheric limb shell for enveloped worlds.
+      if (b.atmosphereColor || (b.atmosphereDensity ?? 0) > 0) {
+        const shell = createAtmosphereShell(b.atmosphereColor || '#49e7ff', 1);
+        if (shell) group.add(shell);
+      }
     }
 
     coreMesh.name = 'core';
     group.add(coreMesh);
 
-    // Selection halo (hidden by default)
-    const haloGeo = new THREE.RingGeometry(1.2, 1.3, 32);
-    const haloMat = new THREE.MeshBasicMaterial({
-      color: '#0cc6ff',
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.85,
-    });
-    const halo = new THREE.Mesh(haloGeo, haloMat);
-    halo.name = 'selectionHalo';
-    halo.rotation.x = Math.PI / 2;
-    halo.visible = false;
-    group.add(halo);
+    // ASSET07: animated selection lock-ring (hidden until selected).
+    const indicator = createSelectionIndicator();
+    indicator.group.visible = b.id === this.selectedBodyId;
+    this.selectionIndicators.set(b.id, indicator);
+    group.add(indicator.group);
 
     return group;
+  }
+
+  /** Resolve the spectral class recorded on the body, or infer from mass. */
+  private spectralClassForBody(b: CelestialBody): { color: string; coronaColor: string } {
+    const recorded = (b as unknown as { spectralClass?: string }).spectralClass;
+    if (recorded && /^[OBAFGKM]$/.test(recorded)) {
+      return spectralClassByLetter(recorded as SpectralLetter);
+    }
+    return spectralClassForMass(b.massKg);
   }
 
   private updateBodyRings(b: CelestialBody, group: THREE.Group, dispRadius: number): void {
@@ -261,12 +391,38 @@ export class SceneManager {
 
   public setSelectedBody(id: string | null): void {
     this.selectedBodyId = id;
-    for (const [bodyId, group] of this.bodyMeshes) {
-      const halo = group.getObjectByName('selectionHalo');
-      if (halo) {
-        halo.visible = bodyId === id;
-      }
+    for (const [bodyId, indicator] of this.selectionIndicators) {
+      indicator.group.visible = bodyId === id;
     }
+    // Refresh Lagrange markers immediately for the new pair.
+    const selected = this.lastBodies.find(bb => bb.id === id) ?? null;
+    this.lagrangeMarkers.update(selected, this.lastBodies);
+  }
+
+  /** Hover highlight for pointer proximity (ASSET07 companion). */
+  public setHoverBody(id: string | null): void {
+    for (const [bodyId, indicator] of this.selectionIndicators) {
+      indicator.setHover(bodyId === id && bodyId !== this.selectedBodyId);
+    }
+  }
+
+  /** Ignite a collision burst at a body's live display position (ASSET10). */
+  public spawnCollisionBurstAtBody(bodyId: string, tintHex = '#ffb35c', energy = 1): void {
+    const group = this.bodyMeshes.get(bodyId);
+    if (!group) return;
+    this.collisionBursts.spawn(group.position, tintHex, energy);
+  }
+
+  /** Manual pixel-ratio control for the auto-quality governor (BACK07). */
+  public setPixelRatio(ratio: number): void {
+    this.renderer.setPixelRatio(ratio);
+  }
+
+  /** Reduce starfield draw count under GPU pressure (BACK07). */
+  public setStarfieldDensity(fraction: number): void {
+    if (!this.starfield) return;
+    const clamped = Math.max(0.1, Math.min(1, fraction));
+    this.starfield.geometry.setDrawRange(0, Math.floor(this.starfieldFullCount * clamped));
   }
 
   // Camera navigation methods
@@ -317,6 +473,52 @@ export class SceneManager {
 
     // Smooth scale transform morph
     this.scaleTransform.update(deltaSec);
+
+    const elapsed = this.clock.getElapsedTime();
+
+    // Animate selection indicators.
+    for (const indicator of this.selectionIndicators.values()) {
+      if (indicator.group.visible) {
+        indicator.update(elapsed, this.reducedMotion);
+      }
+    }
+
+    // Drive time-based shader uniforms (blood shimmer, disks, ribbons).
+    if (!this.reducedMotion) {
+      for (const group of this.bodyMeshes.values()) {
+        group.traverse((obj) => {
+          const mesh = obj as THREE.Mesh;
+          const material = mesh.material as THREE.ShaderMaterial | undefined;
+          if (material && material.uniforms && material.uniforms.uTime && mesh.name !== 'core') {
+            material.uniforms.uTime.value = elapsed;
+          }
+        });
+      }
+      for (const disk of this.accretionDisks.values()) {
+        disk.update(elapsed);
+      }
+    }
+
+    // Corona breathing pulse.
+    if (!this.reducedMotion) {
+      const breathe = 1 + Math.sin(elapsed * 1.4) * 0.04;
+      for (const group of this.bodyMeshes.values()) {
+        const corona = group.getObjectByName('corona') as THREE.Sprite | undefined;
+        if (corona) {
+          const prev = (corona.userData.breathe as number | undefined) ?? 1;
+          const base = corona.scale.x / prev;
+          corona.userData.breathe = breathe;
+          corona.scale.set(base * breathe, base * breathe, 1);
+        }
+      }
+    }
+
+    // Belt orbital drift, trajectory pulses, and burst particles.
+    for (const renderer of this.beltRenderers.values()) {
+      renderer.update(this.reducedMotion ? 0 : deltaSec);
+    }
+    this.trajectoryRenderer.update(deltaSec, this.reducedMotion);
+    this.collisionBursts.update(deltaSec);
   }
 
   public render(): void {
@@ -354,6 +556,54 @@ export class SceneManager {
     }
 
     return null;
+  }
+
+  /**
+   * Dispose a body group subtree, releasing GPU geometries/materials (BACK08).
+   */
+  private disposeObject(root: THREE.Object3D): void {
+    root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.geometry) mesh.geometry.dispose();
+      const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+      if (Array.isArray(material)) {
+        for (const m of material) m.dispose();
+      } else if (material) {
+        material.dispose();
+      }
+    });
+  }
+
+  private disposeGroup(group: THREE.Group): void {
+    this.disposeObject(group);
+  }
+
+  /**
+   * Full renderer teardown: geometries, materials, render targets (BACK08).
+   */
+  public dispose(): void {
+    for (const group of this.bodyMeshes.values()) {
+      this.disposeGroup(group);
+    }
+    this.bodyMeshes.clear();
+    this.selectionIndicators.clear();
+    this.accretionDisks.clear();
+    for (const renderer of this.beltRenderers.values()) {
+      renderer.dispose();
+    }
+    this.beltRenderers.clear();
+    this.trajectoryRenderer.dispose();
+    this.collisionBursts.dispose();
+    this.habitableZones.dispose();
+    this.lagrangeMarkers.dispose();
+    this.scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh | THREE.Points | THREE.Sprite;
+      const geometry = (mesh as THREE.Mesh).geometry;
+      if (geometry) geometry.dispose();
+      const material = (mesh as THREE.Mesh).material as THREE.Material | undefined;
+      if (material) material.dispose();
+    });
+    this.renderer.dispose();
   }
 
   /**
