@@ -9,13 +9,17 @@
 
 import { BranchManager } from '../branching/branch-manager';
 import { SimulationEngine } from '../simulation/engine';
-import { SavedSystemProject } from './db';
+import { CURRENT_SCHEMA_VERSION, SavedSystemProject } from './db';
 
 export interface VisualSettingsPayload {
   scaleMode: 'true' | 'readable';
   showFuture: boolean;
   showSensitivity: boolean;
   showGravityGrid: boolean;
+  showXRay?: boolean;
+  showLabels?: boolean;
+  showTrails?: boolean;
+  showHabitableZone?: boolean;
 }
 
 export interface CameraStatePayload {
@@ -39,7 +43,7 @@ export function createSerializableProject(
   const activeBranch = branchManager.getActiveBranch();
 
   return {
-    schemaVersion: '1.0.0',
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     projectId,
     projectName: projectName.trim() || 'Untitled System',
     seed: 42,

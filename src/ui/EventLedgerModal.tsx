@@ -1,14 +1,31 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { ConsequenceEvent } from '../simulation/types';
 import { formatSimTime } from '../simulation/units';
 import { X, AlertCircle, Info, Flame, Sparkles } from 'lucide-react';
 
 interface EventLedgerModalProps {
   events: ConsequenceEvent[];
+  simTimeSec?: number;
   onClose: () => void;
 }
 
-export const EventLedgerModal: React.FC<EventLedgerModalProps> = ({ events, onClose }) => {
+const FILTERS = [
+  { id: 'all', label: 'ALL' },
+  { id: 'catastrophe', label: 'CATASTROPHES' },
+  { id: 'caution', label: 'CAUTIONS' },
+  { id: 'info', label: 'ROUTINE' },
+] as const;
+
+type FilterId = (typeof FILTERS)[number]['id'];
+
+export const EventLedgerModal: React.FC<EventLedgerModalProps> = ({ events, simTimeSec, onClose }) => {
+  const [filter, setFilter] = useState<FilterId>('all');
+
+  const visibleEvents = useMemo(
+    () => (filter === 'all' ? events : events.filter(e => e.severity === filter)),
+    [events, filter]
+  );
+
   return (
     <div
       style={{
@@ -30,30 +47,58 @@ export const EventLedgerModal: React.FC<EventLedgerModalProps> = ({ events, onCl
         background: '#07131e',
         border: '1px solid var(--border-subtle)',
         borderRadius: '12px',
+        width: 'min(560px, 92vw)',
+        maxHeight: '80vh',
         padding: '18px',
-        width: '480px',
-        maxWidth: '90vw',
-        maxHeight: '75vh',
-        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.7)',
         display: 'flex',
         flexDirection: 'column',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', marginBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-primary)' }}>
-            CAUSAL EVENT LEDGER ({events.length})
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h3 style={{ margin: 0, fontSize: '13px', letterSpacing: '0.1em', color: '#49e7ff' }}>
+            CAUSAL EVENT LEDGER ({visibleEvents.length}{filter !== 'all' ? ` / ${events.length}` : ''})
           </h3>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
             <X size={16} />
           </button>
         </div>
 
+        {/* Severity rail + live NOW marker */}
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', alignItems: 'center' }}>
+          {FILTERS.map(f => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              style={{
+                background: filter === f.id ? 'rgba(12, 198, 255, 0.18)' : 'rgba(10, 42, 68, 0.4)',
+                border: `1px solid ${filter === f.id ? 'var(--accent-azure)' : 'var(--border-subtle)'}`,
+                color: filter === f.id ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                borderRadius: '5px',
+                padding: '4px 10px',
+                fontSize: '9px',
+                fontWeight: 800,
+                letterSpacing: '0.1em',
+                cursor: 'pointer',
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+          {simTimeSec !== undefined && (
+            <span style={{ marginLeft: 'auto', fontSize: '9px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+              NOW T+ {formatSimTime(simTimeSec)}
+            </span>
+          )}
+        </div>
+
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {events.length === 0 ? (
+          {visibleEvents.length === 0 ? (
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', padding: '30px 0' }}>
-              No consequential events recorded yet in this timeline.
+              {events.length === 0
+                ? 'No consequential events recorded yet in this timeline.'
+                : 'No events at this severity in this timeline.'}
             </div>
           ) : (
-            events.slice().reverse().map((ev) => {
+            visibleEvents.slice().reverse().map((ev) => {
               const isCatastrophe = ev.severity === 'catastrophe';
               const isCaution = ev.severity === 'caution';
 

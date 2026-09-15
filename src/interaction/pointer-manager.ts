@@ -29,6 +29,12 @@ export interface PointerCallbacks {
   onPointerCancel: (e: NormalizedPointerEvent) => void;
   onPinchZoom: (factor: number) => void;
   onTwoFingerPan: (dx: number, dy: number) => void;
+  /** Mouse/trackpad wheel zoom request (raw deltaY). */
+  onWheelZoom?: (rawDeltaY: number) => void;
+  /** Rapid double-tap / double-click on the canvas. */
+  onDoubleTap?: (e: NormalizedPointerEvent) => void;
+  /** S Pen barrel-button press — quick manipulation shortcut. */
+  onPenQuickAction?: (e: NormalizedPointerEvent) => void;
 }
 
 export class PointerManager {
@@ -47,6 +53,10 @@ export class PointerManager {
   public isManipulatingObject: boolean = false;
   public isDrawingOrbit: boolean = false;
 
+  // Double-tap detection (screen-space, modality-agnostic)
+  private lastTapTimeMs = 0;
+  private lastTapPos: { x: number; y: number } | null = null;
+
   constructor(element: HTMLElement, callbacks: PointerCallbacks) {
     this.element = element;
     this.callbacks = callbacks;
@@ -58,6 +68,7 @@ export class PointerManager {
     this.element.addEventListener('pointermove', this.handlePointerMove);
     this.element.addEventListener('pointerup', this.handlePointerUp);
     this.element.addEventListener('pointercancel', this.handlePointerCancel);
+    this.element.addEventListener('wheel', this.handleWheel, { passive: false });
   }
 
   public destroy(): void {
@@ -65,7 +76,13 @@ export class PointerManager {
     this.element.removeEventListener('pointermove', this.handlePointerMove);
     this.element.removeEventListener('pointerup', this.handlePointerUp);
     this.element.removeEventListener('pointercancel', this.handlePointerCancel);
+    this.element.removeEventListener('wheel', this.handleWheel);
   }
+
+  private handleWheel = (e: WheelEvent): void => {
+    e.preventDefault();
+    this.callbacks.onWheelZoom?.(e.deltaY);
+  };
 
   private normalize(e: PointerEvent, deltaX: number = 0, deltaY: number = 0): NormalizedPointerEvent {
     return {
@@ -86,6 +103,27 @@ export class PointerManager {
   }
 
   private handlePointerDown = (e: PointerEvent): void => {
+    // S Pen barrel button: quick-action shortcut (grab the body under the nib)
+    if (e.pointerType === 'pen' && (e.button === 1 || (e.buttons & 2) !== 0)) {
+      const normQuick = this.normalize(e, 0, 0);
+      this.callbacks.onPenQuickAction?.(normQuick);
+      return;
+    }
+
+    // Double-tap / double-click detection
+    const nowMs = e.timeStamp;
+    if (this.lastTapPos && nowMs - this.lastTapTimeMs < 320) {
+      const d = Math.hypot(e.clientX - this.lastTapPos.x, e.clientY - this.lastTapPos.y);
+      if (d < 24) {
+        this.lastTapTimeMs = 0;
+        this.lastTapPos = null;
+        this.callbacks.onDoubleTap?.(this.normalize(e, 0, 0));
+        return;
+      }
+    }
+    this.lastTapTimeMs = nowMs;
+    this.lastTapPos = { x: e.clientX, y: e.clientY };
+
     this.prevPositions.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
     const norm = this.normalize(e, 0, 0);
     this.activePointers.set(e.pointerId, norm);

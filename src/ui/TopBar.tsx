@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Volume2, VolumeX, Grid, Download, Upload, Sparkles } from 'lucide-react';
+import { Eye, Volume2, VolumeX, Grid, Download, Upload, Sparkles, Settings, Save, Pencil } from 'lucide-react';
 import { ScaleMode } from '../rendering/scale-transform';
 import { SystemStatus } from '../simulation/types';
 
@@ -22,6 +22,10 @@ interface TopBarProps {
   onExport: () => void;
   onImport: () => void;
   onLoadPreset: (name: 'demo' | 'meridian' | 'blank') => void;
+  onOpenSettings: () => void;
+  onOpenSaves: () => void;
+  onRename: () => void;
+  lastSaveTime: string | null;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -41,6 +45,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   onExport,
   onImport,
   onLoadPreset,
+  onOpenSettings,
+  onOpenSaves,
+  onRename,
+  lastSaveTime,
 }) => {
   return (
     <header className="top-hud-bar hud-interactive">
@@ -55,6 +63,18 @@ export const TopBar: React.FC<TopBarProps> = ({
           <div className="brand-title">STARSILK SYSTEM PLANNER</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="brand-subtitle">{projectName}</span>
+            <button
+              onClick={onRename}
+              title="Rename system"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
+            >
+              <Pencil size={10} />
+            </button>
+            {lastSaveTime && (
+              <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                saved {lastSaveTime}
+              </span>
+            )}
             {systemStatus === 'destroyed_by_starsilk_collapse' && (
               <span style={{
                 fontSize: '9px',
@@ -209,6 +229,38 @@ export const TopBar: React.FC<TopBarProps> = ({
           title={audioEnabled ? 'Sound ON' : 'Sound OFF (Web Audio)'}
         >
           {audioEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+        </button>
+
+        {/* Saved projects vault */}
+        <button
+          onClick={onOpenSaves}
+          style={{
+            background: 'rgba(7, 19, 30, 0.8)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-primary)',
+            borderRadius: '6px',
+            padding: '6px 8px',
+            cursor: 'pointer',
+          }}
+          title="Saved Systems vault (save / load / delete)"
+        >
+          <Save size={14} />
+        </button>
+
+        {/* Settings */}
+        <button
+          onClick={onOpenSettings}
+          style={{
+            background: 'rgba(7, 19, 30, 0.8)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-primary)',
+            borderRadius: '6px',
+            padding: '6px 8px',
+            cursor: 'pointer',
+          }}
+          title="Render, audio, camera & forecast settings"
+        >
+          <Settings size={14} />
         </button>
 
         {/* Export / Import */}

@@ -16,6 +16,8 @@ interface TimelineBarProps {
   onOpenLedger: () => void;
   onOpenBranchCompare: () => void;
   eventCount: number;
+  bodyCount: number;
+  restoredFromSave: boolean;
 }
 
 const PRESET_RATES = [1, 10, 100, 1000, 10000];

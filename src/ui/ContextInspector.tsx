@@ -2,7 +2,7 @@ import React from 'react';
 import { CelestialBody } from '../simulation/types';
 import { formatDistance, formatMass, formatRadius, formatVelocity, formatSimTime } from '../simulation/units';
 import { calculateOsculatingElements, detectResonance } from '../simulation/orbital-mechanics';
-import { Trash2, Focus, Move, Sparkles } from 'lucide-react';
+import { Trash2, Focus, Move, Sparkles, List } from 'lucide-react';
 
 interface ContextInspectorProps {
   selectedBody: CelestialBody | null;
@@ -12,6 +12,7 @@ interface ContextInspectorProps {
   onFocusBody: (id: string) => void;
   onStartGrabThrow: (body: CelestialBody) => void;
   onOpenCanonMacro: (macroId: string) => void;
+  onOpenBodyPicker?: () => void;
 }
 
 export const ContextInspector: React.FC<ContextInspectorProps> = ({
@@ -22,6 +23,7 @@ export const ContextInspector: React.FC<ContextInspectorProps> = ({
   onFocusBody,
   onStartGrabThrow,
   onOpenCanonMacro,
+  onOpenBodyPicker,
 }) => {
   if (!selectedBody) return null;
 
@@ -74,6 +76,21 @@ export const ContextInspector: React.FC<ContextInspectorProps> = ({
         </div>
 
         <div style={{ display: 'flex', gap: '4px' }}>
+          {onOpenBodyPicker && (
+            <button
+              onClick={onOpenBodyPicker}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                padding: '4px',
+              }}
+              title="Open Body Directory (B)"
+            >
+              <List size={16} />
+            </button>
+          )}
           <button
             onClick={() => onFocusBody(selectedBody.id)}
             style={{

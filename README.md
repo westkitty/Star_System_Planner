@@ -2,7 +2,7 @@
 
 > A tactile 3D stellar-architecture laboratory engineered first for the Samsung Galaxy Tab S9 and S Pen.
 
-[![Verification](https://img.shields.io/badge/Verification-23%2F23%20Passed-0cc6ff)](./OPERATIONAL_STATE.md)
+[![Verification](https://img.shields.io/badge/Verification-65%2F65%20Passed-0cc6ff)](./OPERATIONAL_STATE.md)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Zero--Errors-blue)](./tsconfig.json)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First%20IndexedDB-49e7ff)](./src/persistence/db.ts)
 [![Canon Boundary](https://img.shields.io/badge/Canon%20Boundary-Strictly%20Read--Only-crimson)](./CANON_SOURCES.md)
@@ -12,9 +12,9 @@
 ## 1. Overview & Fantasy
 
 **STARSILK SYSTEM PLANNER** is a tactile 3D stellar-architecture workbench. The core fantasy is direct, physical manipulation of cosmological causality:
-- Grab a moon and throw it into orbit with real-time velocity vector visualization and immediate gravitational feedback.
-- Draw orbits directly across space using the S Pen with automatic conic ellipse fitting and periapsis handle tuning.
-- Accelerate time up to $100,000\times$, forecast future orbital trajectories off-thread via dedicated Web Workers, and inspect a 30-path Sensitivity Cloud of chaotic perturbations.
+- Grab a moon and throw it into orbit with a live osculating-element aim chip (bound / escape / impact readout) feeding back every millisecond of the drag.
+- Draw orbits directly across space using the S Pen with automatic conic ellipse fitting, then sculpt periapsis, apoapsis and inclination with live modal scrubbers before committing as a satellite, ring, or debris belt.
+- Accelerate time through eased time-warp (presets 1×–10,000×; engine ceiling 500,000×), forecast future orbital trajectories off-thread via a dedicated Web Worker, and inspect a 30-path Sensitivity Cloud of chaotic perturbations.
 - Fork alternate futures into isolated timeline branches, inspect causal diffs in tabular side-by-side matrices, and consult the irreversible Event Ledger.
 - Invoke source-backed Starsilk cosmological mechanisms: pull starsilk filaments to collapse stars into black holes, study orbital starbinding lattices, spawn vitrified crimson blood rings, and inspect siege wall tactical zones with unauthored-coordinate honesty.
 
@@ -24,14 +24,17 @@ Every interaction is designed around a tactile obsidian and azure visual languag
 
 ## 2. Tablet & S Pen First Interaction Model
 
-Targeted for large-format OLED Android tablets (Target hardware profile: Samsung Galaxy Tab S9, 120Hz, 16:10 aspect ratio; physical device testing conducted on physical hardware):
+Targeted for large-format OLED Android tablets (target hardware profile: Samsung Galaxy Tab S9, 120Hz, 16:10 aspect ratio; layout and input modalities are validated in this repository's automated and emulated environments — a physical on-device pass remains outstanding and is honestly labeled as such in OPERATIONAL_STATE.md):
 
 | Input Channel | Primary Interaction | Gesture / Action |
 | :--- | :--- | :--- |
-| **S Pen Tip** | Fine Spatial Manipulation | Precise selection, raycasting, periapsis handle dragging, modal parameter scrubbing. |
+| **S Pen Tip** | Fine Spatial Manipulation | Precise selection, raycasting, fitted-conic scrubbing (periapsis / apoapsis / inclination sliders) with live 3D preview. |
+| **S Pen Barrel Button** | Quick Grab | One-press instant grab of the body under the nib into Grab & Throw. |
 | **S Pen Stroke** | Orbit Loom | Direct drawing of orbital paths across 3D space with real-time conic fitting and apoapsis lock. |
 | **Finger Drag** | Camera Orbit / Pan | Natural one-finger orbit rotation around primary focus; two-finger pan across the ecliptic plane. |
 | **Two-Finger Pinch** | Camera Zoom | Smooth pinch-to-zoom scaling from planet surfaces to outer Kuiper belt boundaries. |
+| **Mouse Wheel** | Camera Zoom (desktop) | Sensitivity-tunable exponential zoom sharing the same pinch pathway. |
+| **Double-Tap** | Focus Jump | Double-tap any body to select it and fly the camera to it. |
 | **Grab & Throw** | Touch Causality | Tap and hold any celestial body to grab, drag to stretch an azure velocity vector, and release to inject instantaneous momentum with weighted EMA velocity filtering. |
 
 The UI enforces ergonomic two-handed tablet grips: primary tool rail on the left edge, context inspector and telemetry on the right edge, timeline controls across the bottom thumb-sweep zone, and brand/status bar along the top. Default browser touch gestures are suppressed on the 3D canvas via `touch-action: none`.
@@ -63,7 +66,7 @@ The UI enforces ergonomic two-handed tablet grips: primary tool rail on the left
 ```
 
 ### Symplectic Integrator
-- **Velocity Verlet ($O(\Delta t^2)$)**: Fixed sub-stepping ($\Delta t = 60\text{s}$) ensures symplectic energy conservation. Over a 1,000-step circular orbit integration, total mechanical energy drift is strictly bounded ($\Delta E / E_0 < 2 \times 10^{-4}$) and semi-major axis varies by $< 0.01\%$.
+- **Velocity Verlet ($O(\Delta t^2)$)**: Adaptive fixed sub-stepping ($\Delta t = 60\text{s}$ at 1×, widening through 2 min, 10 min, 1 h, 4 h, and 8 h tiers as commanded time-warp climbs; commanded rate transitions are slew-eased to avoid integrator shock) ensures symplectic energy conservation. Over a 1,000-step circular orbit integration at 60 s steps, total mechanical energy drift is strictly bounded ($\Delta E / E_0 < 2 \times 10^{-4}$, enforced by automated regression) and semi-major axis varies by $< 0.01\%$.
 - **Plummer Softening**: Prevents unphysical infinity singularities and numerical ejection during close hyperbolic encounters.
 - **NaN Guards**: State vectors are clamped and sanitised against degenerate floating-point conditions.
 
@@ -88,13 +91,22 @@ The UI enforces ergonomic two-handed tablet grips: primary tool rail on the left
 Select a celestial primary, engage the Orbit Loom tool, and sweep an S Pen or finger stroke through 3D space. The algorithm projects stroke points onto the orbital plane, computes geometric eccentricity and periapsis, derives the required orbital velocity $v_p = \sqrt{\frac{\mu}{a}\frac{1+e}{1-e}}$, and exposes live interactive handles to fine-tune semi-major axis, argument of periapsis, and inclination before committing as a new satellite or dense particle ring.
 
 ### 2. Show Future & 30-Line Sensitivity Cloud
-An asynchronous Web Worker continuously integrates forward trajectories up to 100,000 steps without stalling the main 120Hz render thread. When sensitivity analysis is engaged, the worker spawns 30 perturbed shadow universes ($\pm 0.05\%$ velocity variation) to render a translucent turquoise probability fan, illustrating chaotic divergence, gravitational slingshots, and resonance traps.
+An asynchronous Web Worker continuously integrates forward trajectories (120–864 steps per refresh at 300 s steps — roughly 10–72 simulated hours, selectable via the Forecast Horizon setting) without stalling the main 120Hz render thread. When sensitivity analysis is engaged, the worker spawns 30 perturbed shadow universes (default ±1.5% velocity variation, tunable 0.1–5%) to render a translucent turquoise probability fan, illustrating chaotic divergence, gravitational slingshots, and resonance traps.
 
 ### 3. Causal Branching & Timeline Ledger
-Fork any state into a named branch (e.g., "Prime", "Black Hole Injected", "Moon Thrown"). Compare branches side-by-side in a comparative audit matrix highlighting surviving bodies, orbital shifts, and total energy delta. Every significant action (ejection, collision, macro trigger, throw) is permanently logged into an immutable Event Ledger.
+Fork any state into a named branch (e.g., "Prime", "Black Hole Injected", "Moon Thrown"). Compare branches side-by-side in a comparative audit matrix: surviving-body census shifted, per-body orbital shift matrix ($\Delta a$, $\Delta e$, $\Delta v$ from osculating elements), and total mechanical energy delta in joules. Every significant action (ejection, collision, macro trigger, throw) is permanently logged into a bounded Event Ledger (catastrophe-reversal undo bank included).
 
 ### 4. Deterministic System Sigil
-Every system state generates a unique, deterministic SVG System Sigil based on star spectral type, body count, total angular momentum, and orbital hierarchy. Sigils serve as instant visual identifiers and export stamps.
+Every system state generates a unique, deterministic SVG System Sigil derived from live physics: star spectral class (from effective temperature), body census (barcode density), total angular momentum (arc count and tilt), and an extinction regime that scars the sigil crimson when the host star dies. Sigils serve as instant visual identifiers and export/postcard stamps.
+
+### 5. X-Ray Lens, Trails, Labels & Habitable Zones
+A right-edge lens rail toggles render layers on demand: recorded orbital trails (sampled path history), distance-faded name sprites, Stefan-Boltzmann habitable-zone annuli around luminous stars, and the X-Ray Lens — osculating ellipse wireframe, Hill sphere, Roche shell, and L1–L5 Lagrange markers projected around the selected body.
+
+### 6. Audible Orrery
+An optional synthesized soundscape maps orbital mean motion onto drone voices (inner worlds sing high, outer giants hum low), with a slow sub-bass breath for the star and percussive strikes on collisions. Built entirely on Web Audio oscillators — no audio assets, fully offline-first.
+
+### 7. Resilience & Session Systems
+Autosave with rolling checkpoints (suspended while the tab is hidden), pre-catastrophe undo bank (Ctrl+Z), a named saved-systems vault, deep sanitize-on-import with schema migration (1.0.0 → 1.1.0), WebGL context-loss containment, and a first-run coach tour.
 
 ---
 
@@ -122,7 +134,7 @@ npm run verify
 | Verification Stage | Command | Status |
 | :--- | :--- | :--- |
 | **Typecheck** | `npm run typecheck` (`tsc --noEmit`) | **0 Errors, Strict Mode** |
-| **Unit Tests** | `npm run test` (`vitest run`) | **All Tests Passing** |
+| **Unit Tests** | `npm run test` (`vitest run`) | **65/65 Passing (11 suites)** |
 | **Production Build** | `npm run build` (`tsc && vite build`) | **Clean Bundle, PWA Generated** |
 | **Canon Snapshot** | `npm run canon:refresh` | **Verified Manifest Synced** |
 

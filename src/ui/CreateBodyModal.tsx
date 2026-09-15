@@ -6,12 +6,15 @@ import { X, Globe, Sun, Moon, Radio } from 'lucide-react';
 interface CreateBodyModalProps {
   existingBodies: CelestialBody[];
   onSpawnBody: (body: CelestialBody) => void;
+  /** Live ghost-circle preview while sculpting orbital distance. */
+  onOrbitRadiusPreview?: (radiusKm: number, primary: CelestialBody | null) => void;
   onClose: () => void;
 }
 
 export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
   existingBodies,
   onSpawnBody,
+  onOrbitRadiusPreview,
   onClose,
 }) => {
   const [name, setName] = useState('New Planet');
@@ -21,6 +24,17 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
     existingBodies.find(b => b.type === 'star')?.id || (existingBodies[0]?.id ?? '')
   );
   const [distanceAu, setDistanceAu] = useState<number>(1.2);
+
+  // Live ghost-circle preview of the candidate orbit radius
+  React.useEffect(() => {
+    if (!onOrbitRadiusPreview) return;
+    const prim = existingBodies.find(b => b.id === primaryId) || null;
+    onOrbitRadiusPreview(distanceAu * KM_PER_AU, prim);
+  }, [distanceAu, primaryId, existingBodies, onOrbitRadiusPreview]);
+
+  React.useEffect(() => {
+    return () => { onOrbitRadiusPreview?.(0, null); };
+  }, [onOrbitRadiusPreview]);
 
   const handleCreate = () => {
     const primary = existingBodies.find(b => b.id === primaryId);
@@ -65,6 +79,13 @@ export const CreateBodyModal: React.FC<CreateBodyModalProps> = ({
     let velX = 0;
     let velY = 0;
     let velZ = 0;
+
+    // In a truly empty system, anchor the new seed body at the origin
+    if (!primary && existingBodies.length === 0) {
+      posX = 0;
+      posY = 0;
+      posZ = 0;
+    }
 
     if (primary) {
       posX = primary.position.x + distKm;

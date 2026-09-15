@@ -179,3 +179,51 @@ describe('Branching Engine & Causal Isolation', () => {
     expect(freshEngine.systemStatus).toBe('destroyed_by_starsilk_collapse');
   });
 });
+
+describe('Branch comparison — orbital shift matrix & energy truth', () => {
+  const mkSystem = () => {
+    const star: CelestialBody = {
+      id: 'star-1', name: 'Sun', type: 'star', massKg: 1.989e30, radiusKm: 700000,
+      position: { x: 0, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 0 }, fixed: true, color: '#fff',
+    };
+    const planet: CelestialBody = {
+      id: 'planet-1', name: 'Earth', type: 'planet', massKg: 6e24, radiusKm: 6400,
+      position: { x: 1.5e8, y: 0, z: 0 }, velocity: { x: 0, y: 0, z: 29.8 }, color: '#2277ff',
+    };
+    return { star, planet };
+  };
+
+  it('identical snapshots yield a zero energy delta and zero-element matrix', () => {
+    const { star, planet } = mkSystem();
+    const engine = new SimulationEngine([star, planet], { enableCollisions: false });
+    const mgrA = new BranchManager(engine, 'Prime');
+    mgrA.forkBranch('Twin', engine);
+    const cmp = mgrA.compareBranches('branch-prime', mgrA.activeBranchId);
+    expect(cmp).toBeTruthy();
+    expect(cmp!.energyDeltaJoules).toBe(0);
+    for (const d of cmp!.bodyDeltas) {
+      expect(d.deltaSemiMajorAxisKm).toBe(0);
+      expect(d.deltaEccentricity).toBe(0);
+      expect(d.deltaVelocityKmS).toBe(0);
+    }
+  });
+
+  it('detects a velocity delta on a body present in both snapshots', () => {
+    const { star, planet } = mkSystem();
+    const engine = new SimulationEngine([star, planet], { enableCollisions: false });
+    const mgr = new BranchManager(engine, 'Prime');
+    const fork = mgr.forkBranch('Altered', engine);
+
+    // Accelerate the planet in the forked branch, then checkpoint the active
+    // branch (mirrors the app's live checkpoint behavior before comparisons)
+    const body = engine.bodies.find(b => b.id === 'planet-1')!;
+    body.velocity.z += 5;
+    mgr.checkpointActiveBranch(engine);
+    const cmp = mgr.compareBranches('branch-prime', fork.id)!;
+    const delta = cmp.bodyDeltas.find(d => d.bodyId === 'planet-1');
+    expect(delta).toBeTruthy();
+    expect(delta!.deltaVelocityKmS).toBeCloseTo(5, 6);
+    expect(delta!.deltaEccentricity).not.toBe(0);
+    expect(cmp.energyDeltaJoules).toBeGreaterThan(0);
+  });
+});

@@ -47,12 +47,12 @@ export function resolveCollisions(
       const dx = bj.position.x - bi.position.x;
       const dy = bj.position.y - bi.position.y;
       const dz = bj.position.z - bi.position.z;
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const distSq = dx * dx + dy * dy + dz * dz;
 
-      // Collision threshold is sum of physical radii
+      // Collision threshold is sum of physical radii (squared-space gate avoids sqrt)
       const threshold = bi.radiusKm + bj.radiusKm;
 
-      if (dist <= threshold) {
+      if (distSq <= threshold * threshold) {
         // Relative velocity
         const rvx = bj.velocity.x - bi.velocity.x;
         const rvy = bj.velocity.y - bi.velocity.y;

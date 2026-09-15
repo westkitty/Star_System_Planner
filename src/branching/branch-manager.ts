@@ -8,7 +8,10 @@
  */
 
 import { SimulationEngine } from '../simulation/engine';
-import { TimelineBranch, BranchComparisonResult } from './branch-types';
+import { TimelineBranch, BranchComparisonResult, BranchBodyDelta } from './branch-types';
+import { SimulationSnapshot } from '../simulation/types';
+import { findDominantPrimary, calculateOsculatingElements } from '../simulation/orbital-mechanics';
+import { calculateSystemEnergy } from '../simulation/integrator';
 
 export class BranchManager {
   public branches: Map<string, TimelineBranch> = new Map();
@@ -38,6 +41,14 @@ export class BranchManager {
 
   public getAllBranches(): TimelineBranch[] {
     return Array.from(this.branches.values());
+  }
+
+  /**
+   * Capture an independent deep snapshot of the engine's current state without
+   * touching any branch (used by the undo bank in the UI layer).
+   */
+  public captureSnapshotOf(engine: SimulationEngine): SimulationSnapshot {
+    return engine.createSnapshot();
   }
 
   /**
@@ -155,7 +166,34 @@ export class BranchManager {
     const collisionsInB = bB.events.filter(e => e.type === 'collision').length;
     const starsilkInB = bB.events.filter(e => e.type === 'starsilk_pull' || e.type === 'heliocide_triggered').length;
 
+    // Per-body orbital shift matrix: osculating-element deltas for shared bodies
+    const bodyDeltas: BranchBodyDelta[] = [];
+    for (const bodyA of bA.snapshot.bodies) {
+      const bodyB = bB.snapshot.bodies.find(b => b.id === bodyA.id);
+      if (!bodyB) continue;
+      const primA = findDominantPrimary(bodyA, bA.snapshot.bodies);
+      const primB = findDominantPrimary(bodyB, bB.snapshot.bodies);
+      if (!primA || !primB) continue;
+      const elA = calculateOsculatingElements(bodyA, primA);
+      const elB = calculateOsculatingElements(bodyB, primB);
+      const vA = Math.hypot(bodyA.velocity.x, bodyA.velocity.y, bodyA.velocity.z);
+      const vB = Math.hypot(bodyB.velocity.x, bodyB.velocity.y, bodyB.velocity.z);
+      bodyDeltas.push({
+        bodyId: bodyA.id,
+        name: bodyA.name,
+        deltaSemiMajorAxisKm: elB.semiMajorAxisKm - elA.semiMajorAxisKm,
+        deltaEccentricity: elB.eccentricity - elA.eccentricity,
+        deltaVelocityKmS: vB - vA,
+      });
+    }
+
+    // Total mechanical energy delta between snapshots
+    const energyA = calculateSystemEnergy(bA.snapshot.bodies).total;
+    const energyB = calculateSystemEnergy(bB.snapshot.bodies).total;
+
     return {
+      bodyDeltas,
+      energyDeltaJoules: energyB - energyA,
       branchAName: bA.name,
       branchBName: bB.name,
       elapsedTimeDiffSec: bB.snapshot.timestampSec - bA.snapshot.timestampSec,

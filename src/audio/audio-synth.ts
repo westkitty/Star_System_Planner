@@ -142,6 +142,65 @@ export class AudioSynthesizer {
     osc.start();
     osc.stop(ctx.currentTime + 1.25);
   }
+
+  /** Rising four-note bell chime announcing a completed device join. */
+  public playJoinCompleteTone(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const notes = [523.25, 659.26, 783.99, 1046.5]; // C5 E5 G5 C6
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.09;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.42);
+    });
+  }
+
+  /** Warm, shifting pad played when loading a preset or capturing a postcard. */
+  public playPresetShimmer(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const chord = [196.0, 246.94, 293.66, 392.0]; // G3 B3 D4 G4
+    chord.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq * (i % 2 === 0 ? 1 : 1.003); // gentle detune shimmer
+      const t = ctx.currentTime + i * 0.06;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.055, t + 0.22);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 1.5);
+    });
+  }
+
+  /** Soft descending sweep for undo operations. */
+  public playUndoSweep(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(520, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(140, ctx.currentTime + 0.28);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.32);
+  }
 }
 
 export const audioSynth = new AudioSynthesizer();

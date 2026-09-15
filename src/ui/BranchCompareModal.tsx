@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TimelineBranch } from '../branching/branch-types';
 import { BranchManager } from '../branching/branch-manager';
-import { formatSimTime } from '../simulation/units';
+import { formatSimTime, formatDistance, formatVelocity } from '../simulation/units';
 import { X, GitCompare } from 'lucide-react';
 
 interface BranchCompareModalProps {
@@ -164,6 +164,56 @@ export const BranchCompareModal: React.FC<BranchCompareModalProps> = ({
                 {comparison.starsilkMacrosInBCount}
               </span>
             </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Total Energy Delta:</span>
+              <span style={{ color: Math.abs(comparison.energyDeltaJoules) > 1e25 ? '#ffaa00' : 'var(--accent-azure)' }}>
+                {comparison.energyDeltaJoules === 0 ? '—'
+                  : `${comparison.energyDeltaJoules >= 0 ? '+' : ''}${comparison.energyDeltaJoules.toExponential(2)} J`}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Per-body orbital shift matrix */}
+        {comparison && comparison.bodyDeltas.length > 0 && (
+          <div style={{
+            background: 'rgba(3, 5, 10, 0.6)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '8px',
+            padding: '10px',
+            maxHeight: '32vh',
+            overflowY: 'auto',
+          }}>
+            <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: 'var(--accent-azure)', marginBottom: '8px' }}>
+              ORBITAL SHIFT MATRIX — Δa / Δe / Δv (shared bodies)
+            </div>
+            {comparison.bodyDeltas
+              .slice()
+              .sort((x, y) => Math.abs(y.deltaVelocityKmS) - Math.abs(x.deltaVelocityKmS))
+              .map(d => {
+                const significant = Math.abs(d.deltaEccentricity) > 0.005 || Math.abs(d.deltaVelocityKmS) > 0.05;
+                return (
+                  <div
+                    key={d.bodyId}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto auto auto',
+                      gap: '10px',
+                      fontSize: '11px',
+                      fontFamily: 'var(--font-mono)',
+                      padding: '4px 0',
+                      borderBottom: '1px solid rgba(12, 198, 255, 0.06)',
+                      color: significant ? 'var(--text-primary)' : 'var(--text-muted)',
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+                    <span>{d.deltaSemiMajorAxisKm === 0 ? '0' : `${d.deltaSemiMajorAxisKm >= 0 ? '+' : ''}${formatDistance(Math.abs(d.deltaSemiMajorAxisKm))}`.replace('-', '−')}</span>
+                    <span>{`${d.deltaEccentricity >= 0 ? '+' : ''}${d.deltaEccentricity.toFixed(3)}`}</span>
+                    <span>{`${d.deltaVelocityKmS >= 0 ? '+' : ''}${formatVelocity(Math.abs(d.deltaVelocityKmS))}`.replace('-', '−')}</span>
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>

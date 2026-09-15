@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer, Hand, PlusCircle, Compass, GitCommit, Waves, Focus, BookOpen } from 'lucide-react';
+import { MousePointer, Hand, PlusCircle, Compass, GitCommit, Waves, Focus, BookOpen, Undo2 } from 'lucide-react';
 import { PointerToolMode } from '../interaction/pointer-manager';
 
 interface ToolRailProps {
@@ -12,6 +12,8 @@ interface ToolRailProps {
   onOpenCreateModal: () => void;
   onOpenCanonLab?: () => void;
   onResetCamera: () => void;
+  onUndo?: () => void;
+  canUndo?: boolean;
 }
 
 export const ToolRail: React.FC<ToolRailProps> = ({
@@ -24,6 +26,8 @@ export const ToolRail: React.FC<ToolRailProps> = ({
   onOpenCreateModal,
   onOpenCanonLab,
   onResetCamera,
+  onUndo,
+  canUndo,
 }) => {
   return (
     <aside className="left-tool-rail hud-interactive">
@@ -105,11 +109,25 @@ export const ToolRail: React.FC<ToolRailProps> = ({
       <button
         className="tool-button"
         onClick={onResetCamera}
-        title="Center / Reset Camera View"
+        title="Reset camera and frame the whole system (R)"
       >
         <Focus size={18} />
         <span>CENTER</span>
       </button>
+
+      {/* Undo Bank */}
+      {onUndo && (
+        <button
+          className="tool-button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          style={{ opacity: canUndo ? 1 : 0.35 }}
+          title="Recall last structure change (Ctrl+Z)"
+        >
+          <Undo2 size={18} color={canUndo ? '#ffd166' : '#64748b'} />
+          <span>UNDO</span>
+        </button>
+      )}
     </aside>
   );
 };

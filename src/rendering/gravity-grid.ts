@@ -8,11 +8,13 @@
 import * as THREE from 'three';
 import { CelestialBody } from '../simulation/types';
 import { ScaleTransform } from './scale-transform';
+import { FloatingOrigin } from './floating-origin';
 
 export class GravityGridRenderer {
   private mesh: THREE.LineSegments;
   private geometry: THREE.BufferGeometry;
   private scaleTransform: ScaleTransform;
+  private floatingOrigin: FloatingOrigin | null = null;
 
   private readonly gridSize = 1000.0; // In Three.js units
   private readonly divisions = 60;
@@ -103,6 +105,11 @@ export class GravityGridRenderer {
     return this.mesh;
   }
 
+  /** Attach the scene floating origin so potential wells stay aligned under focus camera. */
+  public setFloatingOrigin(origin: FloatingOrigin): void {
+    this.floatingOrigin = origin;
+  }
+
   public setVisible(visible: boolean): void {
     this.mesh.visible = visible;
   }
@@ -126,7 +133,8 @@ export class GravityGridRenderer {
 
     // Precalculate display positions and potential factors for bodies
     const bodyProps = majorBodies.map(b => {
-      const disp = this.scaleTransform.getDisplayPosition(b.position);
+      const rel = this.floatingOrigin ? this.floatingOrigin.toRelative(b.position) : b.position;
+      const disp = this.scaleTransform.getDisplayPosition(rel);
       // Normalized potential depth factor
       const depthFactor = Math.log10(b.massKg) * 0.8;
       return { x: disp.x, z: disp.z, factor: depthFactor };

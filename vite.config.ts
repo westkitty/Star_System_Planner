@@ -18,7 +18,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'masked-icon.svg', 'pwa-192x192.svg', 'pwa-512x512.svg'],
       manifest: {
         name: 'Starsilk System Planner',
         short_name: 'Starsilk Planner',

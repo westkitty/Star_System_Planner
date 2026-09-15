@@ -2,7 +2,7 @@ import React from 'react';
 import { FittedOrbit } from '../interaction/orbit-loom';
 import { CelestialBody } from '../simulation/types';
 import { KM_PER_AU } from '../simulation/units';
-import { Check, X, Disc, Globe } from 'lucide-react';
+import { Check, X, Disc, Globe, Layers } from 'lucide-react';
 
 interface OrbitLoomConfirmModalProps {
   fittedOrbit: FittedOrbit;
@@ -11,6 +11,10 @@ interface OrbitLoomConfirmModalProps {
   allBodies: CelestialBody[];
   onApplyToBody: (targetBody: CelestialBody) => void;
   onCreateRing: () => void;
+  onCreateBelt: (name: string, particleCount: number) => void;
+  onScrubPeriapsis: (km: number) => void;
+  onScrubApoapsis: (km: number) => void;
+  onScrubInclination: (deg: number) => void;
   onCancel: () => void;
 }
 
@@ -21,6 +25,10 @@ export const OrbitLoomConfirmModal: React.FC<OrbitLoomConfirmModalProps> = ({
   allBodies,
   onApplyToBody,
   onCreateRing,
+  onCreateBelt,
+  onScrubPeriapsis,
+  onScrubApoapsis,
+  onScrubInclination,
   onCancel,
 }) => {
   const semiMajorAu = fittedOrbit.semiMajorAxisKm / KM_PER_AU;
@@ -108,6 +116,49 @@ export const OrbitLoomConfirmModal: React.FC<OrbitLoomConfirmModalProps> = ({
         </div>
       </div>
 
+      {/* Live scrubbers — reshape the conic in place, the preview follows */}
+      <div style={{ marginBottom: '4px' }}>
+        <div style={{ fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em', color: 'var(--text-muted)', marginBottom: '2px' }}>
+          LIVE CONIC SCULPTING
+        </div>
+        <div className="loom-scrub">
+          <span className="field-label">Periapsis</span>
+          <input
+            type="range"
+            min={fittedOrbit.periapsisKm * 0.35}
+            max={fittedOrbit.apoapsisKm * 0.98}
+            step={fittedOrbit.periapsisKm * 0.005}
+            defaultValue={fittedOrbit.periapsisKm}
+            onChange={(e) => onScrubPeriapsis(Number(e.target.value))}
+          />
+          <span className="setting-value">{(fittedOrbit.periapsisKm / KM_PER_AU).toFixed(3)} AU</span>
+        </div>
+        <div className="loom-scrub">
+          <span className="field-label">Apoapsis</span>
+          <input
+            type="range"
+            min={fittedOrbit.periapsisKm * 1.02}
+            max={fittedOrbit.apoapsisKm * 2.6}
+            step={fittedOrbit.apoapsisKm * 0.005}
+            defaultValue={fittedOrbit.apoapsisKm}
+            onChange={(e) => onScrubApoapsis(Number(e.target.value))}
+          />
+          <span className="setting-value">{(fittedOrbit.apoapsisKm / KM_PER_AU).toFixed(3)} AU</span>
+        </div>
+        <div className="loom-scrub">
+          <span className="field-label">Inclination</span>
+          <input
+            type="range"
+            min={-90}
+            max={90}
+            step={1}
+            defaultValue={fittedOrbit.inclinationDeg}
+            onChange={(e) => onScrubInclination(Number(e.target.value))}
+          />
+          <span className="setting-value">{fittedOrbit.inclinationDeg.toFixed(0)}°</span>
+        </div>
+      </div>
+
       {/* Action Buttons */}
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         {canApplyToSelected ? (
@@ -185,6 +236,30 @@ export const OrbitLoomConfirmModal: React.FC<OrbitLoomConfirmModalProps> = ({
             NO ELIGIBLE SATELLITE
           </button>
         )}
+
+        <button
+          onClick={() => onCreateBelt(`Belt of ${primaryBody?.name || 'the Primary'}`, 900)}
+          style={{
+            flex: 1,
+            minWidth: '150px',
+            padding: '8px 12px',
+            background: 'rgba(10, 42, 68, 0.6)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '6px',
+            color: '#e2e8f0',
+            fontSize: '11px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+          }}
+          title="Seed this conic as 900 instanced debris particles on Keplerian paths"
+        >
+          <Layers size={14} color="#ffaa00" />
+          SEED DEBRIS BELT
+        </button>
 
         <button
           onClick={onCreateRing}
