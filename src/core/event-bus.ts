@@ -41,7 +41,8 @@ export type PlannerEventType =
   | 'library:saved'
   | 'pwa:update-available'
   | 'recovery:completed'
-  | 'ephemeris:exported';
+  | 'ephemeris:exported'
+  | 'flight:step-completed';
 
 export interface PlannerEvent<T = unknown> {
   type: PlannerEventType;
@@ -91,6 +92,7 @@ export interface PlannerEventPayloads {
   'pwa:update-available': Record<string, unknown>;
   'recovery:completed': { slotId: string };
   'ephemeris:exported': { bodyId: string };
+  'flight:step-completed': { planId: string; stepId: string; label: string };
 }
 
 export type PlannerEventHandler<T = unknown> = (event: PlannerEvent<T>) => void;

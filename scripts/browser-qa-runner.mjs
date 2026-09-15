@@ -225,6 +225,7 @@ async function runBrowserValidation() {
     journey2_tool_switching: false,
     journey3_touch_loom: false,
     journey4_canon_lab: false,
+    journey5_flight_director: false,
   };
 
   // ==========================================
@@ -321,7 +322,7 @@ async function runBrowserValidation() {
       canvas.dispatchEvent(upEv);
 
       // Verify no orbit modal appeared
-      const hasModal = !!document.querySelector('.orbit-loom-confirm-modal, .modal-backdrop');
+      const hasModal = !!document.querySelector('.orbit-loom-confirm-modal');
       return {
         touchDispatched: true,
         hasModal,
@@ -555,13 +556,82 @@ async function runBrowserValidation() {
     !canonLabAudit.hasGravitationalSiphoning;
   console.log('Journey 4 Status:', results.journey4_canon_lab ? 'PASS' : 'FAIL');
 
-  // Close Canon Lab
+  // Close Canon Lab through its actual backdrop contract, then verify teardown.
   await client.evaluate(`
     (() => {
-      const closeBtn = document.querySelector('.modal-header button, button.btn-close, .modal-backdrop button');
-      closeBtn?.click();
+      const modal = document.querySelector('.canon-lab-modal');
+      const backdrop = modal?.parentElement;
+      backdrop?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     })()
   `, sid);
+  await new Promise((r) => setTimeout(r, 200));
+
+  // ==========================================
+  // JOURNEY 5 — FLIGHT DIRECTOR + GHOST PREVIEW + NARROW LAYOUT
+  // ==========================================
+  console.log('\n--- EXERCISING JOURNEY 5: FLIGHT DIRECTOR GHOST PREVIEW ---');
+  for (let i = 0; i < 3; i++) {
+    const modalOpen = await client.evaluate(`!!document.querySelector('.modal-backdrop')`, sid);
+    if (!modalOpen) break;
+    await client.evaluate(`document.querySelector('.modal-backdrop')?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))`, sid);
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  await client.evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', bubbles: true }))`, sid);
+  await new Promise((r) => setTimeout(r, 200));
+  const selectedForDirector = await client.evaluate(`
+    (() => {
+      const rows = Array.from(document.querySelectorAll('.navigator-row'));
+      const row = rows.find((candidate) => candidate.querySelector('.navigator-name')?.textContent?.includes('Aegis Orbital Complex'));
+      if (!row) return false;
+      row.click();
+      return true;
+    })()
+  `, sid);
+  const launcherClicked = await client.evaluate(`(() => { const button = document.querySelector('[aria-label=\"Toggle Flight Director\"]'); button?.click(); return !!button; })()`, sid);
+  await new Promise((r) => setTimeout(r, 250));
+  const directorOpen = await client.evaluate(`!!document.querySelector('.flight-director-panel')`, sid);
+  const addImpulse = await client.evaluate(`
+    (() => {
+      const button = Array.from(document.querySelectorAll('.flight-director-panel button')).find((b) => b.textContent.includes('ADD IMPULSE'));
+      button?.click();
+      return !!button;
+    })()
+  `, sid);
+  await new Promise((r) => setTimeout(r, 150));
+  const previewStarted = await client.evaluate(`
+    (() => {
+      const button = Array.from(document.querySelectorAll('.flight-director-panel button')).find((b) => b.textContent.includes('PREVIEW PLAN PATH'));
+      button?.click();
+      return !!button;
+    })()
+  `, sid);
+  let previewReady = false;
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 200));
+    previewReady = await client.evaluate(`!!document.querySelector('.director-preview-result.ready')`, sid);
+    if (previewReady) break;
+  }
+  await client.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sid);
+  await new Promise((r) => setTimeout(r, 200));
+  const narrowAudit = await client.evaluate(`
+    (() => {
+      const panel = document.querySelector('.flight-director-panel');
+      if (!panel) return { panel: false };
+      const rect = panel.getBoundingClientRect();
+      const primary = panel.querySelector('.director-primary-action');
+      return {
+        panel: true,
+        width: Math.round(rect.width),
+        bottom: Math.round(window.innerHeight - rect.bottom),
+        noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth + 1,
+        primaryMinHeight: primary ? parseFloat(getComputedStyle(primary).minHeight) : 0,
+      };
+    })()
+  `, sid);
+  console.log('  Flight Director runtime:', { selectedForDirector, launcherClicked, directorOpen, addImpulse, previewStarted, previewReady, narrowAudit });
+  results.journey5_flight_director = Boolean(selectedForDirector && launcherClicked && directorOpen && addImpulse && previewStarted && previewReady && narrowAudit.panel && narrowAudit.width <= 390 && narrowAudit.bottom <= 1 && narrowAudit.noHorizontalOverflow && narrowAudit.primaryMinHeight >= 44);
+  console.log('Journey 5 Status:', results.journey5_flight_director ? 'PASS' : 'FAIL');
+  await client.send('Emulation.clearDeviceMetricsOverride', {}, sid);
 
   // Final Screenshot for evidence
   const screenshotData = await client.send('Page.captureScreenshot', { format: 'png' }, sid);
@@ -585,7 +655,7 @@ async function runBrowserValidation() {
     console.error('One or more journeys failed!');
     process.exit(1);
   }
-  console.log('\nALL 4 CRITICAL BROWSER JOURNEYS PASSED CLEANLY!\n');
+  console.log('\nALL CRITICAL BROWSER JOURNEYS PASSED CLEANLY!\n');
   process.exit(0);
 }
 

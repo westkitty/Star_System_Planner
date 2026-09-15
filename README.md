@@ -2,7 +2,7 @@
 
 > A tactile 3D stellar-architecture laboratory engineered first for the Samsung Galaxy Tab S9 and S Pen.
 
-[![Verification](https://img.shields.io/badge/Verification-178%2F178%20Passed-0cc6ff)](./OPERATIONAL_STATE.md)
+[![Verification](https://img.shields.io/badge/Verification-230%2F230%20Passed-0cc6ff)](./OPERATIONAL_STATE.md)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Zero--Errors-blue)](./tsconfig.json)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First%20IndexedDB-49e7ff)](./src/persistence/db.ts)
 [![Canon Boundary](https://img.shields.io/badge/Canon%20Boundary-Strictly%20Read--Only-crimson)](./CANON_SOURCES.md)
@@ -108,6 +108,9 @@ The planner uses synthesized Web Audio feedback for selection, orbit locks, warn
 ### 7. Resilience & Session Systems
 Autosave with rolling checkpoints (suspended while the tab is hidden), pre-catastrophe undo bank (Ctrl+Z), a named saved-systems vault, deep sanitize-on-import with schema migration (1.0.0 → 1.1.0), WebGL context-loss containment, and a first-run coach tour.
 
+### 8. Flight Director & Ghost Flight Path
+Flight Director turns a selected orbiter/station into a local, replayable maneuver sequence with six-axis impulses, circularization, velocity matching, Hohmann departures, GO/NO-GO preflight, delta-v budgeting, saved plans, offline handoff codes, camera viewpoints, and portable session capsules. **Ghost Flight Path** applies the queued sequence to isolated cloned bodies and runs that clone through the same forecast worker, rendering a distinct dashed future trajectory before any live burn is committed. Actual execution still routes through the existing undo/event/render/forecast pipeline; the preview never becomes a second physics authority.
+
 ---
 
 ## 5. Starsilk Canon Lab
@@ -134,7 +137,7 @@ npm run check
 | Verification Stage | Command | Status |
 | :--- | :--- | :--- |
 | **Typecheck** | `npm run typecheck` (`tsc --noEmit`) | **0 Errors, Strict Mode** |
-| **Unit Tests** | `npm run test` (`vitest run`) | **178/178 Passing (16 suites)** |
+| **Unit Tests** | `npm run test` (`vitest run`) | **230/230 Passing (20 suites)** |
 | **Production Build** | `npm run build` (`tsc && vite build`) | **Clean Bundle, PWA Generated** |
 | **Canon Snapshot** | `npm run canon:refresh` | **Verified Manifest Synced** |
 

@@ -94,6 +94,10 @@ import { CoachmarkId, dismissCoachmark, shouldShowCoachmark } from './ui/coachma
 import { Announcer, announce } from './ui/Announcer';
 import { WarpStreaks } from './ui/WarpStreaks';
 import { MonitorWarningSummary } from './simulation/event-monitor';
+import { FlightDirectorPanel } from './ui/FlightDirectorPanel';
+import { FlightPlan, FlightPlanStep, FlightReplayEntry, advanceFlightStep, appendFlightReplay, buildFlightBrief, createFlightPlan, decodeFlightPlanHandoff, nextQueuedStep, previewFlightPlan, rejectFlightStep } from './simulation/flight-director';
+import { SavedFlightPlan, createFlightHandoffUrl, cycleViewpointShelf, decodeFlightSessionCapsule, deleteFlightPlanFromLibrary, duplicateFlightPlan, encodeFlightSessionCapsule, flightPlanJson, flightPreflightReport, flightReplayCsv, listSavedFlightPlans, listViewpointShelf, loadFlightDirectorState, loadFlightPlanFromLibrary, parseFlightHandoffFragment, saveFlightDirectorState, saveFlightPlanToLibrary, saveViewpointToShelf } from './persistence/flight-director-storage';
+import { FlightDirectorPreferences, loadFlightDirectorPreferences, normalizeFlightDirectorPreferences, saveFlightDirectorPreferences } from './persistence/flight-director-preferences';
 
 const TIME_LADDER = [1, 10, 100, 1000, 10000, 100000];
 
@@ -115,6 +119,8 @@ const PlannerApp: React.FC = () => {
   const grabThrowRef = useRef<GrabAndThrowController | null>(null);
   const orbitLoomRef = useRef<OrbitLoom | null>(null);
   const futureClientRef = useRef<FutureClient | null>(null);
+  const directorPreviewClientRef = useRef<FutureClient | null>(null);
+  const directorPreviewCraftIdRef = useRef<string | null>(null);
   const pointerManagerRef = useRef<PointerManager | null>(null);
   const undoStackRef = useRef<UndoStack | null>(null);
   const monitorRef = useRef<SimulationEventMonitor | null>(null);
@@ -175,6 +181,15 @@ const PlannerApp: React.FC = () => {
   const [autosaveAtMs, setAutosaveAtMs] = useState<number | null>(null);
   const [navigatorVisible, setNavigatorVisible] = useState(() => settingsStore.get().navigatorVisible);
   const [missionsVisible, setMissionsVisible] = useState(false);
+  const [directorPreferences, setDirectorPreferences] = useState<FlightDirectorPreferences>(() => loadFlightDirectorPreferences());
+  const [flightDirectorVisible, setFlightDirectorVisible] = useState(() => loadFlightDirectorPreferences().open);
+  const [flightPlan, setFlightPlan] = useState<FlightPlan | null>(() => loadFlightDirectorState().activePlan);
+  const [flightReplay, setFlightReplay] = useState<FlightReplayEntry[]>(() => loadFlightDirectorState().replay);
+  const [savedFlightPlans, setSavedFlightPlans] = useState<SavedFlightPlan[]>(() => listSavedFlightPlans());
+  const [viewpointShelf, setViewpointShelf] = useState(() => listViewpointShelf());
+  const [viewpointIndex, setViewpointIndex] = useState(-1);
+  const [pendingFlightHandoff, setPendingFlightHandoff] = useState<string | null>(null);
+  const [directorPreview, setDirectorPreview] = useState<{ status: 'running' | 'ready' | 'error'; applied: number; rejected: number; points: number; horizonSec: number } | null>(null);
 
   // Orbit Loom pending fitted orbit
   const [pendingOrbit, setPendingOrbit] = useState<FittedOrbit | null>(null);
@@ -223,6 +238,19 @@ const PlannerApp: React.FC = () => {
   toastRef.current = toast;
   scrubIndexRef.current = scrubIndex;
   forecastAlertsRef.current = forecastAlerts;
+
+  useEffect(() => { saveFlightDirectorState(flightPlan, flightReplay); }, [flightPlan, flightReplay]);
+  useEffect(() => { saveFlightDirectorPreferences({ ...directorPreferences, open: flightDirectorVisible }); }, [directorPreferences, flightDirectorVisible]);
+  useEffect(() => { sceneRef.current?.trajectoryRenderer.clearPlanPreview(); setDirectorPreview(null); }, [flightPlan]);
+
+  useEffect(() => {
+    if (!booted || typeof window === 'undefined') return;
+    const pending = parseFlightHandoffFragment(window.location.hash);
+    if (pending) {
+      setPendingFlightHandoff(pending);
+      setFlightDirectorVisible(true);
+    }
+  }, [booted]);
 
   // Cleanup tool actions on tool switch
   useEffect(() => {
@@ -663,6 +691,26 @@ const PlannerApp: React.FC = () => {
       }
     });
     futureClientRef.current = futureClient;
+
+    // WOW-01: a separate forecast client renders a ghost path from cloned Flight Director state.
+    const directorPreviewClient = new FutureClient((response) => {
+      const craftId = directorPreviewCraftIdRef.current;
+      const points = craftId ? response.trajectories[craftId] ?? [] : [];
+      if (!craftId || points.length < 2) {
+        sceneMgr.trajectoryRenderer.clearPlanPreview();
+        setDirectorPreview((current) => current ? { ...current, status: 'error', points: 0, horizonSec: 0 } : null);
+        return;
+      }
+      const visiblePoints = points.slice(0, settingsRef.current.trajectoryPoints);
+      sceneMgr.trajectoryRenderer.updatePlanPreview(visiblePoints);
+      setDirectorPreview((current) => current ? {
+        ...current,
+        status: 'ready',
+        points: visiblePoints.length,
+        horizonSec: visiblePoints.at(-1)?.timestampSec ?? 0,
+      } : null);
+    });
+    directorPreviewClientRef.current = directorPreviewClient;
 
     // 7. Initialize PointerManager
     const pointerMgr = new PointerManager(canvasRef.current, {
@@ -1145,6 +1193,7 @@ const PlannerApp: React.FC = () => {
       autosave.destroy();
       pointerMgr.destroy();
       futureClient.destroy();
+      directorPreviewClient.destroy();
       grabThrow.destroy();
       sceneMgr.dispose();
     };
@@ -1164,6 +1213,10 @@ const PlannerApp: React.FC = () => {
       const id = shortcutIdForEvent(e);
       if (!id) return;
       if (id === 'close-top') {
+        if (!anyModalOpen && flightDirectorVisible) {
+          setFlightDirectorVisible(false);
+          return;
+        }
         if (!anyModalOpen) handleSelectBody(null);
         return; // open modals consume Escape via focus-trap
       }
@@ -1213,6 +1266,10 @@ const PlannerApp: React.FC = () => {
         case 'selection-back': selectionHistoryBack(); break;
         case 'selection-forward': selectionHistoryForward(); break;
         case 'open-missions': setMissionsVisible((v) => !v); break;
+        case 'toggle-flight-director': flightDirectorVisible ? setFlightDirectorVisible(false) : openFlightDirector(); break;
+        case 'execute-flight-director-next':
+          if (flightDirectorVisible) { e.preventDefault(); handleExecuteDirectorNext(); }
+          break;
         case 'open-stats': setIsStatsOpen(true); break;
         case 'open-help': setIsHelpOpen(true); break;
         case 'command-palette': e.preventDefault(); setPaletteOpen(true); break;
@@ -1226,7 +1283,7 @@ const PlannerApp: React.FC = () => {
   }, [
     isCreateModalOpen, isCanonLabOpen, isLedgerOpen, isCompareOpen, isForkOpen,
     isStatsOpen, isSettingsOpen, isHelpOpen, showOnboarding, confirmState, importError, pendingOrbit,
-    paletteOpen,
+    paletteOpen, flightDirectorVisible, flightPlan,
   ]);
 
   // Iteration 3 (ASSET05): the deep-field backdrop follows the project name.
@@ -1262,6 +1319,7 @@ const PlannerApp: React.FC = () => {
       { id: 'cmd-export', title: 'Export system (.ssp.json)', section: 'System', run: () => handleExport() },
       { id: 'cmd-import', title: 'Import system…', section: 'System', run: () => handleImport() },
       { id: 'cmd-save-library', title: 'Shelve project in library', section: 'System', run: () => handleSaveToLibrary() },
+      { id: 'cmd-flight-director', title: 'Open Flight Director', hint: shortcutHintFor('toggle-flight-director'), section: 'System', keywords: 'maneuver sequence replay handoff safety', run: openFlightDirector },
       { id: 'cmd-capture', title: 'Capture frame (PNG)', hint: shortcutHintFor('present-capture'), section: 'System', run: () => handlePresentCapture() },
       { id: 'cmd-ledger', title: 'Open event ledger', hint: shortcutHintFor('open-ledger'), section: 'System', run: () => setIsLedgerOpen(true) },
       { id: 'cmd-compare', title: 'Compare branches', section: 'System', run: () => setIsCompareOpen(true) },
@@ -1279,7 +1337,7 @@ const PlannerApp: React.FC = () => {
         'cmd-pause', 'cmd-step', 'cmd-faster', 'cmd-slower', 'cmd-resume-live',
         'cmd-tool-select', 'cmd-tool-grab', 'cmd-tool-loom', 'cmd-tool-create',
         'cmd-preset-demo', 'cmd-preset-meridian', 'cmd-preset-procedural', 'cmd-preset-blank',
-        'cmd-undo', 'cmd-export', 'cmd-import', 'cmd-save-library', 'cmd-capture',
+        'cmd-undo', 'cmd-export', 'cmd-import', 'cmd-save-library', 'cmd-flight-director', 'cmd-capture',
         'cmd-ledger', 'cmd-compare', 'cmd-fork', 'cmd-stats', 'cmd-settings',
         'cmd-help', 'cmd-navigator', 'cmd-missions', 'cmd-grid', 'cmd-hz',
       ]) unregisterCommand(id);
@@ -1704,16 +1762,16 @@ const PlannerApp: React.FC = () => {
     toast.push({ kind: 'success', title: 'Maneuver executed', detail: label });
   };
 
-  const handleNudge = (body: CelestialBody, direction: NudgeDirection, dvKmS: number) => {
+  const handleNudge = (body: CelestialBody, direction: NudgeDirection, dvKmS: number): boolean => {
     const primary = resolvePrimary(body);
-    if (!primary || !engineRef.current) return;
+    if (!primary || !engineRef.current) return false;
     const live = engineRef.current.bodies.find((b) => b.id === body.id);
-    if (!live) return;
+    if (!live) return false;
     undoStackRef.current?.checkpoint(engineRef.current, 'maneuver', `Nudge ${live.name}`);
     const result = applyNudge(live, primary, direction, dvKmS);
     if (!result.applied) {
       toast.push({ kind: 'warning', title: 'Maneuver rejected', detail: result.detail });
-      return;
+      return false;
     }
     engineRef.current.events.push({
       id: createId('nudge'),
@@ -1725,18 +1783,19 @@ const PlannerApp: React.FC = () => {
       severity: 'info',
     });
     afterManeuverSync(`${live.name}: ${result.detail}`, live.id);
+    return true;
   };
 
-  const handleCircularize = (body: CelestialBody) => {
+  const handleCircularize = (body: CelestialBody): boolean => {
     const primary = resolvePrimary(body);
-    if (!primary || !engineRef.current) return;
+    if (!primary || !engineRef.current) return false;
     const live = engineRef.current.bodies.find((b) => b.id === body.id);
-    if (!live) return;
+    if (!live) return false;
     undoStackRef.current?.checkpoint(engineRef.current, 'maneuver', `Circularize ${live.name}`);
     const result = circularizeOrbit(live, primary);
     if (!result.applied) {
       toast.push({ kind: 'warning', title: 'Circularization rejected', detail: result.detail });
-      return;
+      return false;
     }
     engineRef.current.events.push({
       id: createId('circ'),
@@ -1749,18 +1808,19 @@ const PlannerApp: React.FC = () => {
     });
     eventBus.emit('orbit:circularized', { bodyId: live.id });
     afterManeuverSync(`${live.name}: ${result.detail}`, live.id);
+    return true;
   };
 
-  const handleMatchVelocity = (body: CelestialBody, targetId: string) => {
-    if (!engineRef.current) return;
+  const handleMatchVelocity = (body: CelestialBody, targetId: string): boolean => {
+    if (!engineRef.current) return false;
     const live = engineRef.current.bodies.find((b) => b.id === body.id);
     const target = engineRef.current.bodies.find((b) => b.id === targetId);
-    if (!live || !target) return;
+    if (!live || !target) return false;
     undoStackRef.current?.checkpoint(engineRef.current, 'maneuver', `Rendezvous ${live.name}`);
     const result = matchVelocity(live, target);
     if (!result.applied) {
       toast.push({ kind: 'warning', title: 'Rendezvous rejected', detail: result.detail });
-      return;
+      return false;
     }
     engineRef.current.events.push({
       id: createId('rendez'),
@@ -1772,24 +1832,25 @@ const PlannerApp: React.FC = () => {
       severity: 'info',
     });
     afterManeuverSync(result.detail, live.id);
+    return true;
   };
 
   // Hohmann transfer burn (GAME01): plan + apply departure impulse.
-  const handleTransferBurn = (body: CelestialBody, targetRadiusKm: number) => {
+  const handleTransferBurn = (body: CelestialBody, targetRadiusKm: number): boolean => {
     const primary = resolvePrimary(body);
-    if (!primary || !engineRef.current) return;
+    if (!primary || !engineRef.current) return false;
     const live = engineRef.current.bodies.find((b) => b.id === body.id);
-    if (!live) return;
+    if (!live) return false;
     const plan = planHohmann(live, primary, targetRadiusKm);
     if (!plan) {
       toast.push({ kind: 'warning', title: 'Transfer rejected', detail: 'No valid Hohmann arc between these radii.' });
-      return;
+      return false;
     }
     undoStackRef.current?.checkpoint(engineRef.current, 'maneuver', `Transfer ${live.name}`);
     const result = applyTransferDeparture(live, primary, plan);
     if (!result.applied) {
       toast.push({ kind: 'warning', title: 'Transfer rejected', detail: result.detail });
-      return;
+      return false;
     }
     engineRef.current.events.push({
       id: createId('transfer'),
@@ -1806,6 +1867,274 @@ const PlannerApp: React.FC = () => {
       detail: `Δv ${plan.totalDvKmS.toFixed(2)} km/s · coast ${formatCountdown(plan.transferTimeSec)}.`,
     });
     afterManeuverSync(`${live.name}: transfer departure Δv ${plan.dv1KmS.toFixed(2)} km/s`, live.id);
+    return true;
+  };
+
+  // Iteration 4 flagship: Flight Director plans are inert until an individual
+  // step is approved here, then reuse the same mutation/undo/event pathway as
+  // every other maneuver. No shadow physics or bypassed safety checks.
+  const handleCreateFlightPlan = (): void => {
+    const craft = selectedBodyIdRef.current ? engineRef.current?.bodies.find((body) => body.id === selectedBodyIdRef.current) : null;
+    if (!craft || craft.type === 'star') {
+      toast.push({ kind: 'info', title: 'Select a craft first', detail: 'Flight Director plans an orbiter, station, or craft—not the primary star.' });
+      return;
+    }
+    const primary = craft.primaryId ? engineRef.current?.bodies.find((body) => body.id === craft.primaryId) ?? null : null;
+    if (!primary) {
+      toast.push({ kind: 'warning', title: 'Plan unavailable', detail: 'No valid reference primary was found for this body.' });
+      return;
+    }
+    setFlightPlan(createFlightPlan(craft, primary, engineRef.current?.timeSec ?? 0));
+    setFlightDirectorVisible(true);
+    announce(`Flight Director opened for ${craft.name}. Add a maneuver to arm the sequence.`);
+  };
+
+  const openFlightDirector = (): void => {
+    setFlightDirectorVisible(true);
+    if (flightPlan) return;
+    const craft = selectedBodyIdRef.current ? engineRef.current?.bodies.find((body) => body.id === selectedBodyIdRef.current) : null;
+    const primary = craft?.primaryId ? engineRef.current?.bodies.find((body) => body.id === craft.primaryId) ?? null : null;
+    if (!craft || craft.type === 'star' || !primary) return;
+    setFlightPlan(createFlightPlan(craft, primary, engineRef.current?.timeSec ?? 0));
+    announce(`Flight Director quick-started a plan for ${craft.name}.`);
+  };
+
+  const recordDirectorReplay = (planId: string, step: FlightPlanStep, result: FlightReplayEntry['result'], detail: string): void => {
+    setFlightReplay((entries) => appendFlightReplay(entries, { planId, stepId: step.id, atSec: engineRef.current?.timeSec ?? 0, label: step.label, result, detail }));
+    if (result === 'rejected') {
+      setDirectorPreferences((current) => ({ ...current, sections: { ...current.sections, replay: true } }));
+    }
+  };
+
+  const handlePreviewFlightPlan = (): void => {
+    const engine = engineRef.current;
+    if (!flightPlan || !engine || !directorPreviewClientRef.current) return;
+    const preview = previewFlightPlan(flightPlan, engine.bodies);
+    if (preview.blockedIssues.length > 0) {
+      const detail = preview.blockedIssues.map((issue) => issue.message).join(' ');
+      setDirectorPreview({ status: 'error', applied: 0, rejected: 0, points: 0, horizonSec: 0 });
+      toast.push({ kind: 'warning', title: 'Ghost preview blocked', detail });
+      return;
+    }
+    if (preview.outcomes.length === 0) {
+      toast.push({ kind: 'info', title: 'Nothing to preview', detail: 'Queue at least one maneuver first.' });
+      return;
+    }
+    const applied = preview.outcomes.filter((outcome) => outcome.result === 'applied').length;
+    const rejected = preview.outcomes.length - applied;
+    directorPreviewCraftIdRef.current = preview.craftId;
+    sceneRef.current?.trajectoryRenderer.clearPlanPreview();
+    setDirectorPreview({ status: 'running', applied, rejected, points: 0, horizonSec: 0 });
+    directorPreviewClientRef.current.requestForecast(preview.bodies, {
+      steps: PLANNER_CONFIG.forecast.steps,
+      dtSeconds: PLANNER_CONFIG.forecast.dtSeconds,
+      selectedBodyId: preview.craftId,
+      calculateSensitivity: false,
+    });
+    toast.push({ kind: 'info', title: 'Ghost preview running', detail: `${applied} queued maneuver(s) applied to an isolated clone; live state is untouched.` });
+  };
+
+  const handleClearDirectorPreview = (): void => {
+    sceneRef.current?.trajectoryRenderer.clearPlanPreview();
+    directorPreviewCraftIdRef.current = null;
+    setDirectorPreview(null);
+  };
+
+  const handleExecuteDirectorStep = (step: FlightPlanStep): void => {
+    const plan = flightPlan;
+    const engine = engineRef.current;
+    if (!plan || !engine || step.status !== 'queued') return;
+    const brief = buildFlightBrief(plan, engine.bodies);
+    if (brief.issues.some((issue) => issue.severity === 'block')) {
+      const detail = brief.issues.filter((issue) => issue.severity === 'block').map((issue) => issue.message).join(' ');
+      setFlightPlan((current) => current && current.id === plan.id ? rejectFlightStep(current, step.id) : current);
+      recordDirectorReplay(plan.id, step, 'rejected', detail || 'Preflight blocked this sequence.');
+      toast.push({ kind: 'warning', title: 'Flight Director blocked', detail: 'Resolve the preflight blockers before executing this step.' });
+      announce(`Flight Director rejected ${step.label}. The step was marked skipped.`);
+      return;
+    }
+    const craft = engine.bodies.find((body) => body.id === plan.craftId);
+    if (!craft) {
+      setFlightPlan((current) => current && current.id === plan.id ? rejectFlightStep(current, step.id) : current);
+      recordDirectorReplay(plan.id, step, 'rejected', 'Craft absent from active timeline.');
+      announce(`Flight Director rejected ${step.label}. The craft is absent.`);
+      return;
+    }
+    let applied = false;
+    if (step.kind === 'nudge' && step.direction && step.deltaVKmS) applied = handleNudge(craft, step.direction, step.deltaVKmS);
+    else if (step.kind === 'circularize') applied = handleCircularize(craft);
+    else if (step.kind === 'match-velocity' && step.targetId) applied = handleMatchVelocity(craft, step.targetId);
+    else if (step.kind === 'transfer' && step.targetId) {
+      const primary = engine.bodies.find((body) => body.id === plan.primaryId);
+      const target = engine.bodies.find((body) => body.id === step.targetId);
+      const liveRadius = primary && target ? Math.hypot(target.position.x - primary.position.x, target.position.y - primary.position.y, target.position.z - primary.position.z) : 0;
+      if (liveRadius > 0) applied = handleTransferBurn(craft, liveRadius);
+    }
+    const result = applied ? 'complete' : 'rejected';
+    setFlightPlan((current) => current && current.id === plan.id ? advanceFlightStep(current, step.id, applied ? 'complete' : 'skipped') : current);
+    recordDirectorReplay(plan.id, step, result, applied ? 'Applied through maneuver pipeline.' : 'The existing maneuver safeguards rejected it.');
+    if (applied) {
+      eventBus.emit('flight:step-completed', { planId: plan.id, stepId: step.id, label: step.label });
+      announce(`Flight Director completed ${step.label}.`);
+    } else announce(`Flight Director rejected ${step.label}. The step was marked skipped.`);
+  };
+
+  const handleExecuteDirectorNext = (): void => {
+    const step = flightPlan ? nextQueuedStep(flightPlan) : null;
+    if (step) handleExecuteDirectorStep(step);
+  };
+
+  const handleImportFlightPlan = (code: string): void => {
+    const imported = decodeFlightPlanHandoff(code, engineRef.current?.timeSec ?? 0);
+    if (!imported) {
+      toast.push({ kind: 'warning', title: 'Flight plan rejected', detail: 'That local handoff code is malformed or incompatible.' });
+      announce('Flight plan import rejected as malformed or incompatible.');
+      return;
+    }
+    const issues = buildFlightBrief(imported, engineRef.current?.bodies ?? []).issues;
+    setFlightPlan(imported);
+    setFlightDirectorVisible(true);
+    toast.push({ kind: issues.some((issue) => issue.severity === 'block') ? 'warning' : 'success', title: 'Flight plan loaded', detail: issues.length ? `${issues.length} preflight finding(s) require review.` : 'Ready for local preflight.' });
+    announce(`Flight plan loaded. ${issues.length ? `${issues.length} preflight findings require review.` : 'Ready for preflight.'}`);
+  };
+
+  const handleExportFlightPlan = (code: string): void => {
+    if (!code) return;
+    downloadFlightArtifact(code, 'starsilk-flight-plan.ssp-fd.txt', 'text/plain');
+    toast.push({ kind: 'success', title: 'Flight plan handoff saved', detail: 'A local, shareable replay code was downloaded.' });
+    announce('Flight plan handoff code saved.');
+  };
+
+  const downloadFlightArtifact = (content: string, filename: string, type: string): void => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSaveFlightPlan = (name: string): void => {
+    if (!flightPlan) return;
+    setSavedFlightPlans(saveFlightPlanToLibrary(flightPlan, name));
+    toast.push({ kind: 'success', title: 'Flight plan saved', detail: 'A cloned local copy was added to the Director library.' });
+    announce('Flight plan saved to the local Director library.');
+  };
+
+  const handleLoadSavedFlightPlan = (id: string): void => {
+    const loaded = loadFlightPlanFromLibrary(id);
+    if (!loaded) return;
+    setFlightPlan(loaded);
+    toast.push({ kind: 'success', title: 'Saved plan loaded', detail: 'Review preflight before execution.' });
+    announce('Saved flight plan loaded. Review preflight before execution.');
+  };
+
+  const handleDeleteSavedFlightPlan = (id: string): void => {
+    setSavedFlightPlans(deleteFlightPlanFromLibrary(id));
+    toast.push({ kind: 'info', title: 'Saved plan deleted', detail: 'The active plan was not changed.' });
+    announce('Saved flight plan deleted.');
+  };
+
+  const handleDuplicateFlightPlan = (): void => {
+    if (!flightPlan) return;
+    const duplicate = duplicateFlightPlan(flightPlan, engineRef.current?.timeSec ?? 0);
+    if (duplicate) {
+      setFlightPlan(duplicate);
+      toast.push({ kind: 'success', title: 'Flight plan duplicated', detail: 'A fresh queued copy is now active.' });
+      announce('Flight plan duplicated as a fresh queued copy.');
+    }
+  };
+
+  const handleExportDirectorArtifact = (kind: 'json' | 'csv' | 'report'): void => {
+    if (!flightPlan) return;
+    if (kind === 'json') downloadFlightArtifact(flightPlanJson(flightPlan), 'starsilk-flight-plan.json', 'application/json');
+    else if (kind === 'csv') downloadFlightArtifact(flightReplayCsv(flightReplay, flightPlan.id), 'starsilk-flight-replay.csv', 'text/csv');
+    else downloadFlightArtifact(flightPreflightReport(flightPlan, engineRef.current?.bodies ?? []), 'starsilk-flight-preflight.txt', 'text/plain');
+    toast.push({ kind: 'success', title: 'Director export saved', detail: `${kind.toUpperCase()} artifact downloaded.` });
+    announce(`Flight Director ${kind.toUpperCase()} export saved.`);
+  };
+
+  const handleShareFlightPlan = async (handoff: string): Promise<void> => {
+    if (typeof window === 'undefined') return;
+    const url = createFlightHandoffUrl(handoff, window.location);
+    if (!url) return;
+    try { await navigator.clipboard.writeText(url); toast.push({ kind: 'success', title: 'Share URL copied', detail: 'The same-origin fragment contains only the local flight handoff.' }); announce('Flight plan share URL copied.'); }
+    catch {
+      window.history.replaceState(null, '', url);
+      toast.push({ kind: 'warning', title: 'Clipboard unavailable', detail: 'The share URL is now visible in the address bar.' });
+      announce('Clipboard unavailable. The share URL is visible in the address bar.');
+    }
+  };
+
+  const handlePendingFlightImport = (): void => {
+    if (!pendingFlightHandoff) return;
+    handleImportFlightPlan(pendingFlightHandoff);
+    setPendingFlightHandoff(null);
+  };
+
+  const handleDismissPendingFlightPlan = (): void => {
+    setPendingFlightHandoff(null);
+    toast.push({ kind: 'info', title: 'Linked plan dismissed', detail: 'It will not prompt again during this session.' });
+    announce('Linked flight plan dismissed for this session.');
+  };
+
+  const handleCaptureViewpoint = (): void => {
+    const viewpoint = sceneRef.current?.captureCameraViewpoint();
+    if (!viewpoint) {
+      toast.push({ kind: 'warning', title: 'View capture failed', detail: 'The live camera state was unavailable.' });
+      return;
+    }
+    const craftName = flightPlan ? engineRef.current?.bodies.find((body) => body.id === flightPlan.craftId)?.name : null;
+    const targetName = directorPreferences.targetId ? engineRef.current?.bodies.find((body) => body.id === directorPreferences.targetId)?.name : null;
+    const next = saveViewpointToShelf(viewpoint, `${craftName ?? 'System'}${targetName ? ` → ${targetName}` : ''} view ${viewpointShelf.length + 1}`);
+    setViewpointShelf(next); setViewpointIndex(next.length - 1);
+    toast.push({ kind: 'success', title: 'Viewpoint captured', detail: next.at(-1)?.name ?? 'Director viewpoint saved.' });
+    announce('Director viewpoint captured.');
+  };
+
+  const handleCycleViewpoint = (direction: -1 | 1): void => {
+    const next = cycleViewpointShelf(viewpointShelf, viewpointIndex, direction);
+    if (!next || !sceneRef.current?.restoreCameraViewpoint(next.entry.viewpoint)) {
+      toast.push({ kind: 'warning', title: 'Viewpoint unavailable', detail: 'No saved camera view could be restored.' });
+      return;
+    }
+    setViewpointIndex(next.index);
+    toast.push({ kind: 'info', title: 'Viewpoint restored', detail: next.entry.name });
+    announce(`Viewpoint restored: ${next.entry.name}.`);
+  };
+
+  const handleExportSessionCapsule = (): string => {
+    if (!flightPlan) return '';
+    const value = encodeFlightSessionCapsule(flightPlan, sceneRef.current?.captureCameraViewpoint()) ?? '';
+    toast.push({ kind: value ? 'success' : 'warning', title: value ? 'Session capsule created' : 'Session capsule failed', detail: value ? 'Portable plan and camera data are ready.' : 'Plan or camera state was invalid.' });
+    announce(value ? 'Flight session capsule created.' : 'Flight session capsule could not be created.');
+    return value;
+  };
+
+  const handleImportSessionCapsule = (value: string): void => {
+    const capsule = decodeFlightSessionCapsule(value, engineRef.current?.timeSec ?? 0);
+    if (!capsule) {
+      toast.push({ kind: 'warning', title: 'Session capsule rejected', detail: 'The capsule is corrupt, oversized, or incompatible.' });
+      announce('Flight session capsule rejected.');
+      return;
+    }
+    setFlightPlan(capsule.plan);
+    if (capsule.viewpoint) sceneRef.current?.restoreCameraViewpoint(capsule.viewpoint);
+    toast.push({ kind: 'success', title: 'Session capsule imported', detail: capsule.viewpoint ? 'Plan and viewpoint restored for review.' : 'Plan restored for review.' });
+    announce('Flight session capsule imported for review.');
+  };
+
+  const handleFocusDirectorBody = (id: string | undefined): void => {
+    if (!id || !engineRef.current?.bodies.some((body) => body.id === id)) {
+      toast.push({ kind: 'warning', title: 'Focus unavailable', detail: 'That body is not present in the active timeline.' });
+      return;
+    }
+    handleSelectBody(id);
+    sceneRef.current?.setViewMode('focus_selected');
+    toast.push({ kind: 'info', title: 'Camera focused', detail: engineRef.current.bodies.find((body) => body.id === id)?.name ?? id });
   };
 
   // Arrival burn at the destination (iteration 3, GAME03).
@@ -2384,6 +2713,8 @@ const PlannerApp: React.FC = () => {
           onOpenHelp={() => setIsHelpOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenLedger={() => setIsLedgerOpen(true)}
+          flightDirectorVisible={flightDirectorVisible}
+          onToggleFlightDirector={() => flightDirectorVisible ? setFlightDirectorVisible(false) : openFlightDirector()}
           health={health}
           library={libraryEntries}
           onSaveToLibrary={handleSaveToLibrary}
@@ -2627,6 +2958,53 @@ const PlannerApp: React.FC = () => {
           bookmarkedIds={settings.bookmarkedBodyIds}
           onToggleBookmark={handleToggleBookmark}
         />
+        </PanelErrorBoundary>
+      )}
+
+      {flightDirectorVisible && booted && mode !== 'PRESENT' && (
+        <PanelErrorBoundary panel="Flight Director">
+          <FlightDirectorPanel
+            plan={flightPlan}
+            bodies={engineRef.current?.bodies ?? []}
+            selectedBody={selectedBody}
+            simTimeSec={simTimeSec}
+            replay={flightReplay}
+            savedPlans={savedFlightPlans}
+            viewpointCount={viewpointShelf.length}
+            pendingHandoff={pendingFlightHandoff}
+            preview={directorPreview}
+            preferences={directorPreferences}
+            onPreferencesChange={(preferences) => setDirectorPreferences(normalizeFlightDirectorPreferences(preferences))}
+            onCreate={handleCreateFlightPlan}
+            onChange={setFlightPlan}
+            onExecute={handleExecuteDirectorStep}
+            onExecuteNext={handleExecuteDirectorNext}
+            onImport={handleImportFlightPlan}
+            onExport={handleExportFlightPlan}
+            onSavePlan={handleSaveFlightPlan}
+            onLoadSaved={handleLoadSavedFlightPlan}
+            onDeleteSaved={handleDeleteSavedFlightPlan}
+            onDuplicate={handleDuplicateFlightPlan}
+            onExportArtifact={handleExportDirectorArtifact}
+            onShare={handleShareFlightPlan}
+            onImportPending={handlePendingFlightImport}
+            onDismissPending={handleDismissPendingFlightPlan}
+            onCaptureViewpoint={handleCaptureViewpoint}
+            onCycleViewpoint={handleCycleViewpoint}
+            onExportCapsule={handleExportSessionCapsule}
+            onImportCapsule={handleImportSessionCapsule}
+            onClearReplay={() => {
+              setFlightReplay((entries) => entries.filter((entry) => entry.planId !== flightPlan?.id));
+              toast.push({ kind: 'info', title: 'Replay cleared', detail: 'Only this plan’s replay history was cleared; the plan itself was not changed.' });
+              announce('Flight Director replay history cleared.');
+            }}
+            onFocusCraft={() => handleFocusDirectorBody(flightPlan?.craftId)}
+            onFocusTarget={handleFocusDirectorBody}
+            onFeedback={(title, detail) => { toast.push({ kind: 'info', title, detail }); announce(`${title}. ${detail}`); }}
+            onPreview={handlePreviewFlightPlan}
+            onClearPreview={handleClearDirectorPreview}
+            onClose={() => setFlightDirectorVisible(false)}
+          />
         </PanelErrorBoundary>
       )}
 

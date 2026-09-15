@@ -34,6 +34,8 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   { id: 'open-ledger', keys: ['L'], label: 'Open event ledger', group: 'Panels' },
   { id: 'open-navigator', keys: ['V'], label: 'Toggle system navigator', group: 'Panels' },
   { id: 'open-missions', keys: ['M'], label: 'Toggle missions panel', group: 'Panels' },
+  { id: 'toggle-flight-director', keys: ['D'], label: 'Toggle Flight Director', group: 'Panels' },
+  { id: 'execute-flight-director-next', keys: ['Shift+Enter'], label: 'Execute next Flight Director step', group: 'Panels' },
   { id: 'open-stats', keys: ['S'], label: 'Open system statistics', group: 'Panels' },
   { id: 'open-help', keys: ['?'], label: 'Open keyboard shortcut help', group: 'Panels' },
   { id: 'command-palette', keys: ['Ctrl+K'], label: 'Command palette', group: 'Panels' },
@@ -56,6 +58,7 @@ export function isEditableTarget(target: EventTarget | null): boolean {
 /** Normalize a KeyboardEvent to a shortcut id, or null when unmapped. */
 export function shortcutIdForEvent(e: KeyboardEvent): string | null {
   const key = e.key;
+  if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && key === 'Enter') return 'execute-flight-director-next';
   if ((e.ctrlKey || e.metaKey) && (key === 'z' || key === 'Z')) return 'undo';
   if ((e.ctrlKey || e.metaKey) && (key === 'k' || key === 'K')) return 'command-palette';
   if (e.altKey && !e.ctrlKey && !e.metaKey) {
@@ -96,6 +99,8 @@ export function shortcutIdForEvent(e: KeyboardEvent): string | null {
     case 'V': return 'open-navigator';
     case 'm':
     case 'M': return 'open-missions';
+    case 'd':
+    case 'D': return 'toggle-flight-director';
     case 's':
     case 'S': return 'open-stats';
     case '?': return 'open-help';

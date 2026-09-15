@@ -54,6 +54,9 @@ export class TrajectoryRenderer {
   // Cache of line objects per body
   private lineMap: Map<string, { line: THREE.Line; positions: Float32Array; colors: Float32Array }> = new Map();
 
+  // Flight Director ghost preview is independent from ordinary forecast lines.
+  private planPreviewLine: THREE.Line | null = null;
+
   // Sensitivity cloud lines
   private sensitivityLines: THREE.LineSegments | null = null;
   private maxSensitivitySegments = 2000;
@@ -197,6 +200,31 @@ export class TrajectoryRenderer {
     (line.material as THREE.LineBasicMaterial).opacity = data.isSelected ? 0.95 : 0.35;
   }
 
+  /** Render a distinct non-authoritative ghost path for the queued Flight Director plan. */
+  public updatePlanPreview(points: TrajectoryPoint[]): void {
+    this.clearPlanPreview();
+    const usable = points.slice(0, this.maxPoints);
+    if (usable.length < 2) return;
+    const geometry = new THREE.BufferGeometry().setFromPoints(usable.map((point) => {
+      const display = this.toDisplay(point.positionKm);
+      return new THREE.Vector3(display.x, display.y, display.z);
+    }));
+    const material = new THREE.LineDashedMaterial({ color: '#ffd166', transparent: true, opacity: 0.95, dashSize: 3, gapSize: 2, depthWrite: false });
+    const line = new THREE.Line(geometry, material);
+    line.name = 'FlightDirectorGhostPreview';
+    line.computeLineDistances();
+    this.group.add(line);
+    this.planPreviewLine = line;
+  }
+
+  public clearPlanPreview(): void {
+    if (!this.planPreviewLine) return;
+    this.group.remove(this.planPreviewLine);
+    this.planPreviewLine.geometry.dispose();
+    (this.planPreviewLine.material as THREE.Material).dispose();
+    this.planPreviewLine = null;
+  }
+
   /**
    * Update the sensitivity cloud (fan of perturbed trajectories).
    */
@@ -300,6 +328,7 @@ export class TrajectoryRenderer {
     if (this.sensitivityLines) {
       this.sensitivityLines.visible = false;
     }
+    this.clearPlanPreview();
     this.setCollisionMarkers([]);
   }
 

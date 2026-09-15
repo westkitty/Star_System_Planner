@@ -48,6 +48,35 @@ import { spectralClassByLetter, spectralClassForMass, SpectralLetter } from './s
 
 export type CameraViewMode = 'inertial' | 'focus_selected' | 'follow_selected' | 'top_down';
 
+export interface CameraViewpoint {
+  version: 1;
+  target: { x: number; y: number; z: number };
+  theta: number;
+  phi: number;
+  distance: number;
+  viewMode: CameraViewMode;
+}
+
+const CAMERA_VIEW_MODES: CameraViewMode[] = ['inertial', 'focus_selected', 'follow_selected', 'top_down'];
+
+export function normalizeCameraViewpoint(value: unknown): CameraViewpoint | null {
+  if (!value || typeof value !== 'object') return null;
+  const data = value as Partial<CameraViewpoint>;
+  const target = data.target as CameraViewpoint['target'] | undefined;
+  if (data.version !== 1 || !target || ![target.x, target.y, target.z, data.theta, data.phi, data.distance].every(Number.isFinite) || !CAMERA_VIEW_MODES.includes(data.viewMode as CameraViewMode)) return null;
+  const clampTarget = (n: number) => Math.max(-1_000_000, Math.min(1_000_000, n));
+  const rawTheta = Number(data.theta);
+  const theta = rawTheta >= 0 && rawTheta < Math.PI * 2 ? rawTheta : ((rawTheta % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  return {
+    version: 1,
+    target: { x: clampTarget(target.x), y: clampTarget(target.y), z: clampTarget(target.z) },
+    theta,
+    phi: Math.max(0.05, Math.min(Math.PI - 0.05, Number(data.phi))),
+    distance: Math.max(10, Math.min(15000, Number(data.distance))),
+    viewMode: data.viewMode as CameraViewMode,
+  };
+}
+
 export class SceneManager {
   public scene: THREE.Scene;
   public camera: THREE.PerspectiveCamera;
@@ -803,6 +832,30 @@ export class SceneManager {
   }
 
   // Camera navigation methods
+  public captureCameraViewpoint(): CameraViewpoint {
+    return {
+      version: 1,
+      target: { x: this.cameraTarget.x, y: this.cameraTarget.y, z: this.cameraTarget.z },
+      theta: this.cameraSpherical.theta,
+      phi: this.cameraSpherical.phi,
+      distance: this.cameraDistance,
+      viewMode: this.viewMode,
+    };
+  }
+
+  /** Restore through the camera state machine; callers never touch camera internals. */
+  public restoreCameraViewpoint(value: unknown): boolean {
+    const viewpoint = normalizeCameraViewpoint(value);
+    if (!viewpoint) return false;
+    this.viewMode = viewpoint.viewMode;
+    this.cameraTarget.set(viewpoint.target.x, viewpoint.target.y, viewpoint.target.z);
+    this.desiredTarget.copy(this.cameraTarget);
+    this.cameraDistance = viewpoint.distance;
+    this.cameraSpherical.set(viewpoint.distance, viewpoint.phi, viewpoint.theta);
+    this.updateCameraPosition();
+    return true;
+  }
+
   public orbitCamera(deltaTheta: number, deltaPhi: number): void {
     this.cameraSpherical.theta += deltaTheta;
     this.cameraSpherical.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this.cameraSpherical.phi + deltaPhi));

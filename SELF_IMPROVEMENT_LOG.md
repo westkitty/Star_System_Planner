@@ -314,3 +314,149 @@ panel survives its own failure.
 - Codex could grow pursuit mechanics (undiscovered-kind hints, rarity weights).
 - Architect score weights are linear; a diminishing-returns curve may feel better past 70.
 - Consider a second contract season (rescue/capture chains) now that the atlas context exists.
+
+---
+
+## Iteration 4 — 2026-09-15 — Forensic Repair + Project Uplift
+
+**Theme:** flight planning that remains honest about causality. The Flight Director adds a local, replayable maneuver workflow without creating a second physics authority; every live burn still routes through the existing undo/event/render/forecast pipeline. The additional `WOW-01` Ghost Flight Path applies a queued plan to cloned bodies and forecasts that clone through the existing worker before rendering a distinct dashed trajectory. Live simulation state is untouched.
+
+### UI/UX (`UIUX-01`–`UIUX-20`)
+
+| ID | Improvement | Evidence |
+|---|---|---|
+| UIUX-01 | Persistent Flight Director launcher in the normal TopBar HUD | `TopBar.tsx`, `App.tsx` |
+| UIUX-02 | Wide side-panel / narrow bottom-sheet responsive Director | `index.css` |
+| UIUX-03 | Labelled Director header with accessible close/minimize control | `FlightDirectorPanel.tsx` |
+| UIUX-04 | Inline bounded plan-title editor with normalization on blur | `FlightDirectorPanel.tsx`, `flight-director.ts` |
+| UIUX-05 | Craft + actual-primary identity context header | `FlightDirectorPanel.tsx` |
+| UIUX-06 | Text-and-color GO/NO-GO risk card | `FlightDirectorPanel.tsx` |
+| UIUX-07 | Queue progress + estimated total delta-v summary | `FlightDirectorPanel.tsx` |
+| UIUX-08 | Accessible terminal-step progress meter | `FlightDirectorPanel.tsx` |
+| UIUX-09 | Preflight issues grouped into blocking errors vs warnings | `FlightDirectorPanel.tsx` |
+| UIUX-10 | Six-direction impulse composer with bounded numeric delta-v input | `FlightDirectorPanel.tsx` |
+| UIUX-11 | Explicit target selector with Transfer / Match / Focus actions | `FlightDirectorPanel.tsx` |
+| UIUX-12 | Step rows expose maneuver kind, status, delta-v/direction/target detail | `FlightDirectorPanel.tsx` |
+| UIUX-13 | Reorder controls expose disabled queue boundaries | `FlightDirectorPanel.tsx` |
+| UIUX-14 | Per-step Execute / Remove controls carry specific ARIA labels | `FlightDirectorPanel.tsx` |
+| UIUX-15 | Discoverable collapsible saved-plan library with empty state | `FlightDirectorPanel.tsx` |
+| UIUX-16 | Export/share tools separated from execution controls | `FlightDirectorPanel.tsx` |
+| UIUX-17 | Viewpoint/session tools grouped with visible saved-view count | `FlightDirectorPanel.tsx` |
+| UIUX-18 | Inspectable replay history with timestamp/result/detail + empty state | `FlightDirectorPanel.tsx` |
+| UIUX-19 | Pending URL-linked plan is visibly disclosed before explicit import | `FlightDirectorPanel.tsx`, `App.tsx` |
+| UIUX-20 | Narrow layout uses safe-area insets, 44px primaries, no horizontal overflow, focus-visible support | `index.css`, browser journey 5 |
+
+### Gameplay / Interactive Loop (`GAME-01`–`GAME-20`)
+
+| ID | Improvement | Evidence |
+|---|---|---|
+| GAME-01 | Create an inert plan for the selected maneuverable body and its actual primary | `App.handleCreateFlightPlan`, `createFlightPlan` |
+| GAME-02 | Queue prograde impulse | `makeNudgeStep`, Director composer |
+| GAME-03 | Queue retrograde impulse | `makeNudgeStep`, Director composer |
+| GAME-04 | Queue radial-in impulse | `makeNudgeStep`, Director composer |
+| GAME-05 | Queue radial-out impulse | `makeNudgeStep`, Director composer |
+| GAME-06 | Queue normal-plane impulse | `makeNudgeStep`, Director composer |
+| GAME-07 | Queue anti-normal-plane impulse | `makeNudgeStep`, Director composer |
+| GAME-08 | Queue circularization | `makeCircularizeStep` |
+| GAME-09 | Queue target-relative velocity match | `makeMatchVelocityStep` |
+| GAME-10 | Hohmann departure uses the target’s live current radius | `estimateStepDeltaV`, `handleExecuteDirectorStep` |
+| GAME-11 | Queue order is mechanically authoritative; reorder changes execute-next order | `moveFlightStep`, `nextQueuedStep` |
+| GAME-12 | Execute Next skips completed/skipped terminal entries | `nextQueuedStep` |
+| GAME-13 | Any queued step can be explicitly executed out of sequence | `FlightDirectorPanel` → `onExecute` |
+| GAME-14 | Preflight blocks missing/invalid craft, primary, or target | `validateFlightPlan` |
+| GAME-15 | Aggregate queued delta-v above 80 km/s blocks execution | `MAX_DIRECTOR_DELTA_V_KMS`, `validateFlightPlan` |
+| GAME-16 | Live escape margin contributes to red/amber/green risk | `buildFlightBrief` |
+| GAME-17 | Live eccentricity contributes to amber risk | `buildFlightBrief` |
+| GAME-18 | Successful execution completes exactly that step and records replay | `advanceFlightStep`, `recordDirectorReplay` |
+| GAME-19 | Rejected execution is terminal/auditable instead of looping forever | `rejectFlightStep`, rejected replay path |
+| GAME-20 | Live execution reuses existing undo/maneuver/event/render/forecast synchronization | `App.handleExecuteDirectorStep` → existing maneuver handlers |
+
+### Backend / Technical (`BACK-01`–`BACK-20`)
+
+| ID | Improvement | Evidence |
+|---|---|---|
+| BACK-01 | Versioned FlightPlan schema | `FLIGHT_PLAN_VERSION`, `FlightPlan` |
+| BACK-02 | Hard-bounded 12-step queue | `MAX_FLIGHT_PLAN_STEPS`, `appendFlightStep` |
+| BACK-03 | Finite positive per-nudge delta-v normalization/clamp | `makeNudgeStep`, decode normalization |
+| BACK-04 | Immutable append/remove/reorder/advance helpers | `flight-director.ts` |
+| BACK-05 | Structural preflight validation for plan/craft/primary/targets/steps | `validateFlightPlan` |
+| BACK-06 | Deterministic plain serialization | `serializeFlightPlan` |
+| BACK-07 | Deterministic plan digest/fingerprint | `flightPlanDigest` |
+| BACK-08 | UTF-8-safe base64url handoff codec | `encodeFlightPlanHandoff` / `decodeFlightPlanHandoff` |
+| BACK-09 | Malformed/incompatible handoffs fail closed without throwing | `decodeFlightPlanHandoff`, wave-2 tests |
+| BACK-10 | Imported plans mint a fresh local plan id | `decodeFlightPlanHandoff` |
+| BACK-11 | Imported titles normalized and bounded | `normalizeFlightPlanTitle` |
+| BACK-12 | Imported execution statuses normalized safely | `decodeFlightPlanHandoff` |
+| BACK-13 | Imported queues truncate to the hard capacity | `decodeFlightPlanHandoff` |
+| BACK-14 | Replay history capacity bounded | `appendFlightReplay` |
+| BACK-15 | Replay aggregation deterministic per plan/result | `replaySummary` |
+| BACK-16 | Typed Flight Director completion event integrated with event bus | `core/event-bus.ts`, `App.tsx` |
+| BACK-17 | Versioned local persistence for active plan + replay | `flight-director-storage.ts` |
+| BACK-18 | Corrupt/stale Director storage falls back without boot failure | `flight-director-storage.ts`, wave-2 tests |
+| BACK-19 | Bounded saved-plan library clones/sanitizes values to prevent shared-reference mutation | `flight-director-storage.ts` |
+| BACK-20 | Versioned validated session-capsule codec for plan + optional viewpoint | `flight-director-storage.ts`, wave-2 tests |
+
+### Quality of Life (`QOL-01`–`QOL-20`)
+
+| ID | Improvement | Evidence |
+|---|---|---|
+| QOL-01 | Command palette can open Flight Director | `App.tsx` command registry |
+| QOL-02 | Opening Director quick-starts a plan when the current selection is a valid craft with primary | `openFlightDirector` |
+| QOL-03 | `D` toggles Director without stealing text-entry keystrokes | `shortcuts.ts`, `isEditableTarget`, `App.tsx` |
+| QOL-04 | Escape closes/minimizes Director unless focus is editable | `App` key handler |
+| QOL-05 | Shift+Enter executes the next queued step unless focus is editable | `shortcuts.ts`, `App` key handler |
+| QOL-06 | A rejected maneuver automatically expands replay history for immediate diagnosis | `recordDirectorReplay` |
+| QOL-07 | Last impulse direction persists locally | `flight-director-preferences.ts` |
+| QOL-08 | Last impulse magnitude persists with safe clamps | `flight-director-preferences.ts` |
+| QOL-09 | Last target preference is remembered with safe runtime fallback | preferences + `FlightDirectorPanel` target resolution |
+| QOL-10 | Director open/closed preference survives reload while PRESENT mode keeps it hidden | preferences + App render gate |
+| QOL-11 | Director detail-section disclosure state survives reload | `flight-director-preferences.ts` |
+| QOL-12 | Clear Completed removes only completed terminal steps | `clearCompletedFlightSteps` |
+| QOL-13 | Clear Skipped removes only skipped/rejected terminal steps | `clearSkippedFlightSteps` |
+| QOL-14 | Clear Replay removes only the active plan’s replay history, not the plan or other plan history | `App.tsx` replay filter |
+| QOL-15 | Focus Craft jumps selection/camera through existing focus flow | `handleFocusDirectorBody` |
+| QOL-16 | Focus Target does the same for the selected maneuver target | `handleFocusDirectorBody` |
+| QOL-17 | Clipboard denial falls back to focused/selected handoff text | `FlightDirectorPanel.copyHandoff` |
+| QOL-18 | URL-linked plan can be dismissed as well as imported | pending-handoff controls |
+| QOL-19 | Viewpoint captures receive meaningful craft/target + ordinal names | `App.handleCaptureViewpoint` |
+| QOL-20 | Save/load/delete/capture/share/import operations provide toast/announcement feedback | `App.tsx`, panel feedback contract |
+
+### Features (`FEAT-01`–`FEAT-20`)
+
+| ID | Improvement | Evidence |
+|---|---|---|
+| FEAT-01 | Maneuver-sequence Flight Director queue | `flight-director.ts`, `FlightDirectorPanel.tsx` |
+| FEAT-02 | Portable offline plan handoff code | handoff codec + panel |
+| FEAT-03 | Visible deterministic plan fingerprint | `flightPlanDigest`, panel meta |
+| FEAT-04 | Causal replay history for execution attempts | `FlightReplayEntry`, panel replay |
+| FEAT-05 | Active flight plan restores locally after reload | `flight-director-storage.ts`, App initialization |
+| FEAT-06 | Replay history restores locally after reload | `flight-director-storage.ts`, App initialization |
+| FEAT-07 | Local multi-plan saved library | `flight-director-storage.ts` |
+| FEAT-08 | Save current plan as a named library entry | App/panel save flow |
+| FEAT-09 | Load a saved plan back into Director | App/panel load flow |
+| FEAT-10 | Delete a saved plan | App/panel delete flow |
+| FEAT-11 | Duplicate active plan with fresh plan + step ids | `duplicateFlightPlan` |
+| FEAT-12 | Export active plan as human-readable JSON | `flightPlanJson` |
+| FEAT-13 | Export plan replay history as CSV | `flightReplayCsv` |
+| FEAT-14 | Export concise preflight risk/delta-v/fingerprint report | `flightPreflightReport` |
+| FEAT-15 | Create same-origin share URL fragment without network calls | `createFlightHandoffUrl` |
+| FEAT-16 | Detect valid URL-fragment plan and require explicit import action | `parseFlightHandoffFragment`, pending disclosure |
+| FEAT-17 | Capture serializable current camera viewpoint | `SceneManager.captureViewpoint` |
+| FEAT-18 | Restore validated viewpoint through public SceneManager API | `SceneManager.restoreViewpoint` |
+| FEAT-19 | Persist and cycle a bounded local viewpoint shelf | `flight-director-storage.ts`, App controls |
+| FEAT-20 | Portable session capsule combines plan + optional viewpoint without full project/canon state | session-capsule codec + panel |
+
+### WOW-ME (`WOW-01`)
+
+| ID | Capability | Why it qualifies | Evidence |
+|---|---|---|---|
+| WOW-01 | **Ghost Flight Path** — apply the queued plan to isolated cloned bodies, forecast that clone through the existing orbital worker, and render the planned craft’s dashed future path without mutating live simulation state | Turns the Director from a maneuver list into a causal “show me before I commit” instrument while preserving one authoritative live physics path | `previewFlightPlan`, dedicated `FutureClient`, `TrajectoryRenderer.updatePlanPreview`, Director preview UI, `iteration4-wow.test.ts`, browser journey 5 |
+
+### Iteration 4 validation
+
+- Focused Iteration-4 proof after final implementation: **69/69 tests passed** across Flight Director core, persistence/viewpoints, interaction/UI, Ghost Flight Path, and component smoke.
+- Full `npm run check`: **20 suites / 230 tests passed**, strict TypeScript clean, production Vite build PASS, PWA generated, bundle report PASS.
+- Production footprint at this revision: main JS **321.1 KB gzip** (950 KB budget); total dist **341.7 KB gzip** (1400 KB budget). Vite’s raw >500 KB chunk advisory remains non-blocking.
+- Headless Chrome CDP runtime QA: **5/5 critical journeys PASS**, including Director quick-start, Ghost Flight Path reaching READY state, and 390×844 narrow layout with 0 horizontal overflow + 44px primary target.
+- Browser QA harness was corrected during the single bounded repair pass: touch-loom modal detection now checks the Loom modal rather than any generic modal backdrop, and Canon Lab is explicitly torn down before the Flight Director journey.
+- Physical Samsung Galaxy Tab S9 / S Pen pressure feel and real 120 Hz latency remain **UNVERIFIED**; no ADB/device workflow was invoked.

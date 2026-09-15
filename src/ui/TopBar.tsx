@@ -10,6 +10,7 @@ import {
   Eye, Volume2, VolumeX, Grid, Download, Upload, Sparkles, Undo2, ListTree,
   Trophy, BarChart3, Settings, Keyboard, Leaf, Dices, ChevronDown, Activity,
   Terminal, HeartPulse, Save, Trash2,
+  Navigation,
 } from 'lucide-react';
 import { ScaleMode } from '../rendering/scale-transform';
 import { SystemStatus } from '../simulation/types';
@@ -56,6 +57,8 @@ interface TopBarProps {
   onOpenHelp: () => void;
   onOpenPalette: () => void;
   onOpenLedger: () => void;
+  flightDirectorVisible: boolean;
+  onToggleFlightDirector: () => void;
   health: MonitorWarningSummary;
   library: LibraryEntry[];
   onSaveToLibrary: () => void;
@@ -267,6 +270,9 @@ export const TopBar: React.FC<TopBarProps> = (props) => {
         </IconBtn>
         <IconBtn onClick={props.onToggleMissions} title={`Architect missions — ${props.missionsDone}/${props.missionsTotal} complete (M)`} label="Toggle missions" active={props.missionsVisible}>
           <Trophy size={14} />
+        </IconBtn>
+        <IconBtn onClick={props.onToggleFlightDirector} title="Flight Director (D)" label="Toggle Flight Director" active={props.flightDirectorVisible}>
+          <Navigation size={14} />
         </IconBtn>
         <IconBtn onClick={props.onOpenStats} title="System statistics (S)" label="Open statistics">
           <BarChart3 size={14} />
