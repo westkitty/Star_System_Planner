@@ -473,6 +473,27 @@ export class AudioSynthesizer {
       osc.stop(now + i * 0.09 + 0.45);
     }
   }
+
+  /** Warm preset/postcard shimmer retained for the forensic modal flow. */
+  public playPresetShimmer(): void {
+    const ctx = this.getContext();
+    const out = this.output();
+    if (!ctx || !out) return;
+    [196, 246.94, 293.66, 392].forEach((frequency, index) => {
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const start = ctx.currentTime + index * 0.06;
+      oscillator.type = 'triangle';
+      oscillator.frequency.value = frequency * (index % 2 ? 1.003 : 1);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.055, start + 0.22);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.4);
+      oscillator.connect(gain);
+      gain.connect(out);
+      oscillator.start(start);
+      oscillator.stop(start + 1.5);
+    });
+  }
 }
 
 export const audioSynth = new AudioSynthesizer();

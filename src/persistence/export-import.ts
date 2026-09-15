@@ -2,9 +2,10 @@
  * .ssp.json Serialization and Schema Validation.
  */
 
-import { SavedSystemProject } from './db';
+import { CURRENT_SCHEMA_VERSION, SavedSystemProject } from './db';
 import { migrateProject } from './migrations';
 import { ValidationIssue, validateProjectStructure } from './validation';
+import { CelestialBody, Vector3D } from '../simulation/types';
 
 export function exportProjectToJson(project: SavedSystemProject): string {
   return JSON.stringify(project, null, 2);
@@ -17,7 +18,36 @@ export interface ImportResult {
 }
 
 export function parseAndValidateProjectJson(jsonStr: string): SavedSystemProject {
-  return parseProjectWithMigration(jsonStr).project;
+  return sanitizeProject(parseProjectWithMigration(jsonStr).project);
+}
+
+function finiteVector(value: unknown, label: string): Vector3D {
+  if (!value || typeof value !== 'object') throw new Error(`${label} is missing`);
+  const vector = value as Record<string, unknown>;
+  for (const axis of ['x', 'y', 'z']) if (typeof vector[axis] !== 'number' || !Number.isFinite(vector[axis])) throw new Error(`${label}.${axis} must be a finite number`);
+  return { x: vector.x as number, y: vector.y as number, z: vector.z as number };
+}
+
+/** Deep import guard for the values that enter the physics engine. */
+export function sanitizeProject(project: SavedSystemProject): SavedSystemProject {
+  project.projectName = typeof project.projectName === 'string' && project.projectName.trim() ? project.projectName.trim().slice(0, 80) : 'Unnamed System';
+  for (const branch of project.branches) {
+    if (!branch?.snapshot || !Array.isArray(branch.snapshot.bodies)) throw new Error(`Branch "${branch?.name || branch?.id || '?'}" has no valid body snapshot`);
+    branch.snapshot.bodies = branch.snapshot.bodies.map((raw, index) => {
+      const body = raw as CelestialBody;
+      const label = body?.name ? `body "${body.name}"` : `body #${index + 1}`;
+      if (!body || !body.id || !body.name || !Number.isFinite(body.massKg) || body.massKg <= 0) throw new Error(`${label}: massKg must be a positive finite number`);
+      if (!Number.isFinite(body.radiusKm) || body.radiusKm <= 0) throw new Error(`${label}: radiusKm must be a positive finite number`);
+      return { ...body, name: body.name.slice(0, 80), position: finiteVector(body.position, `${label}.position`), velocity: finiteVector(body.velocity, `${label}.velocity`) };
+    });
+  }
+  if (!project.branches.some((branch) => branch.id === project.activeBranchId)) project.activeBranchId = project.branches[0].id;
+  return project;
+}
+
+export function buildProjectFilename(projectName: string, dateIso = new Date().toISOString()): string {
+  const slug = projectName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  return `${slug || 'system'}-${dateIso.slice(0, 10)}.ssp.json`;
 }
 
 /**
@@ -59,6 +89,7 @@ export function parseProjectWithDiagnostics(jsonStr: string): ImportDiagnostics 
     };
   }
 
+  const wasLegacy = (parsed as { schemaVersion?: unknown }).schemaVersion === '1.0.0';
   let migration: { migrated: boolean; notes: string[] };
   try {
     migration = migrateProject(parsed);
@@ -85,6 +116,10 @@ export function parseProjectWithDiagnostics(jsonStr: string): ImportDiagnostics 
   }
 
   const project = parsed as SavedSystemProject;
+  if (wasLegacy) {
+    project.schemaVersion = CURRENT_SCHEMA_VERSION;
+    project.visualSettings = { ...project.visualSettings, showXRay: false, showLabels: false, showTrails: false, showHabitableZone: false };
+  }
   if (!project.activeBranchId) {
     project.activeBranchId = project.branches[0].id;
   }
@@ -113,8 +148,7 @@ export function downloadProjectFile(project: SavedSystemProject): void {
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
-  const cleanName = project.projectName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
-  const filename = `${cleanName || 'system'}.ssp.json`;
+  const filename = buildProjectFilename(project.projectName);
 
   const a = document.createElement('a');
   a.href = url;

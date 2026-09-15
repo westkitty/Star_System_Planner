@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+
+/** Shared toast contract retained for the forensic toast renderer. */
+export interface ToastItem { id: number; message: string; kind: 'info' | 'warn' | 'ok'; }
 import { SceneManager } from './rendering/scene-manager';
 import { SimulationEngine } from './simulation/engine';
 import { PointerManager, PointerToolMode } from './interaction/pointer-manager';
@@ -18,6 +21,7 @@ import { downloadProjectFile } from './persistence/export-import';
 import { createSerializableProject } from './persistence/serializer';
 import { AutosaveManager, AutosaveStatus } from './persistence/autosave';
 import { audioSynth } from './audio/audio-synth';
+import { audibleOrrery } from './audio/orrery';
 import { CanonMacro } from './canon/macros';
 import { resolvePointerIntent } from './interaction/pointer-intent';
 import { SimulationEventMonitor } from './simulation/event-monitor';
@@ -370,6 +374,14 @@ const PlannerApp: React.FC = () => {
     const initialPreset = createDemonstrationSystem();
     const engine = new SimulationEngine(initialPreset.bodies, { enableCollisions: true });
     engine.belts = initialPreset.belts;
+    engine.onCatastrophe = (event) => {
+      engine.isPaused = true;
+      isPausedRef.current = true;
+      setIsPaused(true);
+      audioSynth.playCollisionWarning();
+      audibleOrrery.strike(event.severity === 'catastrophe' ? 0.9 : 0.5);
+      if (event.bodyIds?.[0]) sceneMgr.spawnCollisionBurstAtBody(event.bodyIds[0], '#ff4d64', 1);
+    };
     engineRef.current = engine;
 
     // 3. Initialize BranchManager
@@ -758,6 +770,28 @@ const PlannerApp: React.FC = () => {
       },
       onTwoFingerPan: (dx, dy) => {
         sceneMgr.panCamera(dx, dy);
+      },
+      onWheelZoom: (deltaY) => {
+        sceneMgr.zoomCamera(Math.exp(deltaY * 0.001));
+      },
+      onDoubleTap: (e) => {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const hit = sceneMgr.raycastBody(((e.clientX - rect.left) / rect.width) * 2 - 1, -(((e.clientY - rect.top) / rect.height) * 2 - 1));
+        if (hit) {
+          handleSelectBody(hit);
+          sceneMgr.setViewMode('focus_selected');
+        }
+      },
+      onPenQuickAction: (e) => {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const hit = sceneMgr.raycastBody(((e.clientX - rect.left) / rect.width) * 2 - 1, -(((e.clientY - rect.top) / rect.height) * 2 - 1));
+        const body = hit ? engine.bodies.find((candidate) => candidate.id === hit) : undefined;
+        if (!body) return;
+        handleSelectBody(body.id);
+        pointerMgr.isManipulatingObject = true;
+        grabThrow.startGrab(body);
       },
     });
     pointerManagerRef.current = pointerMgr;

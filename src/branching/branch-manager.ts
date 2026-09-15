@@ -8,10 +8,12 @@
  */
 
 import { SimulationEngine } from '../simulation/engine';
-import { CelestialBody } from '../simulation/types';
+import { CelestialBody, SimulationSnapshot } from '../simulation/types';
 import { KM_PER_AU } from '../simulation/units';
-import { TimelineBranch, BranchComparisonResult } from './branch-types';
+import { TimelineBranch, BranchComparisonResult, BranchBodyDelta } from './branch-types';
 import { createId } from '../core/id';
+import { findDominantPrimary, calculateOsculatingElements } from '../simulation/orbital-mechanics';
+import { calculateSystemEnergy } from '../simulation/integrator';
 
 /**
  * Timeline divergence (GAME14): mean positional drift of bodies shared by
@@ -61,6 +63,11 @@ export class BranchManager {
 
   public getAllBranches(): TimelineBranch[] {
     return Array.from(this.branches.values());
+  }
+
+  /** Capture an independent live snapshot for the UI recovery bank. */
+  public captureSnapshotOf(engine: SimulationEngine): SimulationSnapshot {
+    return engine.createSnapshot();
   }
 
   /**
@@ -177,8 +184,28 @@ export class BranchManager {
 
     const collisionsInB = bB.events.filter(e => e.type === 'collision').length;
     const starsilkInB = bB.events.filter(e => e.type === 'starsilk_pull' || e.type === 'heliocide_triggered').length;
+    const bodyDeltas: BranchBodyDelta[] = [];
+    for (const bodyA of bA.snapshot.bodies) {
+      const bodyB = bB.snapshot.bodies.find((body) => body.id === bodyA.id);
+      if (!bodyB) continue;
+      const primaryA = findDominantPrimary(bodyA, bA.snapshot.bodies);
+      const primaryB = findDominantPrimary(bodyB, bB.snapshot.bodies);
+      if (!primaryA || !primaryB) continue;
+      const elementsA = calculateOsculatingElements(bodyA, primaryA);
+      const elementsB = calculateOsculatingElements(bodyB, primaryB);
+      bodyDeltas.push({
+        bodyId: bodyA.id,
+        name: bodyA.name,
+        deltaSemiMajorAxisKm: elementsB.semiMajorAxisKm - elementsA.semiMajorAxisKm,
+        deltaEccentricity: elementsB.eccentricity - elementsA.eccentricity,
+        deltaVelocityKmS: Math.hypot(bodyB.velocity.x, bodyB.velocity.y, bodyB.velocity.z) - Math.hypot(bodyA.velocity.x, bodyA.velocity.y, bodyA.velocity.z),
+      });
+    }
+    const energyDeltaJoules = calculateSystemEnergy(bB.snapshot.bodies).total - calculateSystemEnergy(bA.snapshot.bodies).total;
 
     return {
+      bodyDeltas,
+      energyDeltaJoules,
       branchAName: bA.name,
       branchBName: bB.name,
       elapsedTimeDiffSec: bB.snapshot.timestampSec - bA.snapshot.timestampSec,

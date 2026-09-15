@@ -12,6 +12,7 @@
 import * as THREE from 'three';
 import { Vector3D } from '../simulation/types';
 import { ScaleTransform } from './scale-transform';
+import { FloatingOrigin } from './floating-origin';
 
 export interface TrajectoryPoint {
   positionKm: Vector3D;
@@ -45,6 +46,7 @@ export interface BodyTrajectoryData {
 export class TrajectoryRenderer {
   private group: THREE.Group;
   private scaleTransform: ScaleTransform;
+  private floatingOrigin: FloatingOrigin | null = null;
 
   // Max points per trajectory line
   private readonly maxPoints = 500;
@@ -54,7 +56,7 @@ export class TrajectoryRenderer {
 
   // Sensitivity cloud lines
   private sensitivityLines: THREE.LineSegments | null = null;
-  private maxSensitivitySegments = 1500;
+  private maxSensitivitySegments = 2000;
 
   // ASSET09: pooled impact-warning markers at forecast collision sites.
   private collisionMarkerGroup: THREE.Group;
@@ -82,6 +84,30 @@ export class TrajectoryRenderer {
       marker.visible = false;
       this.collisionMarkerGroup.add(marker);
       this.collisionMarkerPool.push(marker);
+    }
+  }
+
+  /** Attach the scene floating origin so predicted paths align under focus camera. */
+  public setFloatingOrigin(origin: FloatingOrigin): void {
+    this.floatingOrigin = origin;
+  }
+
+  private toDisplay(absKm: Vector3D): Vector3D {
+    const rel = this.floatingOrigin ? this.floatingOrigin.toRelative(absKm) : absKm;
+    return this.scaleTransform.getDisplayPosition(rel);
+  }
+
+  /**
+   * Prune trajectory lines for bodies that no longer exist (absorbed, deleted,
+   * or removed by branch switch / preset import).
+   */
+  public pruneToAlive(aliveIds: Set<string>): void {
+    const dead: string[] = [];
+    for (const id of this.lineMap.keys()) {
+      if (!aliveIds.has(id)) dead.push(id);
+    }
+    for (const id of dead) {
+      this.clearBody(id);
     }
   }
 
@@ -148,7 +174,7 @@ export class TrajectoryRenderer {
 
     for (let i = 0; i < ptCount; i++) {
       const pt = data.points[i];
-      const disp = this.scaleTransform.getDisplayPosition(pt.positionKm);
+      const disp = this.toDisplay(pt.positionKm);
 
       positions[i * 3] = disp.x;
       positions[i * 3 + 1] = disp.y;
@@ -197,8 +223,8 @@ export class TrajectoryRenderer {
       for (let p = 0; p < path.length - 1; p++) {
         if (segIndex >= this.maxSensitivitySegments) break;
 
-        const p1 = this.scaleTransform.getDisplayPosition(path[p]);
-        const p2 = this.scaleTransform.getDisplayPosition(path[p + 1]);
+        const p1 = this.toDisplay(path[p]);
+        const p2 = this.toDisplay(path[p + 1]);
 
         const idx = segIndex * 6;
         posArr[idx] = p1.x;

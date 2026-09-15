@@ -11,6 +11,7 @@
 import { CelestialBody } from '../simulation/types';
 import { SeededRng } from '../core/seeded-rng';
 import { spectralClassForMass } from '../rendering/star-palette';
+import { calculateTotalAngularMomentum } from '../simulation/orbital-mechanics';
 
 export function generateSystemSigilSvg(
   projectName: string,
@@ -19,17 +20,19 @@ export function generateSystemSigilSvg(
 ): string {
   // ASSET15: sigil v2 — deterministic, but now data-legible:
   // spectral core, per-body orbit ticks, habitability arc, ring count.
-  const rng = new SeededRng(
-    (SeededRng.hashString(projectName) ^ (seed >>> 0) ^ (bodies.length * 2654435761)) >>> 0
-  );
-
   const stars = bodies.filter((b) => b.type === 'star');
   const planets = bodies.filter((b) => b.type === 'planet' || b.type === 'dwarf_planet');
   const moons = bodies.filter((b) => b.type === 'moon');
   const collapsed = bodies.some((b) => b.type === 'black_hole' || b.isCollapsedSingularity);
+  const destroyed = bodies.length > 0 && (stars.length === 0 || stars.every((star) => (star.luminosityW ?? 1) <= 0 || (star.temperatureK ?? 1) <= 0));
+  const momentum = calculateTotalAngularMomentum(bodies);
+  const momentumSignature = Math.round(Math.log10(Math.max(1, Math.hypot(momentum.x, momentum.y, momentum.z))) * 100);
+  const rng = new SeededRng(
+    (SeededRng.hashString(projectName) ^ (seed >>> 0) ^ (bodies.length * 2654435761) ^ momentumSignature ^ (destroyed ? 0xA8018 : 0)) >>> 0
+  );
   const primary = stars[0] ?? bodies[0];
   const spectral = primary ? spectralClassForMass(primary.massKg) : null;
-  const coreColor = collapsed ? '#a855f7' : spectral?.color ?? '#0cc6ff';
+  const coreColor = destroyed ? '#ff4d64' : collapsed ? '#a855f7' : spectral?.color ?? '#0cc6ff';
   const ringTotal = bodies.reduce((n, b) => n + (b.rings?.length ?? 0), 0);
   const temperate = bodies.filter((b) => {
     const t = b.temperatureK ?? 0;
@@ -43,7 +46,7 @@ export function generateSystemSigilSvg(
     const rx = 26 + i * 6.2;
     const ry = 13 + i * 3.1;
     const rot = -20 + rng.range(-6, 6);
-    const strokeColor = i % 2 === 0 ? '#0cc6ff' : '#49e7ff';
+    const strokeColor = destroyed ? '#ff4d64' : i % 2 === 0 ? '#0cc6ff' : '#49e7ff';
     const dash = i % 3 === 0 ? 'stroke-dasharray="3 5"' : '';
     arcsSvg += `<ellipse cx="64" cy="64" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="none" stroke="${strokeColor}" stroke-width="${i % 2 === 0 ? 1.5 : 1}" stroke-opacity="0.6" ${dash} transform="rotate(${rot.toFixed(1)} 64 64)" />`;
   }
@@ -85,8 +88,8 @@ export function generateSystemSigilSvg(
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="System sigil for ${projectName.replace(/"/g, '')}">
-    <rect width="128" height="128" fill="#03050a" rx="16" stroke="#0a2a44" stroke-width="1.5" />
-    <circle cx="64" cy="64" r="50" fill="#07131e" fill-opacity="0.4" />
+    <rect width="128" height="128" fill="#03050a" rx="16" stroke="${destroyed ? '#880010' : '#0a2a44'}" stroke-width="1.5" />
+    <circle cx="64" cy="64" r="50" fill="${destroyed ? '#1a0208' : '#07131e'}" fill-opacity="0.4" />
     ${ticksSvg}
     ${arcsSvg}
     ${hzArc}

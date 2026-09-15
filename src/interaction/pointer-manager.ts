@@ -29,6 +29,9 @@ export interface PointerCallbacks {
   onPointerCancel: (e: NormalizedPointerEvent) => void;
   onPinchZoom: (factor: number) => void;
   onTwoFingerPan: (dx: number, dy: number) => void;
+  onWheelZoom?: (rawDeltaY: number) => void;
+  onDoubleTap?: (e: NormalizedPointerEvent) => void;
+  onPenQuickAction?: (e: NormalizedPointerEvent) => void;
 }
 
 export class PointerManager {
@@ -42,6 +45,8 @@ export class PointerManager {
   // Multi-touch tracking
   private prevPinchDistance: number | null = null;
   private prevPinchCenter: { x: number; y: number } | null = null;
+  private lastTapTimeMs = 0;
+  private lastTapPos: { x: number; y: number } | null = null;
 
   // Suppression flags
   public isManipulatingObject: boolean = false;
@@ -59,6 +64,7 @@ export class PointerManager {
     this.element.addEventListener('pointerup', this.handlePointerUp);
     this.element.addEventListener('pointercancel', this.handlePointerCancel);
     this.element.addEventListener('lostpointercapture', this.handleLostCapture);
+    this.element.addEventListener('wheel', this.handleWheel, { passive: false });
   }
 
   public destroy(): void {
@@ -67,7 +73,13 @@ export class PointerManager {
     this.element.removeEventListener('pointerup', this.handlePointerUp);
     this.element.removeEventListener('pointercancel', this.handlePointerCancel);
     this.element.removeEventListener('lostpointercapture', this.handleLostCapture);
+    this.element.removeEventListener('wheel', this.handleWheel);
   }
+
+  private handleWheel = (e: WheelEvent): void => {
+    e.preventDefault();
+    this.callbacks.onWheelZoom?.(e.deltaY);
+  };
 
   private normalize(e: PointerEvent, deltaX: number = 0, deltaY: number = 0): NormalizedPointerEvent {
     return {
@@ -88,6 +100,18 @@ export class PointerManager {
   }
 
   private handlePointerDown = (e: PointerEvent): void => {
+    if (e.pointerType === 'pen' && (e.button === 1 || (e.buttons & 2) !== 0)) {
+      this.callbacks.onPenQuickAction?.(this.normalize(e));
+      return;
+    }
+    if (this.lastTapPos && e.timeStamp - this.lastTapTimeMs < 320 && Math.hypot(e.clientX - this.lastTapPos.x, e.clientY - this.lastTapPos.y) < 24) {
+      this.lastTapTimeMs = 0;
+      this.lastTapPos = null;
+      this.callbacks.onDoubleTap?.(this.normalize(e));
+      return;
+    }
+    this.lastTapTimeMs = e.timeStamp;
+    this.lastTapPos = { x: e.clientX, y: e.clientY };
     this.prevPositions.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
     const norm = this.normalize(e, 0, 0);
     this.activePointers.set(e.pointerId, norm);

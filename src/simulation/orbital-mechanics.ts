@@ -137,22 +137,11 @@ export function calculateOsculatingElements(
     }
   }
 
-  // Hill sphere: r_H = a * (1 - e) * (m / (3 * M))^(1/3)
-  let hillRadiusKm: number | null = null;
-  if (isBound && primary.massKg > 0) {
-    hillRadiusKm = semiMajorAxisKm * (1.0 - eccentricity) * Math.cbrt(body.massKg / (3.0 * primary.massKg));
-  }
-
-  // Roche limit: d = 2.44 * R_primary * (rho_primary / rho_body)^(1/3)
-  // Simplified using mass / radius^3 approximations
-  let rocheLimitKm: number | null = null;
-  if (primary.radiusKm > 0 && body.radiusKm > 0) {
-    const rhoPrimary = primary.massKg / (primary.radiusKm ** 3);
-    const rhoBody = body.massKg / (body.radiusKm ** 3);
-    if (rhoBody > 0) {
-      rocheLimitKm = 2.44 * primary.radiusKm * Math.cbrt(rhoPrimary / rhoBody);
-    }
-  }
+  // Hill sphere & Roche limit delegated to shared helpers (single formula owner)
+  const hillRadiusKm = isBound
+    ? calculateHillSphereRadius(semiMajorAxisKm, eccentricity, body.massKg, primary.massKg)
+    : null;
+  const rocheLimitKm = calculateRocheLimitKm(primary, body);
 
   return {
     semiMajorAxisKm,
@@ -168,6 +157,164 @@ export function calculateOsculatingElements(
     hillRadiusKm,
     rocheLimitKm,
     equilibriumTempK: body.temperatureK ?? null,
+  };
+}
+
+/**
+ * Hill sphere radius formula. r_H = a(1 - e) * (m / 3M)^(1/3)
+ * Returns null when the parameters cannot define a bounded sphere of influence.
+ */
+export function calculateHillSphereRadius(
+  semiMajorAxisKm: number,
+  eccentricity: number,
+  bodyMassKg: number,
+  primaryMassKg: number
+): number | null {
+  if (semiMajorAxisKm <= 0 || primaryMassKg <= 0 || bodyMassKg <= 0) return null;
+  if (!Number.isFinite(semiMajorAxisKm)) return null;
+  return semiMajorAxisKm * (1.0 - eccentricity) * Math.cbrt(bodyMassKg / (3.0 * primaryMassKg));
+}
+
+/**
+ * Rigid-body Roche limit. d = 2.44 * R_primary * (rho_primary / rho_body)^(1/3)
+ * Densities are approximated from mass / radius^3. Returns null when not computable.
+ */
+export function calculateRocheLimitKm(primary: CelestialBody, body: CelestialBody): number | null {
+  if (primary.radiusKm <= 0 || body.radiusKm <= 0 || primary.massKg <= 0 || body.massKg <= 0) {
+    return null;
+  }
+  const rhoPrimary = primary.massKg / (primary.radiusKm ** 3);
+  const rhoBody = body.massKg / (body.radiusKm ** 3);
+  if (rhoBody <= 0 || !Number.isFinite(rhoBody)) return null;
+  return 2.44 * primary.radiusKm * Math.cbrt(rhoPrimary / rhoBody);
+}
+
+/**
+ * Compute the system barycenter (center of mass) in absolute km.
+ * Returns the origin for an empty system.
+ */
+export function calculateBarycenter(bodies: CelestialBody[]): Vector3D {
+  let totalMass = 0;
+  let bx = 0;
+  let by = 0;
+  let bz = 0;
+  for (const b of bodies) {
+    totalMass += b.massKg;
+    bx += b.massKg * b.position.x;
+    by += b.massKg * b.position.y;
+    bz += b.massKg * b.position.z;
+  }
+  if (totalMass <= 0) return { x: 0, y: 0, z: 0 };
+  return { x: bx / totalMass, y: by / totalMass, z: bz / totalMass };
+}
+
+/**
+ * Total system linear angular momentum L = sum(r x p) about the barycenter.
+ * Units: kg * km^2 / s. Used for deterministic sigil derivation and system vitals.
+ */
+export function calculateTotalAngularMomentum(bodies: CelestialBody[]): Vector3D {
+  const bary = calculateBarycenter(bodies);
+  let lx = 0;
+  let ly = 0;
+  let lz = 0;
+  for (const b of bodies) {
+    const rx = b.position.x - bary.x;
+    const ry = b.position.y - bary.y;
+    const rz = b.position.z - bary.z;
+    const px = b.massKg * b.velocity.x;
+    const py = b.massKg * b.velocity.y;
+    const pz = b.massKg * b.velocity.z;
+    lx += ry * pz - rz * py;
+    ly += rz * px - rx * pz;
+    lz += rx * py - ry * px;
+  }
+  return { x: lx, y: ly, z: lz };
+}
+
+/** Total system mass in kg. */
+export function calculateTotalSystemMass(bodies: CelestialBody[]): number {
+  return bodies.reduce((acc, b) => acc + b.massKg, 0);
+}
+
+/**
+ * Full geometric frame of the osculating conic: unit vector toward periapsis,
+ * orbit-plane normal, and in-plane bi-normal, all anchored on the primary.
+ * This is what lets analytic overlays draw the *true* ellipse in 3D.
+ */
+export interface KeplerianFrame {
+  focus: Vector3D; // primary position (absolute km)
+  apsisDir: Vector3D; // unit vector toward periapsis (undefined direction when e ~ 0)
+  normal: Vector3D; // unit orbit normal (h direction)
+  binormal: Vector3D; // normal x apsisDir (in-plane, 90 deg prograde of periapsis)
+  semiMajorAxisKm: number;
+  eccentricity: number;
+  periodSec: number;
+  isBound: boolean;
+  trueAnomalyRad: number;
+}
+
+export function calculateKeplerianFrame(body: CelestialBody, primary: CelestialBody): KeplerianFrame | null {
+  const rx = body.position.x - primary.position.x;
+  const ry = body.position.y - primary.position.y;
+  const rz = body.position.z - primary.position.z;
+  const r = Math.sqrt(rx * rx + ry * ry + rz * rz);
+
+  const vx = body.velocity.x - primary.velocity.x;
+  const vy = body.velocity.y - primary.velocity.y;
+  const vz = body.velocity.z - primary.velocity.z;
+
+  const mu = G_KM * (primary.massKg + body.massKg);
+  if (r <= 0 || mu <= 0) return null;
+
+  // h = r x v
+  let hx = ry * vz - rz * vy;
+  let hy = rz * vx - rx * vz;
+  let hz = rx * vy - ry * vx;
+  const hMag = Math.sqrt(hx * hx + hy * hy + hz * hz);
+  if (hMag <= 1e-9) return null;
+  hx /= hMag;
+  hy /= hMag;
+  hz /= hMag;
+
+  // Eccentricity vector
+  const vSq = vx * vx + vy * vy + vz * vz;
+  const rDotV = rx * vx + ry * vy + rz * vz;
+  const ex = ((vSq - mu / r) * rx - rDotV * vx) / mu;
+  const ey = ((vSq - mu / r) * ry - rDotV * vy) / mu;
+  const ez = ((vSq - mu / r) * rz - rDotV * vz) / mu;
+  const ecc = Math.sqrt(ex * ex + ey * ey + ez * ez);
+
+  const energy = 0.5 * vSq - mu / r;
+  const a = Math.abs(energy) > 1e-12 ? -mu / (2.0 * energy) : Infinity;
+  const isBound = ecc < 1.0 && a > 0;
+
+  let apsisDir: Vector3D;
+  if (ecc > 1e-6) {
+    apsisDir = { x: ex / ecc, y: ey / ecc, z: ez / ecc };
+  } else {
+    // Near-circular: use radial direction as the (arbitrary) apsis reference
+    apsisDir = { x: rx / r, y: ry / r, z: rz / r };
+  }
+
+  // binormal = normal x apsis
+  const bx = hy * apsisDir.z - hz * apsisDir.y;
+  const by = hz * apsisDir.x - hx * apsisDir.z;
+  const bz = hx * apsisDir.y - hy * apsisDir.x;
+
+  // True anomaly sign-corrected
+  let nu = Math.acos(Math.max(-1, Math.min(1, (apsisDir.x * rx + apsisDir.y * ry + apsisDir.z * rz) / r)));
+  if (rDotV < 0) nu = 2 * Math.PI - nu;
+
+  return {
+    focus: { ...primary.position },
+    apsisDir,
+    normal: { x: hx, y: hy, z: hz },
+    binormal: { x: bx, y: by, z: bz },
+    semiMajorAxisKm: a,
+    eccentricity: ecc,
+    periodSec: isBound ? 2.0 * Math.PI * Math.sqrt((a ** 3) / mu) : Infinity,
+    isBound,
+    trueAnomalyRad: nu,
   };
 }
 

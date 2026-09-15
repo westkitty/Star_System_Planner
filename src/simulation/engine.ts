@@ -46,7 +46,14 @@ export class SimulationEngine {
   public timeScale: number = 1.0; // 1x by default
   public isPaused: boolean = false;
   public enableCollisions: boolean = true;
+  /** Retained forensic control surface; future Roche checks are opt-in. */
+  public enableRocheBreaking: boolean = false;
   public systemStatus: SystemStatus = 'active';
+  /** Strength of the latest collision for renderer and sonification feedback. */
+  public pendingImpactStrength = 0;
+  /** Optional single-fire catastrophe notification for the UI layer. */
+  public onCatastrophe?: (event: ConsequenceEvent) => void;
+  private eventSeq = 0;
 
   private accumulatorSec: number = 0;
   private maxSubstepsPerTick: number = PLANNER_CONFIG.physics.maxSubstepsPerTick;
@@ -95,14 +102,14 @@ export class SimulationEngine {
       physicsMs += nowMs() - t0;
       if (!ok) {
         this.isPaused = true;
-        this.events.push({
-          id: createId('nan'),
+        const event = this.pushEvent({
           timestampSec: this.timeSec,
           type: 'orbit_unbound',
           title: 'Simulation Instability Detected',
           description: 'Calculations encountered NaN or infinite divergence. Simulation has been paused to protect state.',
           severity: 'catastrophe',
         });
+        this.fireCatastrophe(event);
         break;
       }
 
@@ -116,7 +123,9 @@ export class SimulationEngine {
         const colResults = resolveCollisions(this.bodies, this.timeSec, this.debris);
         collisionMs += nowMs() - t0;
         for (const cr of colResults) {
-          this.events.push(cr.event);
+          const event = this.pushEvent(cr.event);
+          this.pendingImpactStrength = Math.max(this.pendingImpactStrength, Math.min(1, cr.relativeSpeedKmS / 80));
+          if (event.severity === 'catastrophe') this.fireCatastrophe(event);
           eventBus.emit('collision:occurred', {
             eventId: cr.event.id,
             bodyIds: cr.event.bodyIds ?? [],
@@ -247,7 +256,9 @@ export class SimulationEngine {
     if (this.enableCollisions && this.bodies.length > 1) {
       const colResults = resolveCollisions(this.bodies, this.timeSec, this.debris);
       for (const cr of colResults) {
-        this.events.push(cr.event);
+        const event = this.pushEvent(cr.event);
+        this.pendingImpactStrength = Math.max(this.pendingImpactStrength, Math.min(1, cr.relativeSpeedKmS / 80));
+        if (event.severity === 'catastrophe') this.fireCatastrophe(event);
         eventBus.emit('collision:occurred', {
           eventId: cr.event.id,
           bodyIds: cr.event.bodyIds ?? [],
@@ -257,6 +268,25 @@ export class SimulationEngine {
     }
     updateBodyTemperatures(this.bodies);
     return true;
+  }
+
+  /** Return and clear the latest impact signal. */
+  public consumeImpactStrength(): number {
+    const value = this.pendingImpactStrength;
+    this.pendingImpactStrength = 0;
+    return value;
+  }
+
+  private fireCatastrophe(event: ConsequenceEvent): void {
+    try { this.onCatastrophe?.(event); } catch { /* callback failures cannot corrupt simulation */ }
+  }
+
+  /** Append a bounded causal ledger entry. */
+  public pushEvent(event: Omit<ConsequenceEvent, 'id'> & { id?: string }): ConsequenceEvent {
+    const full: ConsequenceEvent = { ...event, id: event.id ?? createId(`event-${++this.eventSeq}`) };
+    this.events.push(full);
+    if (this.events.length > 600) this.events.splice(0, this.events.length - 600);
+    return full;
   }
 
   public createSnapshot(): SimulationSnapshot {

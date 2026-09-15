@@ -7,7 +7,7 @@
  */
 
 import * as THREE from 'three';
-import { CelestialBody, RingStructure, Vector3D } from '../simulation/types';
+import { AsteroidBelt, CelestialBody, RingStructure, Vector3D } from '../simulation/types';
 import { G_KM } from '../simulation/units';
 import { SceneManager } from '../rendering/scene-manager';
 
@@ -238,6 +238,40 @@ export class OrbitLoom {
     this.updateFittedVisual();
   }
 
+  /**
+   * Adjust orbital inclination in degrees. The conic is tilted around the
+   * periapsis line, preserving apsis distances while rotating the plane.
+   */
+  public setInclination(deg: number): void {
+    if (!this.currentFittedOrbit || !this.primaryBody) return;
+    this.currentFittedOrbit.inclinationDeg = Math.max(-90, Math.min(90, deg));
+    this.recomputeParameters();
+    this.updateFittedVisual();
+  }
+
+  /** Unit basis vectors of the (possibly inclined) orbital plane. */
+  private planeBasis(orbit: FittedOrbit): { u: Vector3D; v: Vector3D; n: Vector3D } {
+    const a = orbit.periapsisAngleRad;
+    const u: Vector3D = { x: Math.cos(a), y: 0, z: Math.sin(a) }; // toward periapsis
+    const baseV: Vector3D = { x: -Math.sin(a), y: 0, z: Math.cos(a) }; // ecliptic tangent
+    const incl = (orbit.inclinationDeg * Math.PI) / 180;
+    const cosI = Math.cos(incl);
+    const sinI = Math.sin(incl);
+    // Rodrigues rotation of the tangent about the apsis line u
+    // u x baseV = (0, -1, 0) for any azimuth a
+    const v: Vector3D = {
+      x: baseV.x * cosI,
+      y: -sinI,
+      z: baseV.z * cosI,
+    };
+    const n: Vector3D = {
+      x: u.y * v.z - u.z * v.y,
+      y: u.z * v.x - u.x * v.z,
+      z: u.x * v.y - u.y * v.x,
+    };
+    return { u, v, n };
+  }
+
   private recomputeParameters(): void {
     if (!this.currentFittedOrbit || !this.primaryBody) return;
     const rMin = this.currentFittedOrbit.periapsisKm;
@@ -251,19 +285,21 @@ export class OrbitLoom {
     this.currentFittedOrbit.periodSec = 2.0 * Math.PI * Math.sqrt((a ** 3) / mu);
 
     const speedPeri = Math.sqrt((mu / a) * ((1.0 + e) / (1.0 - e)));
-    const angle = this.currentFittedOrbit.periapsisAngleRad;
+    const basis = this.planeBasis(this.currentFittedOrbit);
 
     this.currentFittedOrbit.periapsisPositionKm = {
-      x: this.primaryBody.position.x + rMin * Math.cos(angle),
-      y: this.primaryBody.position.y,
-      z: this.primaryBody.position.z + rMin * Math.sin(angle),
+      x: this.primaryBody.position.x + rMin * basis.u.x,
+      y: this.primaryBody.position.y + rMin * basis.u.y,
+      z: this.primaryBody.position.z + rMin * basis.u.z,
     };
 
     this.currentFittedOrbit.periapsisVelocityKmS = {
-      x: -Math.sin(angle) * speedPeri,
-      y: 0,
-      z: Math.cos(angle) * speedPeri,
+      x: basis.v.x * speedPeri,
+      y: basis.v.y * speedPeri,
+      z: basis.v.z * speedPeri,
     };
+
+    this.currentFittedOrbit.planeNormal = basis.n;
   }
 
   private updateStrokeVisual(): void {
@@ -291,18 +327,23 @@ export class OrbitLoom {
 
     const a = this.currentFittedOrbit.semiMajorAxisKm;
     const e = this.currentFittedOrbit.eccentricity;
-    const rot = this.currentFittedOrbit.periapsisAngleRad;
     const primPos = this.primaryBody.position;
+    const basis = this.planeBasis(this.currentFittedOrbit);
 
     for (let i = 0; i <= segments; i++) {
       const theta = (i / segments) * Math.PI * 2;
-      // Polar form of ellipse relative to focus (primary)
+      // Polar form of ellipse relative to focus (primary), in the fitted plane
       const r = (a * (1.0 - e * e)) / (1.0 + e * Math.cos(theta));
+      const cosT = Math.cos(theta);
+      const sinT = Math.sin(theta);
 
-      const xKm = primPos.x + r * Math.cos(theta + rot);
-      const zKm = primPos.z + r * Math.sin(theta + rot);
+      const absKm: Vector3D = {
+        x: primPos.x + (basis.u.x * cosT + basis.v.x * sinT) * r,
+        y: primPos.y + (basis.u.y * cosT + basis.v.y * sinT) * r,
+        z: primPos.z + (basis.u.z * cosT + basis.v.z * sinT) * r,
+      };
 
-      const rel = this.sceneManager.floatingOrigin.toRelative({ x: xKm, y: primPos.y, z: zKm });
+      const rel = this.sceneManager.floatingOrigin.toRelative(absKm);
       const disp = this.sceneManager.scaleTransform.getDisplayPosition(rel);
 
       positions[i * 3] = disp.x;
@@ -320,11 +361,10 @@ export class OrbitLoom {
     this.periHandleMesh.position.set(periDisp.x, periDisp.y, periDisp.z);
     this.periHandleMesh.visible = true;
 
-    const apoAngle = rot + Math.PI;
     const apoPosKm: Vector3D = {
-      x: primPos.x + this.currentFittedOrbit.apoapsisKm * Math.cos(apoAngle),
-      y: primPos.y,
-      z: primPos.z + this.currentFittedOrbit.apoapsisKm * Math.sin(apoAngle),
+      x: primPos.x - this.currentFittedOrbit.apoapsisKm * basis.u.x,
+      y: primPos.y - this.currentFittedOrbit.apoapsisKm * basis.u.y,
+      z: primPos.z - this.currentFittedOrbit.apoapsisKm * basis.u.z,
     };
     const apoRel = this.sceneManager.floatingOrigin.toRelative(apoPosKm);
     const apoDisp = this.sceneManager.scaleTransform.getDisplayPosition(apoRel);
@@ -361,6 +401,26 @@ export class OrbitLoom {
     body.primaryId = this.primaryBody.id;
     this.clear();
     return true;
+  }
+
+  /**
+   * Commit fitted orbit as a debris asteroid belt descriptor (InstancedMesh
+   * particles on Keplerian ellipses around the primary).
+   */
+  public commitToBelt(name: string, particleCount: number, color: string = '#8b8e96'): AsteroidBelt | null {
+    if (!this.currentFittedOrbit || !this.primaryBody) return null;
+    const belt: AsteroidBelt = {
+      id: `belt-${Date.now()}`,
+      name: name.trim() || 'Loomed Debris Belt',
+      primaryId: this.primaryBody.id,
+      innerRadiusKm: this.currentFittedOrbit.periapsisKm * 0.985,
+      outerRadiusKm: this.currentFittedOrbit.apoapsisKm * 1.015,
+      particleCount: Math.max(60, Math.min(3000, Math.round(particleCount))),
+      color,
+      seed: (Date.now() ^ Math.round(this.currentFittedOrbit.semiMajorAxisKm)) >>> 0,
+    };
+    this.clear();
+    return belt;
   }
 
   /**

@@ -9,8 +9,10 @@
 import { TimelineBranch } from '../branching/branch-types';
 import { AsteroidBelt, ConsequenceEvent, HookshotRoute, SystemStatus } from '../simulation/types';
 
+export type ProjectSchemaVersion = '1.0.0' | '1.1.0';
+
 export interface SavedSystemProject {
-  schemaVersion: '1.0.0' | '1.1.0';
+  schemaVersion: ProjectSchemaVersion;
   projectId: string;
   projectName: string;
   seed: number;
@@ -29,6 +31,10 @@ export interface SavedSystemProject {
     showFuture: boolean;
     showSensitivity: boolean;
     showGravityGrid: boolean;
+    showXRay?: boolean;
+    showLabels?: boolean;
+    showTrails?: boolean;
+    showHabitableZone?: boolean;
   };
   cameraState: {
     target: { x: number; y: number; z: number };
@@ -41,7 +47,9 @@ export interface SavedSystemProject {
 
 import { PlannerError } from '../core/errors';
 
-const DB_NAME = 'StarsilkSystemPlannerDB';
+export const CURRENT_SCHEMA_VERSION: ProjectSchemaVersion = '1.1.0';
+
+const DB_NAME = 'starsilk-system-planner-db';
 const DB_VERSION = 1;
 const STORE_NAME = 'systems';
 
@@ -70,31 +78,35 @@ function openDatabase(): Promise<IDBDatabase> {
 
 export async function saveProjectToDb(project: SavedSystemProject): Promise<void> {
   const db = await openDatabase();
-  return new Promise((resolve, reject) => {
+  try {
+    await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    const req = store.put(project);
-    req.onsuccess = () => resolve();
-    req.onerror = () =>
-      reject(new PlannerError('PERSIST_WRITE', 'Failed to save the universe.', String(req.error)));
-  });
+      store.put(project);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(new PlannerError('PERSIST_WRITE', 'Failed to save the universe.', String(tx.error)));
+      tx.onabort = () => reject(new PlannerError('PERSIST_WRITE', 'Failed to save the universe.', String(tx.error)));
+    });
+  } finally { db.close(); }
 }
 
 export async function loadProjectFromDb(projectId: string): Promise<SavedSystemProject | null> {
   const db = await openDatabase();
-  return new Promise((resolve, reject) => {
+  try { return await new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
     const req = store.get(projectId);
     req.onsuccess = () => resolve(req.result || null);
     req.onerror = () =>
       reject(new PlannerError('PERSIST_READ', 'Failed to load the universe.', String(req.error)));
-  });
+  }); } finally { db.close(); }
 }
 
-export async function listAllProjects(): Promise<{ projectId: string; projectName: string; updatedAtIso: string }[]> {
+export interface DatabaseProjectSummary { projectId: string; projectName: string; updatedAtIso: string; }
+
+export async function listAllProjects(): Promise<DatabaseProjectSummary[]> {
   const db = await openDatabase();
-  return new Promise((resolve, reject) => {
+  try { return await new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
     const req = store.getAll();
@@ -105,22 +117,22 @@ export async function listAllProjects(): Promise<{ projectId: string; projectNam
           projectId: p.projectId,
           projectName: p.projectName,
           updatedAtIso: p.updatedAtIso,
-        }))
+        })).sort((a, b) => b.updatedAtIso.localeCompare(a.updatedAtIso))
       );
     };
     req.onerror = () =>
       reject(new PlannerError('PERSIST_READ', 'Failed to list saved universes.', String(req.error)));
-  });
+  }); } finally { db.close(); }
 }
 
 export async function deleteProjectFromDb(projectId: string): Promise<void> {
   const db = await openDatabase();
-  return new Promise((resolve, reject) => {
+  try { await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    const req = store.delete(projectId);
-    req.onsuccess = () => resolve();
-    req.onerror = () =>
-      reject(new PlannerError('PERSIST_WRITE', 'Failed to delete the universe.', String(req.error)));
-  });
+    store.delete(projectId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(new PlannerError('PERSIST_WRITE', 'Failed to delete the universe.', String(tx.error)));
+    tx.onabort = () => reject(new PlannerError('PERSIST_WRITE', 'Failed to delete the universe.', String(tx.error)));
+  }); } finally { db.close(); }
 }
