@@ -1,11 +1,12 @@
 import {validateRegions} from './strategic-model.js';
 import {validateTimeline, sanitizeTimeline} from './temporal-model.js';
+import {BLOOD_ECLIPSE_CANON} from './canon-chronology.js';
 export const VERSION = 1;
 export const STORAGE_KEY = 'starsilk.map-of-the-all.draft.v1';
 export const CANON_BASE = 'https://westkitty.github.io/Starsilk_Character_Dossier';
 export const EPOCHS = [
-  { id: 'war', title: 'Blood Eclipse War', note: 'Blood Rings documented by Year 3; exact locations here are not authored.' },
-  { id: 'locking', title: 'The Siege Wall is locked', note: 'Heliocide containment, black-hole lattice, and costly survival.' },
+  { id: 'war', title: 'Blood Eclipse War', note: `Canonical ${BLOOD_ECLIPSE_CANON.durationYears}-year war; Blood Rings: Year 3; Ruby Eclipse: Year 121. No historical coordinates are authored.` },
+  { id: 'locking', title: 'The Siege Wall is locked', note: 'Following the Year 170 Drakken Starsilk attack: Tiger\'s heliocide, nascent black-hole lattice, then post-war locking. Locations and intermediate dates are unauthored.' },
   { id: 'post', title: 'Post-Siege survey', note: 'Interpretive visualization only. No canonical epoch number is asserted.' },
 ];
 export const LAYERS = [
@@ -26,6 +27,7 @@ const galaxyDefs = [
   ['southern-territories','SOUTHERN TERRITORIES',130,-12,53,'#7aa9ff',0.83],
 ];
 export const RESEARCH_ANCHORS = [
+  { name: 'War chronology', description: 'Dossier-backed 170-year Blood Eclipse War; editorial eras do not imply event coordinates.', url: CANON_BASE + '/chronology/' },
   { name: 'WorldsVault', description: 'Published topology and its direct-authored relationships; layout is explicitly not canonical.', url: CANON_BASE + '/worldsvault/' },
   { name: 'Cosmic architecture', description: 'Source for prisons, repositories, and containment structures.', url: CANON_BASE + '/entities/cosmic-architecture/' },
   { name: 'The systems', description: 'Drakken, Mother, Rings and documented system concepts.', url: CANON_BASE + '/entities/systems/' },
