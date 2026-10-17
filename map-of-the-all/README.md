@@ -58,7 +58,7 @@ See `docs/CANON_AND_IMAGE_AUDIT.md` and `docs/COMPARATIVE_RECON.md`.
 ## Checks
 
 ```bash
-node --test tests/atlas-data.test.mjs
+node --test tests/atlas-data.node-check.mjs
 node --check atlas-data.js
 node --check atlas-engine.js
 node --check main.js

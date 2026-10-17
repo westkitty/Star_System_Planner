@@ -17,7 +17,7 @@ revision: 1
 ## Verification states
 
 - JS syntax: run `node --check` for all 3 JS files.
-- Schema invariant tests: run `node --test tests/atlas-data.test.mjs`.
+- Schema invariant tests: run `node --test tests/atlas-data.node-check.mjs`.
 - HTML/CSS static inspection: review source and snapshots.
 - WebGL/browser/physical tablet performance: **unverified** until representative hardware exercises the app.
 - Parent repo CI, GitHub Pages publishing, and remote push: determined from actual post-commit workflow evidence, not source presence.
