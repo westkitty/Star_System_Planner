@@ -148,6 +148,18 @@
   <div class="side-tools" id="sideTools"><button id="homeBtn" title="Return to The All" aria-label="Return to The All">&#9678;</button><button id="topBtn" title="Top-down camera" aria-label="Top-down camera">&#9635;</button><button id="resetCameraBtn" title="Reset camera" aria-label="Reset camera">&#8635;</button></div>
   <div id="hudNote" class="hud-note"><span class="crosshair">+</span> DRAG TO ORBIT <span class="separator">/</span> PINCH OR SCROLL TO ZOOM <span class="separator">/</span> DOUBLE-CLICK TO ENTER</div>
   <footer class="bottom-bar"><div class="era-title"><span class="eyebrow">TEMPORAL LENS</span><strong id="eraLabel">POST-SIEGE SURVEY</strong></div><div class="era-options" id="eraOptions"></div><div class="bottom-utility"><label>QUALITY <select id="quality"><option value="battery">BATTERY</option><option value="balanced">BALANCED</option><option value="cinematic">CINEMATIC</option></select></label><button id="motionBtn" title="Toggle ambient animation">MOTION ON</button><button id="exportBtn" class="primary-button">EXPORT &#8599;</button><button id="importBtn" class="button-outline">IMPORT</button><input id="fileInput" type="file" accept="application/json,.json" hidden/></div></footer>
+  <dialog id="importReviewDialog" class="help-dialog atlas-import-review" aria-labelledby="importReviewHeading" aria-describedby="importReviewDescription">
+    <div class="eyebrow">CARTOGRAPHIC ARCHIVE / IMPORT REVIEW</div>
+    <h2 id="importReviewHeading">REPLACE THIS LOCAL DRAFT?</h2>
+    <p id="importReviewDescription">The incoming file has passed schema validation. Applying it replaces this browser's map, including all independent era drafts. Undo lasts only until you reload. Export your current draft before replacement if you may need it again.</p>
+    <p id="importReviewSummary" class="atlas-import-summary" aria-live="polite"></p>
+    <p>Imported source references become editable drafts. This does not create canonical coordinates, routes, regions or chronology.</p>
+    <div class="atlas-import-actions">
+      <button id="importReviewCancel" type="button" class="button-outline">CANCEL</button>
+      <button id="importReviewBackup" type="button" class="button-outline">EXPORT CURRENT DRAFT ↗</button>
+      <button id="importReviewApply" type="button" class="primary-button">REPLACE LOCAL DRAFT</button>
+    </div>
+  </dialog>
   <dialog id="sourceGraphDialog" class="source-graph-dialog" aria-labelledby="sourceGraphHeading">
     <header class="source-graph-header"><div><span class="eyebrow">WORLDSVAULT / SOURCE TOPOLOGY</span><h2 id="sourceGraphHeading">RELATIONSHIPS WITHOUT COORDINATES</h2><p>11 published identities / 6 direct-authored relationships. Conceptual arrangement only; neither map positions nor travel routes.</p></div><button type="button" id="sourceGraphClose" class="button-outline">CLOSE GRAPH ×</button></header>
     <label class="source-search">FIND SOURCE IDENTITY <input id="sourceGraphSearch" type="search" placeholder="WorldsVault, Meridian, Mother..." autocomplete="off"/></label>

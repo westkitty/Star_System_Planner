@@ -248,11 +248,29 @@ function commitNetworkLink({from,to,kind}){
 function exportAtlas(){syncEra(state);const data={...state,selected:null,updatedAt:new Date().toISOString()};const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});
   const url=URL.createObjectURL(blob);const a=el('a');a.href=url;a.download='starsilk-map-of-the-all-draft-v'+VERSION+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);message('JSON atlas exported. No canon has been changed.');
 }
-async function importAtlas(file){if(!file)return;if(file.size>1200000){message('JSON exceeds 800 KB import limit.',true);return;}
-  try{const contents=await file.text();const parsed=sanitizeAtlas(JSON.parse(contents));const previous=JSON.stringify(state);
-    strategy?.cancelGesture();strategy?.cancelDrawing();
-    studio?.cancel();studio?.routeStop();state=parsed;ensureTimeline(state);history.push(previous);view={kind:'all',id:null};pendingRoute=null;engine?.setState(state,view);engine?.setView(view);updateUI();persist();message('Imported as draft: source status intentionally demoted.');
-  }catch(e){message('Import refused: '+e.message,true);}
+let pendingImport=null;
+function summaryDraft(data){return data.nodes.length+' objects / '+data.routes.length+' corridors / '+(data.regions?.length||0)+' regions / '+(data.timeline?'3':'1')+' era snapshots';}
+async function importAtlas(file){
+  if(!file)return;
+  if(file.size>1200000){message('JSON exceeds the 1.2 MB import limit.',true);return;}
+  try{
+    const parsed=sanitizeAtlas(JSON.parse(await file.text()));
+    pendingImport=parsed;
+    $('importReviewSummary').textContent='CURRENT: '+summaryDraft(state)+'\nINCOMING: '+summaryDraft(parsed);
+    $('importReviewDialog').showModal();
+  }catch(e){pendingImport=null;message('Import refused: '+e.message,true);}
+}
+function applyImportedAtlas(){
+  if(!pendingImport)return;
+  const parsed=pendingImport,previous=JSON.stringify(state);
+  try{
+    strategy?.cancelGesture();strategy?.cancelDrawing();studio?.cancel();studio?.routeStop();
+    state=parsed;ensureTimeline(state);history.push(previous);if(history.length>30)history.shift();
+    view={kind:'all',id:null};pendingRoute=null;
+    engine?.setState(state,view);engine?.setView(view);updateUI();persist();
+    $('importReviewDialog').close();
+    message('Imported as draft. References were demoted; Undo is session-only.');
+  }catch(e){state=JSON.parse(previous);message('Import refused: '+e.message,true);}
 }
 function undo(){if(!history.length){message('No changes to undo.');return;}strategy?.cancelGesture();strategy?.cancelDrawing();studio?.cancel();studio?.routeStop();pendingRoute=null;state=JSON.parse(history.pop());
   if(view.id&&!nodeById(state,view.id))view={kind:'all',id:null};engine?.setState(state,view);updateUI();persist();message('Reverted last edit.');
@@ -279,9 +297,14 @@ function bind(){
   $('handoffExportBtn').addEventListener('click',exportPlannerHandoff);
   $('exportBtn').addEventListener('click',exportAtlas);$('importBtn').addEventListener('click',()=>$('fileInput').click());
   $('fileInput').addEventListener('change',ev=>{importAtlas(ev.target.files?.[0]);ev.target.value='';});
+  const importReview=$('importReviewDialog');
+  importReview.addEventListener('close',()=>{pendingImport=null;});
+  $('importReviewCancel').addEventListener('click',()=>importReview.close());
+  $('importReviewBackup').addEventListener('click',exportAtlas);
+  $('importReviewApply').addEventListener('click',applyImportedAtlas);
   gui.search.addEventListener('input',showSearch);gui.search.addEventListener('focus',()=>{if(innerWidth<=620)gui.left.classList.add('expanded');});
   document.addEventListener('keydown',ev=>{
-    if(ev.target.matches('input,textarea,select')||$('helpDialog').open||$('sourceGraphDialog').open)return;
+    if(ev.target.matches('input,textarea,select')||$('helpDialog').open||$('sourceGraphDialog').open||$('importReviewDialog').open)return;
     if(ev.key==='/'&&!ev.ctrlKey){ev.preventDefault();focusSearch();}
     else if(ev.key.toLowerCase()==='h'){toggleFocus();}
     else if(ev.key.toLowerCase()==='f'){focusSelected();}

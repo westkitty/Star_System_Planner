@@ -122,3 +122,11 @@
   .atlas-era-chooser .era-btn{min-height:51px}
 }
 @media(prefers-reduced-motion:reduce){.atlas-pull-tab{transition:none}}
+
+/* Destructive local imports get an explicit, touch-sized review. */
+.atlas-import-review{box-sizing:border-box;width:min(590px,calc(100vw - 24px));padding:clamp(18px,4vw,30px)}
+.atlas-import-review h2{font-size:clamp(21px,3vw,30px);margin:10px 0}
+.atlas-import-summary{white-space:pre-line;border-left:2px solid #64cee9;background:#041c2a;padding:12px 14px;color:#dbf7ff!important;font:11px/1.9 var(--mono)!important}
+.atlas-import-actions{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end;margin-top:18px}
+.atlas-import-actions button{min-height:44px}
+@media(max-width:620px){.atlas-import-actions button{flex:1 1 100%}}
