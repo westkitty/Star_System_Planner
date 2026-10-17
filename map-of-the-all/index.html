@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#03060a"/><meta name="description" content="A provisional, source-aware, editable Three.js atlas of the Starsilk All."/>
+<title>THE MAP OF THE ALL / Starsilk Atlas Laboratory</title>
+<link rel="stylesheet" href="./atlas.css"/>
+<link rel="stylesheet" href="./studio.css"/>
+<link rel="stylesheet" href="./strategic.css"/>
+<link rel="stylesheet" href="./network.css"/>
+<link rel="stylesheet" href="./temporal.css"/>
+</head><body>
+<div class="atlas" id="atlas">
+  <div class="scene-host" id="sceneHost"><canvas id="spaceCanvas" aria-label="Rotatable 3D Starsilk universe. Drag to rotate, scroll or pinch to zoom; click to select."></canvas><div id="labels" class="labels"></div><div class="scene-grain" aria-hidden="true"></div></div>
+  <div class="edge-top" aria-hidden="true"></div>
+  <header class="top-bar">
+    <div class="brandmark" aria-hidden="true"><span class="brandmark-a">S</span><span class="brandmark-line"></span></div>
+    <div class="branding"><div class="eyebrow">STARSILK <span class="brand-sep">/</span> CARTOGRAPHIC DIRECTORATE</div><h1>THE MAP OF THE ALL</h1><div class="minor">DRAFT ATLAS <span class="dot-amber"></span> UNAUTHORED COORDINATES <span class="separator">/</span> SURVEY 001</div></div>
+    <div class="header-actions"><div class="status-label" id="savedStatus" role="status">LOCAL DRAFT</div><button id="temporalOpen" class="quiet-btn temporal-header-entry" type="button" aria-expanded="false" aria-controls="temporalPanel">ERA STUDIO ✧</button><button id="networkOpen" class="quiet-btn" title="Open draft corridor network analysis">NETWORK LAB</button><button id="strategyOpen" class="quiet-btn strategic-entry" title="Open group transforms and draft territory authoring">STRATEGY LAB ✥</button><button id="sourceGraphOpen" class="quiet-btn" title="Read-only WorldsVault relationship graph">SOURCE GRAPH · 11 / 6</button><button id="presentBtn" class="quiet-btn" title="Hide the interface (H)">FOCUS VIEW <span aria-hidden="true">&#8599;</span></button><button id="helpBtn" class="quiet-btn" aria-label="Open controls help">?</button></div>
+  </header>
+  <aside class="left-panel" id="leftPanel">
+    <div class="panel-heading"><span>ATLAS NAVIGATOR</span><small>01 / 04</small></div>
+    <div class="breadcrumb" id="breadcrumb" aria-label="Navigation path"></div>
+    <div class="search-box"><span aria-hidden="true">&#9906;</span><input id="search" type="search" aria-label="Find a galaxy, system, planet or annotation" placeholder="Find an object...  /" autocomplete="off"/></div>
+    <div id="searchResults" class="search-results" hidden></div>
+    <div class="panel-heading inline"><span>VISIBLE STRUCTURES</span><button id="allLayersBtn" class="text-btn">ALL / NONE</button></div>
+    <div id="layerControls" class="layer-controls"></div>
+    <div class="panel-heading inline"><span>SURVEY CONTENT</span><small>PROVISIONAL</small></div>
+    <div id="nodeList" class="node-list"></div>
+    <div class="panel-heading inline"><span>DRAFT CORRIDORS</span><small>EDITABLE</small></div><div id="routeList" class="route-list"></div>
+    <div class="add-controls"><button id="addNodeBtn" class="button-outline">+ ADD GALAXY</button><button id="addAnnotationBtn" class="button-outline faint">+ LABEL</button></div>
+    <div class="small-note"><span class="glowdot"></span> Blue denotes visualization, not a verified coordinate system.</div>
+  </aside>
+  <aside class="right-panel" id="rightPanel">
+    <button id="closeMobileInspector" class="mobile-close" type="button">× CLOSE INSPECTOR</button>
+    <div class="panel-heading"><span>THE OBSERVATORY</span><small id="inspectorCounter">LIVE / DRAFT</small></div>
+    <div class="inspector-hero"><div id="objectSigil" class="object-sigil"><span>&#10023;</span></div><div class="inspector-kicker" id="inspectorKind">COSMOLOGICAL SURVEY</div><h2 id="inspectorTitle">A UNIVERSE IN REVISION</h2><p id="inspectorDescription">Select a galaxy to inspect its provisional position, or double-click it to descend into its stellar systems.</p></div>
+    <div class="inspector-divider"></div>
+    <div class="inspector-status" id="inspectorStatus">SOURCE / VISUALIZATION SEPARATED</div>
+    <form id="objectForm" class="editor" hidden>
+      <label>DISPLAY NAME <input id="objName" maxlength="100" required/></label>
+      <label>ANNOTATION / CONTEXT <textarea id="objDescription" rows="3" maxlength="2500"></textarea></label>
+      <div class="form-group-caption">CARTOGRAPHIC COORDINATES <span>NON-CANON</span></div>
+      <div class="xyz"><label>X <input type="number" id="objX" step="any" min="-10000" max="10000"/></label><label>Y <input type="number" id="objY" step="any" min="-10000" max="10000"/></label><label>Z <input type="number" id="objZ" step="any" min="-10000" max="10000"/></label></div>
+      <div class="two-col"><label>OBJECT COLOR <input type="color" id="objColor"/></label><label>SIZE <input type="number" id="objSize" min="0.1" max="10" step="any"/></label></div>
+      <div class="form-group-caption">TYPOGRAPHY</div>
+      <label class="inline-check"><input id="objLabelShow" type="checkbox"/> DISPLAY LABEL</label>
+      <div class="two-col"><label>LABEL COLOR <input type="color" id="objLabelColor"/></label><label>FONT SIZE <input id="objLabelSize" type="number" min="9" max="36" step="1"/></label></div>
+      <label>FONT FAMILY <select id="objLabelFamily"><option value="display">EDITORIAL / SERIF</option><option value="mono">CARTOGRAPHIC / MONO</option></select></label>
+      <div class="editor-actions"><button type="submit" class="primary-button" id="applyBtn">APPLY CHANGES</button><button type="button" class="button-outline" id="enterBtn">ENTER</button><button type="button" class="button-outline" id="focusBtn">FOCUS</button></div>
+      <div class="editor-actions"><button type="button" class="text-btn" id="connectBtn">CONNECT ROUTE</button><button type="button" class="text-btn destructive" id="deleteBtn">DELETE DRAFT</button></div>
+    </form>
+    <section class="orbital-handoff" aria-label="Orbital handoff to system planner">
+      <div class="panel-heading"><span>ORBITAL LABORATORY</span><small>NON-CANON</small></div>
+      <p id="plannerHandoffInfo">Select a draft stellar system to create a hypothetical orbital laboratory file. Atlas display coordinates never become physical measurements.</p>
+      <div class="handoff-actions"><button type="button" id="handoffExportBtn" class="button-outline" disabled>EXPORT SYSTEM .SSP ↗</button><a id="handoffOpenPlanner" class="button-outline" href="../" target="_blank" rel="noopener noreferrer">OPEN PLANNER ↗</a></div>
+    </section>
+    <div class="source-section"><div class="panel-heading"><span>CANON PROVENANCE</span><small>READ ONLY</small></div><div id="sourceLinks" class="source-list"></div></div>
+    <div class="panel-heading"><span>INSTRUMENTATION</span><small>GPU / LIVE</small></div>
+    <div class="instrument-grid"><div><b id="countGalaxy">07</b><small>GALAXIES</small></div><div><b id="countSystems">35</b><small>SYSTEMS</small></div><div><b id="drawCalls">--</b><small>DRAW CALLS</small></div></div>
+  </aside>
+  <section class="network-panel" id="networkPanel" aria-label="Hookshot network intelligence for provisional draft corridors" hidden>
+    <header class="network-head"><div><small>STARSILK / SURVEY INSTRUMENT 05</small><h2>NETWORK INTELLIGENCE</h2></div><button id="networkClose" type="button" aria-label="Close network lab">&times;</button></header>
+    <p class="network-notice">Analyze proposed corridors. A hop is ONE draft connection, never a known distance, duration, political permission, or canonical Starsilk rule.</p>
+    <output id="networkTier">ALL / GALAXIES</output>
+    <label>ACTIVE CONNECTION TYPES<select id="networkKind"><option value="all">ALL DRAFT CORRIDORS</option><option value="hookshot">HOOKSHOT DRAFTS ONLY</option><option value="starsilk">STARSILK DRAFTS ONLY</option></select></label>
+    <div class="network-metrics" aria-label="Network connectivity counts">
+      <div class="network-metric"><strong id="networkNodes">0</strong><span>NODES</span></div>
+      <div class="network-metric"><strong id="networkLinks">0</strong><span>LANES</span></div>
+      <div class="network-metric"><strong id="networkIslands">0</strong><span>CLUSTERS</span></div>
+      <div class="network-metric"><strong id="networkBridgesCount">0</strong><span>CUT EDGES</span></div>
+    </div>
+    <h3>TRACE AN EDITORIAL PATH</h3>
+    <div class="network-endpoints"><label>ORIGIN<select id="networkFrom"></select></label><label>DESTINATION<select id="networkTo"></select></label></div>
+    <div class="network-actions"><button id="networkTrace" type="button" class="network-primary">TRACE FEWEST HOPS</button><button id="networkReset" type="button">CLEAR OUTAGES</button></div>
+    <output id="networkPath" class="network-outcome" aria-live="polite">Choose two draft objects to analyze connectivity.</output>
+    <h3>PROPOSE AN EXTRA CORRIDOR</h3>
+    <label>NEW DRAFT TYPE<select id="networkNewKind"><option value="hookshot">HOOKSHOT / PROPOSED</option><option value="starsilk">AZURE / PROPOSED</option></select></label>
+    <button id="networkCommit" type="button" disabled class="network-primary">+ COMMIT ONE DRAFT CORRIDOR</button>
+    <h3>TEMPORARY CORRIDOR CLOSURES</h3>
+    <p id="networkOutageInfo" class="network-impact">All draft corridors active. Closures are analysis-only.</p>
+    <div class="network-closures" id="networkRouteList" aria-label="Hypothetical disabled corridors"></div>
+    <h3>SINGLE-CORRIDOR FAILURE POINTS</h3>
+    <ul id="networkBridgeList" class="network-bridges"></ul>
+    <p class="network-foot">LOCAL HYPOTHESIS ONLY / The Dossier's sourced WorldsVault edges are a separate read-only topology. Closing a corridor here cannot alter your saved map or Starsilk canon.</p>
+  </section>
+  <section class="strategic-panel" id="strategyPanel" aria-label="Strategic Studio — draft 4X cartography" hidden>
+    <header class="strategy-header"><div><span class="eyebrow">SURVEY / PHASE 04</span><h2>THE STRATEGIC ATLAS</h2><p>Editable hypotheses, not jurisdictions or physical distances.</p></div><button id="strategyClose" type="button" aria-label="Close strategic studio">×</button></header>
+    <div class="strategy-modebar" role="group" aria-label="Strategic instrument"><button type="button" id="strategyModeGroup" aria-pressed="true">GROUP</button><button type="button" id="strategyModeRegion" aria-pressed="false">REGIONS</button><button type="button" id="strategyModePan" aria-pressed="false">ORBIT</button></div>
+    <div id="strategyGroupTools" class="strategy-group-tools">
+      <div class="strategy-inline"><strong><output id="strategyCount">0</output> SELECTED</strong><button type="button" id="strategySelectAll">ALL VISIBLE</button><button type="button" id="strategyClear">CLEAR</button></div>
+      <p id="strategyGroupSummary">Click draft markers, Shift-click to add, or drag a selection rectangle.</p>
+      <div class="strategy-inline"><label>AXIS <select id="strategyGroupAxis"><option value="xz">XZ PLANE</option><option value="y">Y / HEIGHT</option></select></label><label>SNAP <select id="strategyGroupSnap"><option value="0">FREE</option><option value="1">1</option><option value="5">5</option><option value="10">10</option></select></label></div>
+      <div class="strategy-nudge" aria-label="Accessible group translate controls"><button type="button" id="strategyNudgeLeft" aria-label="Nudge X negative">← X</button><button type="button" id="strategyNudgeRight" aria-label="Nudge X positive">X →</button><button type="button" id="strategyNudgeUp" aria-label="Nudge Z negative">↑ Z</button><button type="button" id="strategyNudgeDown" aria-label="Nudge Z positive">Z ↓</button><button type="button" id="strategyNudgeHeight" aria-label="Nudge Y positive">Y +</button></div>
+      <button type="button" id="strategyFromGroup" class="strategy-primary" disabled>CREATE SURVEY BOUNDARY FROM SELECTION</button>
+      <small>✥ Drag the group handle to translate all selected draft markers in one undo step. Snap units are editorial only.</small>
+    </div>
+    <div id="strategyRegionTools" class="strategy-region-tools" hidden>
+      <div class="strategy-inline"><button type="button" id="strategyStartDraw">DRAW POLYGON</button><button type="button" id="strategyFinishDraw" disabled>FINISH</button><button type="button" id="strategyCancelDraw">CANCEL</button></div>
+      <p id="strategyDrawHint">Draw a provisional boundary, or select one to edit its vertices.</p>
+      <div id="strategyRegionList" class="strategy-region-list" aria-label="Draft region list"></div>
+      <p id="strategyRegionEmpty">Select a region to inspect its vertices. Shape data never implies faction sovereignty.</p>
+      <form id="strategyRegionForm" hidden>
+        <label>REGION NAME <input id="strategyRegionName" maxlength="100" required/></label>
+        <label>AFFILIATION NOTE / PROVISIONAL <input id="strategyRegionAffiliation" maxlength="100"/></label>
+        <label>DISPLAY COLOR <input id="strategyRegionColor" type="color"/></label>
+        <div class="strategy-inline"><strong>BOUNDARY VERTICES</strong><button type="button" id="strategyAddVertex">+ VERTEX</button></div>
+        <div id="strategyVertexList" class="strategy-vertex-list"></div>
+        <output id="strategyRegionMetrics">0 nodes</output>
+        <div class="strategy-inline"><button type="submit" class="strategy-primary">SAVE DRAFT</button><button type="button" id="strategyDeleteRegion" class="strategy-danger">DELETE</button></div>
+      </form>
+    </div>
+    <p class="strategy-footer">SCHEMATIC / NOT CANON · No claims about territorial owners, real routes or distances.</p>
+  </section>
+  <section class="temporal-panel" id="temporalPanel" aria-label="Three-era cartographic draft timeline and comparison" hidden>
+    <header class="temporal-header"><div><span class="temporal-overline">SURVEY INSTRUMENT / 06</span><h2>THE TEMPORAL ATLAS</h2><p>THREE INDEPENDENT DRAFT ERAS</p></div><button id="temporalClose" type="button" aria-label="Close temporal atlas">×</button></header>
+    <p class="temporal-disclaimer">Source-confirmed event categories; illustrative geometry. No inferred year markers, physical trajectories, star motion, or canonical territorial history.</p>
+    <output id="temporalActive" class="temporal-current">POST-SIEGE SURVEY</output>
+    <label class="temporal-field" for="temporalScrub">SCRUB AMONG INDEPENDENT ERA DRAFTS</label>
+    <input id="temporalScrub" type="range" min="0" max="2" step="1" value="2" aria-label="Selected schematic era"/>
+    <div class="temporal-era-names" aria-hidden="true"><span>WAR</span><span>WALL LOCKING</span><span>POST-SIEGE</span></div>
+    <label class="temporal-field" for="temporalNote">EDITORIAL ERA NOTE / NOT CANON</label>
+    <textarea id="temporalNote" maxlength="800" rows="3" placeholder="Describe the changes in this draft. This field never promotes claims to canon."></textarea>
+    <button type="button" id="temporalSaveNote" class="temporal-primary">SAVE DRAFT NOTE</button>
+    <div class="temporal-divider"></div>
+    <h3>COMPARE CHARTS</h3>
+    <label class="temporal-field" for="temporalCompare">BASELINE ERA</label>
+    <select id="temporalCompare"><option value="war">BLOOD ECLIPSE WAR</option><option value="locking">SIEGE WALL LOCKING</option><option value="post">POST-SIEGE SURVEY</option></select>
+    <output id="temporalStatus" class="temporal-status" aria-live="polite">NO DRAFT DIFFERENCES</output>
+    <div id="temporalMetrics" class="temporal-metrics" aria-label="Count of changed draft objects, routes, layers and regions"></div>
+    <label class="temporal-ghost-toggle"><input id="temporalGhost" type="checkbox" checked/> DISPLAY SCHEMATIC CHANGE TRAILS ON 3D MAP</label>
+    <div id="temporalDiffList" class="temporal-differences"></div>
+    <div class="temporal-actions"><button type="button" id="temporalJump">OPEN BASELINE ERA</button><button type="button" id="temporalCloneBtn" class="temporal-danger">REPLACE BASELINE WITH CURRENT DRAFT</button></div>
+    <p class="temporal-foot">Each era has independently editable structures, corridors, regions and layer visibility. Copying is an explicit, undoable draft replacement. Published Dossier evidence remains read-only.</p>
+  </section>
+  <section class="studio-panel" id="studioPanel" aria-label="Spatial Studio — editorial map tools">
+    <div class="studio-modes" role="group" aria-label="Editing mode">
+      <button type="button" data-studio-mode="orbit" aria-pressed="true" class="active" title="Orbit camera and inspect objects">ORBIT</button>
+      <button type="button" data-studio-mode="move" aria-pressed="false" title="Drag a draft object in the editor">MOVE</button>
+      <button type="button" data-studio-mode="route" aria-pressed="false" title="Connect draft nodes with a proposed route">ROUTE</button>
+      <button type="button" data-studio-mode="label" aria-pressed="false" title="Move editable typography">TYPE</button>
+    </div>
+    <div class="studio-options"><span class="studio-hint" id="studioGestureHint">ORBIT: DRAG SPACE / SELECT A MARKER</span><label>STYLE <select id="studioLens" aria-label="Cartographic style lens"><option value="survey">SURVEY</option><option value="signal">SIGNAL</option><option value="cartographer">CARTOGRAPHER</option></select></label></div>
+    <div class="studio-subsettings" id="studioMoveSettings" hidden><label>AXIS <select id="studioAxis"><option value="xz">XZ PLANE</option><option value="y">Y / HEIGHT</option></select></label><label>SNAP <select id="studioSnap"><option value="0">FREE</option><option value="0.5">0.5</option><option value="1">1</option><option value="5">5</option><option value="10">10</option></select></label></div>
+    <div class="studio-subsettings" id="studioRouteSettings" hidden><label>CORRIDOR <select id="studioRouteKind"><option value="hookshot">HOOKSHOT / DRAFT</option><option value="starsilk">STARSILK / DRAFT</option></select></label><button type="button" id="studioCancelRoute">CANCEL ROUTE</button></div>
+    <div class="studio-subsettings" id="studioTypeSettings" hidden><label>TYPE SCALE <input id="studioTypeScale" class="studio-type-range" type="range" min="0.6" max="2" step="0.05" value="1"/><output class="studio-type-value" id="studioTypeScaleValue" for="studioTypeScale">100%</output></label></div>
+  </section>
+  <div class="side-tools" id="sideTools"><button id="homeBtn" title="Return to The All" aria-label="Return to The All">&#9678;</button><button id="topBtn" title="Top-down camera" aria-label="Top-down camera">&#9635;</button><button id="resetCameraBtn" title="Reset camera" aria-label="Reset camera">&#8635;</button></div>
+  <div id="hudNote" class="hud-note"><span class="crosshair">+</span> DRAG TO ORBIT <span class="separator">/</span> PINCH OR SCROLL TO ZOOM <span class="separator">/</span> DOUBLE-CLICK TO ENTER</div>
+  <footer class="bottom-bar"><div class="era-title"><span class="eyebrow">TEMPORAL LENS</span><strong id="eraLabel">POST-SIEGE SURVEY</strong></div><div class="era-options" id="eraOptions"></div><div class="bottom-utility"><label>QUALITY <select id="quality"><option value="battery">BATTERY</option><option value="balanced">BALANCED</option><option value="cinematic">CINEMATIC</option></select></label><button id="motionBtn" title="Toggle ambient animation">MOTION ON</button><button id="exportBtn" class="primary-button">EXPORT &#8599;</button><button id="importBtn" class="button-outline">IMPORT</button><input id="fileInput" type="file" accept="application/json,.json" hidden/></div></footer>
+  <dialog id="sourceGraphDialog" class="source-graph-dialog" aria-labelledby="sourceGraphHeading">
+    <header class="source-graph-header"><div><span class="eyebrow">WORLDSVAULT / SOURCE TOPOLOGY</span><h2 id="sourceGraphHeading">RELATIONSHIPS WITHOUT COORDINATES</h2><p>11 published identities / 6 direct-authored relationships. Conceptual arrangement only; neither map positions nor travel routes.</p></div><button type="button" id="sourceGraphClose" class="button-outline">CLOSE GRAPH ×</button></header>
+    <label class="source-search">FIND SOURCE IDENTITY <input id="sourceGraphSearch" type="search" placeholder="WorldsVault, Meridian, Mother..." autocomplete="off"/></label>
+    <div class="source-board-scroll"><div class="source-graph-board" id="sourceGraphBoard"><div id="sourceGraphNodes" class="source-graph-nodes"></div></div></div>
+    <div class="source-bottom-grid"><section><h3>DIRECT-AUTHORED RELATIONS</h3><div id="sourceGraphRelations" class="source-relations"></div></section><section id="sourceGraphDetails" aria-live="polite" class="source-details"></section></div>
+    <p class="source-license-note">Read-only projection · Dossier machine publication SHA 862bc476fb8165784704151eed35c915cbf31bf4. No atlas editor action changes these records.</p>
+  </dialog>
+  <dialog id="helpDialog" class="help-dialog"><h2>THE CARTOGRAPHER'S DESK</h2><p>This is a spatial hypothesis, not a canonical star chart. Every starting point and corridor is editable draft geometry. Only verified names and relationships should be promoted through separate canon governance.</p><div class="help-grid"><div><b>EXPLORATION</b><p>Drag or swipe to orbit. Pinch or scroll to zoom. Select a marker. Double-click a galaxy to explore its systems; double-click a system to inspect planets.</p></div><div><b>AUTHORING</b><p>Use Spatial Studio: ORBIT for camera movement, MOVE to drag editable draft markers in XZ or Y, ROUTE to connect same-tier draft objects, TYPE to drag editable labels. Press Escape to cancel an active gesture. The inspector also supports precise XYZ and typography values. Edits are saved in this browser and can be exported as JSON.</p></div><div><b>NETWORK INTELLIGENCE</b><p>Trace minimal corridor hops, inspect disconnected clusters and cut edges, simulate temporary closures, and optionally create one explicit draft link. No real travel metrics.</p></div><div><b>THE TEMPORAL ATLAS</b><p>Use EDIT / COMPARE by the era selector to switch independent draft periods, inspect added/moved/removed objects, and save editorial era notes. Change trails are schematic. No historical dates or canonical coordinates are inferred.</p></div><div><b>STRATEGY LAB</b><p>Select draft objects into groups, drag the centroid handle or use nudge controls; draw or edit validated polygon boundaries; inspect corridor connectivity. Undo is one atomic edit per release.</p></div><div><b>KEYBOARD</b><p>H: hide HUD. /: search. Escape: up one scale. F: focus selection. Home: return to the All.</p></div><div><b>CANON BOUNDARY</b><p>WorldsVault identities and documented relationships have references. None of the map's coordinates, proposed regions, displayed routes, or exemplary planetary orbits is established lore.</p></div></div><button id="closeHelp" class="primary-button">CLOSE INSTRUMENT</button></dialog>
+  <div class="notifications" id="notifications" aria-live="polite"></div>
+  <div class="loading" id="loading"><div class="loading-symbol">S</div><div>CHARTING THE ALL</div><small>INITIALIZING THE OBSERVATORY</small></div>
+</div>
+<script type="module" src="./main.js"></script>
+</body></html>
