@@ -78,7 +78,7 @@ async function test(){await ready();
  const unique=await page.evaluate(()=>JSON.parse(localStorage.getItem('starsilk.map-of-the-all.draft.v1')).routes.length);
  expect(unique===routes,'duplicate route rejected');
  await page.locator('#studioCancelRoute').click();
- expect(!(await page.locator('.studio-route-preview').isVisible()),'cancel discards pending route');
+ expect(await page.locator('.studio-route-preview').evaluate(el=>el.hidden===true),'cancel discards pending route');
  await page.screenshot({path:'atlas-qa-evidence/phase3-editor-desktop.png'});
  // The existing parent remains served at the same URL.
  const parent=await page.goto(HOST+'/Star_System_Planner/',{waitUntil:'domcontentloaded',timeout:15000});expect(parent.status()===200,'parent app responds 200');
