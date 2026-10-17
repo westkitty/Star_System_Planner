@@ -56,7 +56,7 @@
 .temporal-removed{fill:none;stroke:#e5ae8a;stroke-dasharray:3 4;stroke-width:2}
 @media(max-width:850px){.temporal-panel{top:90px;bottom:120px;right:10px;width:min(355px,calc(100vw - 20px))}}
 @media(max-width:620px){
- .temporal-launch{font-size:9px;min-height:40px;padding:6px}
+ .temporal-launch{position:fixed;right:12px;bottom:124px;z-index:34;font-size:9px;min-height:42px;padding:8px 12px;background:#0b4157;border-color:#86d9f0;box-shadow:0 4px 18px #000b}
  .temporal-panel{position:absolute;top:88px;bottom:114px;left:9px;right:9px;width:auto;padding:12px;gap:9px}
  .temporal-header h2{font-size:20px}
  .temporal-metric{padding:7px 2px}
