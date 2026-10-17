@@ -268,6 +268,7 @@ function applyImportedAtlas(){
     state=parsed;ensureTimeline(state);history.push(previous);if(history.length>30)history.shift();
     view={kind:'all',id:null};pendingRoute=null;
     engine?.setState(state,view);engine?.setView(view);updateUI();persist();
+    pendingImport=null;
     $('importReviewDialog').close();
     message('Imported as draft. References were demoted; Undo is session-only.');
   }catch(e){state=JSON.parse(previous);message('Import refused: '+e.message,true);}
@@ -298,8 +299,10 @@ function bind(){
   $('exportBtn').addEventListener('click',exportAtlas);$('importBtn').addEventListener('click',()=>$('fileInput').click());
   $('fileInput').addEventListener('change',ev=>{importAtlas(ev.target.files?.[0]);ev.target.value='';});
   const importReview=$('importReviewDialog');
-  importReview.addEventListener('close',()=>{pendingImport=null;});
-  $('importReviewCancel').addEventListener('click',()=>importReview.close());
+  // A 'close' event is asynchronous and can clear a NEW preview opened immediately
+  // after Escape/Cancel. Clear pending state synchronously at each exit instead.
+  importReview.addEventListener('cancel',()=>{pendingImport=null;});
+  $('importReviewCancel').addEventListener('click',()=>{pendingImport=null;importReview.close();});
   $('importReviewBackup').addEventListener('click',exportAtlas);
   $('importReviewApply').addEventListener('click',applyImportedAtlas);
   gui.search.addEventListener('input',showSearch);gui.search.addEventListener('focus',()=>{if(innerWidth<=620)gui.left.classList.add('expanded');});
