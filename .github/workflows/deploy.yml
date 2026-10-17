@@ -40,6 +40,8 @@ jobs:
         run: npm run bundle:report
       - name: Install CI-only Browser Driver
         run: npm install --no-save --no-package-lock --ignore-scripts --no-audit playwright-core@1.56.1
+      - name: Verify Visible Universe and Collapsed Pull-Down Controls in Chromium
+        run: node scripts/atlas-focus-browser-ci.mjs
       - name: Validate Spatial Studio in Chromium
         run: node scripts/spatial-studio-browser-ci.mjs
       - name: Validate Strategic Region Studio in Chromium
@@ -61,6 +63,7 @@ jobs:
           test -f dist/index.html
           test -f dist/map-of-the-all/index.html
           grep -q 'id="temporalPanel"' dist/map-of-the-all/index.html
+          grep -q 'atlas-minimal' dist/map-of-the-all/index.html
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:

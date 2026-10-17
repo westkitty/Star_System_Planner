@@ -1,4 +1,5 @@
 import { AtlasEngine } from './atlas-engine.js';
+import {setupFullscreenAtlas} from './atlas-focus.js';
 import { TemporalLab } from './temporal-lab.js';
 import {ensureTimeline, syncEra, switchEra, cloneEra, writeEraNote} from './temporal-model.js';
 import { StrategicStudio } from './strategic-studio.js';
@@ -319,3 +320,4 @@ function init(){updateUI();bind();
     console.error('Atlas startup:',e);}
 }
 init();
+setupFullscreenAtlas();

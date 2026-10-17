@@ -2,7 +2,7 @@
 
 project_id: starsilk-map-of-the-all
 project_name: The Map of the All — 3D Prototype
-revision: 7
+revision: 8
 
 ## Current baseline
 
@@ -84,3 +84,9 @@ See docs/QA_EVIDENCE.md for observed browser paths and evidence limits.
 - **Verified locally:** 14 Phase 6 Node tests and JavaScript syntax checks. **Full feature CI, browser interaction and public deployment remain unverified until successful run evidence is captured**.
 - Release scope explicitly authorized: stage/commit/push feature; PR merge all prior phases into main; main branch GitHub Actions Pages deployment with live root and Atlas HTTP verification. The original planner app remains the root entry.
 - New `.github/workflows/deploy.yml` gates Atlas model tests, all four browser journeys, root bundle gates, and post-deploy public URL proof. Do not claim deployed until actual Pages run and HTTP evidence exist.
+
+## User-visible render and HUD repair
+
+- Public Pages browser reproduction: HTML 200 and WebGL context available, but route particle exception in first animation frame caused zero GPU draw calls. Fixed nonnegative bounded frame delta and curve phase normalization; decorated particles cannot crash render loop.
+- Atlas now starts fullscreen with six closed pull-down control tabs. Removed permanently visible large opaque inspector, navigator, timeline, and editing tool bars. Existing content/draft schema/source canon unchanged.
+- Added direct render/drawer browser acceptance suite and updated previous editor smoke paths for new collapsed UI. Physical Galaxy Tab S Pen validation remains outstanding.
