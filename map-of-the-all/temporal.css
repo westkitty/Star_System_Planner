@@ -63,3 +63,8 @@
  .temporal-actions button{font-size:9px;padding:7px}
 }
 @media(prefers-reduced-motion:reduce){.temporal-overlay *{animation:none!important}}
+
+/* Keep the era editor accessible on phones; footer .era-title is hidden. */
+.header-actions #temporalOpen{display:inline-flex!important;align-items:center;justify-content:center;min-height:41px;padding:7px 10px;font:600 10px var(--mono);letter-spacing:.045em;border-color:#70b9d0;background:#0a3140;color:#bdf5ff}
+@media(max-width:850px){.header-actions #temporalOpen{display:inline-flex!important;min-height:40px;padding:7px 8px;font-size:9px}}
+@media(max-width:620px){.header-actions #temporalOpen{font-size:8px!important;padding:7px 6px!important;min-width:53px;letter-spacing:0}}
