@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { frameDelta,wrapCurvePhase } from './frame-clock.js';
+import { layoutVisibleLabels } from './label-layout.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { childNodes, nodeById } from './atlas-data.js';
 
@@ -360,14 +361,13 @@ export class AtlasEngine {
       const wp=new THREE.Vector3();item.obj.getWorldPosition(wp);const p=wp.project(this.camera);
       if(p.z< -1||p.z>1||Math.abs(p.x)>1.06||Math.abs(p.y)>1.06)continue;
       const x=(p.x*.5+.5)*w,y=(-p.y*.5+.5)*h;
-      candidates.push({n,x,y,item,d:wp.distanceTo(this.camera.position)});
-    }
-    candidates.sort((a,b)=>a.d-b.d);const used=[],live=new Set();
-    for(const {n,x,y,item} of candidates.slice(0,28)){
       const font=clamp((n.label?.size||12)*state.typographyScale,9,42);
-      const wd=Math.min(240,n.name.length*font*.65+12),ht=font+18;
-      if(used.some(q=>Math.abs(x-q[0])<(wd+q[2])/2&&Math.abs(y-q[1])<(ht+q[3])/2))continue;
-      used.push([x,y,wd,ht]);live.add(n.id);
+      candidates.push({n,x,y,item,d:wp.distanceTo(this.camera.position),font,
+        wd:Math.min(240,n.name.length*font*.65+12),ht:font+18});
+    }
+    const live=new Set();
+    for(const {n,x,y,item,font} of layoutVisibleLabels(candidates,state.selected,28)){
+      live.add(n.id);
       let btn=this.labelNodes.get(n.id);
       if(!btn){
         btn=document.createElement('button');btn.className='world-label';btn.type='button';btn.dataset.atlasId=n.id;
