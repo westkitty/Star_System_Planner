@@ -123,3 +123,9 @@ The `version:1` JSON and existing storage key remain compatible. Old saves witho
 See [Phase 6 design, safeguards and release checks](docs/PHASE6_TEMPORAL_CARTOGRAPHY.md). Run all Atlas tests with `node --test map-of-the-all/tests/*.node-check.mjs`. Browser acceptance lives in `scripts/phase6-browser-ci.mjs`.
 
 **After main deployment:** [System Planner](https://westkitty.github.io/Star_System_Planner/) · [Map of the All](https://westkitty.github.io/Star_System_Planner/map-of-the-all/). These addresses must be verified after the deployment job succeeds; source code alone does not establish publication.
+
+## Fullscreen-first visual repair
+
+The All is the default full-screen view. Six closed pull-down tabs provide EXPLORE, INSPECT, EDIT, REGIONS, ROUTES and ERAS. Existing controls remain connected in their respective drawers, including save/export, camera, timeline and source graph. Escape closes the active drawer. A minimal return-to-All control stays available.
+
+Published regression reproduced: WebGL initialized, but a negative first-frame curve parameter caused a getPointAt TypeError and prevented rendered draw calls. A clamped animation delta, wrapped curve phases and exception isolation for decorative particles fix this; new real Chromium CI asserts nonzero draw calls on desktop, tablet and phone layouts.

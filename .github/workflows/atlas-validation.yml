@@ -1,7 +1,7 @@
 name: Starsilk Atlas validation
 on:
   push:
-    branches: [feature/map-of-the-all-prototype]
+    branches: [feature/map-of-the-all-prototype,fix/atlas-visible-cosmos-pulldown-ui]
     paths:
       - 'map-of-the-all/**'
       - 'src/tests/atlas-handoff-import.test.js'
@@ -9,6 +9,7 @@ on:
       - 'scripts/phase4-browser-ci.mjs'
       - 'scripts/phase5-browser-ci.mjs'
       - 'scripts/phase6-browser-ci.mjs'
+      - 'scripts/atlas-focus-browser-ci.mjs'
       - 'vite.config.ts'
       - '.github/workflows/atlas-validation.yml'
   pull_request:
@@ -19,6 +20,7 @@ on:
       - 'scripts/phase4-browser-ci.mjs'
       - 'scripts/phase5-browser-ci.mjs'
       - 'scripts/phase6-browser-ci.mjs'
+      - 'scripts/atlas-focus-browser-ci.mjs'
       - 'vite.config.ts'
       - '.github/workflows/atlas-validation.yml'
 permissions:
@@ -45,6 +47,8 @@ jobs:
         run: npm run bundle:report
       - name: Install CI-only browser driver
         run: npm install --no-save --no-package-lock --ignore-scripts --no-audit playwright-core@1.56.1
+      - name: Fullscreen cosmos and pull-down UI browser acceptance
+        run: node scripts/atlas-focus-browser-ci.mjs
       - name: Spatial Studio real browser acceptance
         run: node scripts/spatial-studio-browser-ci.mjs
       - name: Strategic Atlas Phase 4 browser acceptance

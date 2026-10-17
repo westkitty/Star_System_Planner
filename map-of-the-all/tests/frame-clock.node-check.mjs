@@ -1,0 +1,10 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {frameDelta,wrapCurvePhase} from '../frame-clock.js';
+test('first RAF timestamp earlier than construction cannot rewind particles',()=>{assert.equal(frameDelta(98,105),0)});
+test('RAF frame jumps cap at 80ms',()=>{assert.equal(frameDelta(12000,100),80)});
+test('normal frame delta',()=>{assert.equal(frameDelta(116,100),16)});
+test('NaN/undefined timestamps are treated as zero',()=>{assert.equal(frameDelta(NaN,100),0);assert.equal(frameDelta(123,undefined),0)});
+test('negative phase wraps into Catmull-Rom valid domain',()=>{const phase=wrapCurvePhase(-0.0005);assert.ok(phase>0&&phase<1)});
+test('positive overshoot wraps without exceeding domain',()=>{assert.equal(wrapCurvePhase(1.25),.25)});
+test('nonfinite phase safely returns beginning',()=>{assert.equal(wrapCurvePhase(Infinity),0)});

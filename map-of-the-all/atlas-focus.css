@@ -1,0 +1,124 @@
+/* The All is the interface. Editor surfaces are collapsed by default. */
+.atlas.atlas-minimal .scene-host,.atlas.atlas-minimal #spaceCanvas{inset:0;width:100%;height:100%}
+.atlas.atlas-minimal .scene-grain{background:radial-gradient(ellipse 84% 80% at 50% 52%,transparent 64%,rgba(0,0,0,.26) 100%)}
+.atlas.atlas-minimal .edge-top{opacity:.12}
+.atlas.atlas-minimal .top-bar{z-index:32;gap:12px;min-height:57px;padding:7px 14px;align-items:center;
+  background:linear-gradient(180deg,rgba(1,7,15,.88),rgba(1,7,15,.38) 75%,transparent);border:0}
+.atlas.atlas-minimal .brandmark{width:24px;height:30px;border-color:#60a1ba55}
+.atlas.atlas-minimal .brandmark-a{font-size:31px}
+.atlas.atlas-minimal .brandmark-line{height:32px;top:-2px}
+.atlas.atlas-minimal .branding{flex-shrink:0}
+.atlas.atlas-minimal .branding .eyebrow,.atlas.atlas-minimal .branding .minor{display:none!important}
+.atlas.atlas-minimal .branding h1{font:500 15px/1.1 var(--display);letter-spacing:.085em;margin:0;white-space:nowrap;color:#e1f6ff}
+/* Old launch switches are retained in the DOM for the existing feature owners,
+ * but all visible navigation belongs to the accessible pull-down rail. */
+.atlas.atlas-minimal .top-bar .header-actions{display:none!important}
+.atlas-pull-tabs{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-left:auto;
+  min-width:0;max-width:calc(100% - 125px);overflow-x:auto;overscroll-behavior-x:contain;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.atlas-pull-tabs::-webkit-scrollbar{display:none}
+.atlas-pull-tab{display:flex;align-items:center;gap:6px;flex-shrink:0;padding:10px 10px 8px;min-height:40px;
+  color:#a1bfcf;border:1px solid rgba(83,156,185,.14);border-bottom:2px solid rgba(71,184,219,.25);
+  background:rgba(2,12,22,.62);font:600 10px/1 var(--mono);letter-spacing:.08em;white-space:nowrap;
+  border-radius:4px 4px 0 0;transition:background .18s,border-color .18s,color .18s}
+.atlas-pull-tab:hover,.atlas-pull-tab.active{color:#edfbff;background:rgba(10,48,66,.95);border-color:#53bfdc;border-bottom-color:#b0f3ff}
+.atlas-tab-chevron{font:16px/0.6 var(--mono);color:#7ddbf3;transform:translateY(-2px)}
+.atlas-pull-tab.active .atlas-tab-chevron{transform:rotate(180deg) translateY(1px)}
+/* No permanent opaque rails, timeline, sideboards or verbose captions. */
+.atlas.atlas-minimal .left-panel,.atlas.atlas-minimal .right-panel,
+.atlas.atlas-minimal .studio-panel,.atlas.atlas-minimal .strategic-panel,
+.atlas.atlas-minimal .network-panel,.atlas.atlas-minimal .temporal-panel{display:none!important}
+.atlas.atlas-minimal .bottom-bar,.atlas.atlas-minimal .hud-note,
+.atlas.atlas-minimal .mobile-inspect{display:none!important}
+.atlas.atlas-minimal[data-active-drawer="nav"] .left-panel{display:block!important}
+.atlas.atlas-minimal[data-active-drawer="inspect"] .right-panel{display:block!important}
+.atlas.atlas-minimal[data-active-drawer="edit"] .studio-panel{display:grid!important}
+.atlas.atlas-minimal[data-active-drawer="regions"] .strategic-panel:not([hidden]),
+.atlas.atlas-minimal[data-active-drawer="routes"] .network-panel:not([hidden]),
+.atlas.atlas-minimal[data-active-drawer="eras"] .temporal-panel:not([hidden]){display:flex!important}
+/* All panels fall down beneath the top edge, rather than residing across the All. */
+.atlas.atlas-minimal .left-panel,.atlas.atlas-minimal .right-panel,
+.atlas.atlas-minimal .strategic-panel,.atlas.atlas-minimal .network-panel,
+.atlas.atlas-minimal .temporal-panel{position:absolute;z-index:25;top:62px;bottom:auto;left:auto;right:12px;
+  width:min(400px,calc(100vw - 24px));height:auto;max-height:min(calc(100dvh - 88px),790px);
+  padding:16px;overflow:auto;overscroll-behavior:contain;border:1px solid rgba(82,186,221,.57);
+  border-radius:4px 4px 9px 9px;background:linear-gradient(160deg,rgba(3,14,24,.975),rgba(3,9,19,.965));
+  box-shadow:0 24px 85px #000c,0 0 40px #0d6e9e18;backdrop-filter:blur(22px)}
+.atlas.atlas-minimal .left-panel{left:12px;right:auto;width:min(360px,calc(100vw - 24px));display:none}
+.atlas.atlas-minimal .right-panel{width:min(390px,calc(100vw - 24px))}
+.atlas.atlas-minimal .studio-panel{position:absolute;z-index:25;top:62px;left:50%;right:auto;bottom:auto;
+  width:min(475px,calc(100vw - 24px));min-width:0;max-height:calc(100dvh - 88px);
+  transform:translateX(-50%);padding:12px;overflow:auto;background:rgba(3,16,27,.975);
+  border:1px solid rgba(84,200,238,.5);border-radius:4px 4px 8px 8px;box-shadow:0 22px 70px #000a}
+.atlas.atlas-minimal .panel-heading,.atlas.atlas-minimal .inspector-hero{margin-bottom:12px}
+.atlas.atlas-minimal .inspector-hero h2{font-size:23px}
+.atlas.atlas-minimal .object-sigil{width:46px;height:46px;margin-bottom:9px}
+.atlas.atlas-minimal .object-sigil span{font-size:24px}
+.atlas.atlas-minimal .orbital-handoff,.atlas.atlas-minimal .source-section{margin:12px 0}
+.atlas.atlas-minimal .left-panel .route-list{display:grid}
+.atlas.atlas-minimal .left-panel .layer-controls,.atlas.atlas-minimal .left-panel .node-list{display:grid}
+.atlas.atlas-minimal .left-panel .panel-heading.inline{display:flex}
+.atlas.atlas-minimal .left-panel .add-controls{display:flex}
+.atlas.atlas-minimal .left-panel .small-note{display:block}
+.atlas.atlas-minimal .left-panel.expanded,.atlas.atlas-minimal .left-panel:focus-within{height:auto}
+.atlas-drawer-utilities{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:14px;
+  border-top:1px solid #31566a;justify-content:flex-start!important}
+.atlas-drawer-utilities>label{display:flex;align-items:center;flex-direction:row;gap:8px;color:#afc7d5;font-size:9px}
+.atlas-drawer-utilities button{font-size:10px;min-height:40px;padding:9px 11px}
+.atlas-drawer-utilities #fileInput{display:none!important}
+.atlas-drawer-actions,.atlas-drawer-camera{display:flex;align-items:center;flex-wrap:wrap;gap:7px;
+  border-top:1px solid #31566a;margin-top:11px;padding-top:12px}
+.atlas-drawer-actions #savedStatus{display:inline-block!important;font-size:9px;padding:8px 10px}
+.atlas-drawer-actions .quiet-btn{display:inline-block!important;min-height:39px;padding:8px 10px;
+  color:#b7dff0;border:1px solid #406780;background:#092237;font-size:10px;letter-spacing:.025em}
+.atlas-drawer-actions #sourceGraphOpen{font-size:10px!important;min-height:39px}
+.atlas-drawer-camera button{width:44px;height:40px;display:grid;place-items:center;border:1px solid #47788b;background:#082332;color:#a6dcef;font-size:20px}
+.atlas-era-chooser{display:grid;gap:10px;flex-shrink:0;margin-bottom:10px;border-bottom:1px solid #396d80;padding-bottom:13px}
+.atlas-era-chooser .era-title{width:auto;min-width:0}
+.atlas-era-chooser .era-title strong{font-size:17px}
+.atlas-era-chooser .era-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;width:100%;min-width:0}
+.atlas-era-chooser .era-btn{min-width:0;max-width:none;min-height:53px;padding:8px 6px;font-size:9px}
+.atlas-era-chooser .era-btn b{font-size:9px}
+/* An unobtrusive persistent Return-to-All control; all others are inside Explore. */
+.atlas.atlas-minimal .side-tools{position:absolute;z-index:12;top:auto;bottom:16px;left:16px;right:auto;display:block}
+.atlas.atlas-minimal .side-tools #homeBtn{width:44px;height:44px;border:1px solid #4aafcc75;
+  border-radius:50%;background:rgba(3,14,22,.58);color:#9adcfa;font-size:24px;box-shadow:0 3px 20px #0008}
+.atlas.atlas-minimal .side-tools #homeBtn:hover{background:rgba(9,52,70,.8)}
+.atlas.atlas-minimal .side-tools #topBtn,.atlas.atlas-minimal .side-tools #resetCameraBtn{display:none}
+.atlas.atlas-minimal .world-label{opacity:.7;text-shadow:0 2px 6px #000,0 0 5px #000;
+  letter-spacing:.05em;max-width:170px;padding:2px 5px}
+.atlas.atlas-minimal .world-label:before{height:4px;width:4px;margin-bottom:4px}
+.atlas.atlas-minimal .world-label.selected{opacity:1;border-color:#72ecff}
+.atlas.atlas-minimal .notifications{top:67px;max-width:90vw}
+.atlas.atlas-minimal.focus-view .top-bar,.atlas.atlas-minimal.focus-view .side-tools{opacity:1;pointer-events:auto}
+.atlas.atlas-minimal.focus-view .left-panel,.atlas.atlas-minimal.focus-view .right-panel,
+.atlas.atlas-minimal.focus-view .studio-panel{opacity:1;pointer-events:auto}
+@media(max-width:850px){
+  .atlas.atlas-minimal .top-bar{gap:6px;padding:7px 9px;min-height:57px}
+  .atlas.atlas-minimal .brandmark{display:none}
+  .atlas.atlas-minimal .branding h1{font-size:13px;letter-spacing:.025em}
+  .atlas-pull-tabs{gap:3px;max-width:calc(100% - 78px)}
+  .atlas-pull-tab{padding:9px 8px;letter-spacing:.02em;font-size:9px;min-height:40px}
+  .atlas.atlas-minimal .left-panel,.atlas.atlas-minimal .right-panel,
+  .atlas.atlas-minimal .strategic-panel,.atlas.atlas-minimal .network-panel,
+  .atlas.atlas-minimal .temporal-panel{top:57px;bottom:auto;max-height:calc(100dvh - 77px)}
+  .atlas.atlas-minimal .studio-panel{top:57px;width:min(475px,calc(100vw - 20px))}
+}
+@media(max-width:620px){
+  .atlas.atlas-minimal .top-bar{gap:4px;min-height:53px;padding:5px 7px}
+  .atlas.atlas-minimal .branding h1{font-size:12px}
+  .atlas-pull-tabs{max-width:calc(100% - 61px);justify-content:flex-start;gap:2px}
+  .atlas-pull-tab{padding:9px 8px;min-height:42px;font-size:9px;letter-spacing:0}
+  .atlas-tab-chevron{font-size:12px}
+  .atlas.atlas-minimal .left-panel,.atlas.atlas-minimal .right-panel,
+  .atlas.atlas-minimal .strategic-panel,.atlas.atlas-minimal .network-panel,
+  .atlas.atlas-minimal .temporal-panel{top:53px;left:7px;right:7px;width:calc(100% - 14px);
+    max-height:calc(100dvh - 68px);height:auto;padding:12px;overflow:auto}
+  .atlas.atlas-minimal .studio-panel{top:53px;left:7px;right:7px;transform:none;
+    width:calc(100% - 14px);max-height:calc(100dvh - 68px)}
+  .atlas.atlas-minimal .side-tools{bottom:12px;left:12px}
+  .atlas.atlas-minimal .world-label{font-size:10px!important;max-width:100px}
+  .atlas-era-chooser .era-options{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .atlas-era-chooser .era-btn{min-height:51px}
+}
+@media(prefers-reduced-motion:reduce){.atlas-pull-tab{transition:none}}

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { frameDelta,wrapCurvePhase } from './frame-clock.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { childNodes, nodeById } from './atlas-data.js';
 
@@ -345,7 +346,7 @@ export class AtlasEngine {
   pick(ev,enter=false){const rect=this.canvas.getBoundingClientRect();this.pointer.set(((ev.clientX-rect.left)/rect.width)*2-1,1-((ev.clientY-rect.top)/rect.height)*2);
     this.raycaster.setFromCamera(this.pointer,this.camera);
     const hits=this.raycaster.intersectObjects(this.pickables,false);if(!hits.length)return;
-    const id=hits[0].object.userData.atlasId;if(id)this.callbacks.onSelect?.(id,enter);
+    const id=hits[0].object.userData.atlasId;if(id)this.callbacks.onSelect?.(id,enter,ev);
   }
   focusOn(node){const obj=this.labelItems.find(p=>p.node.id===node.id)?.obj;if(!obj)return;
     const p=new THREE.Vector3();obj.getWorldPosition(p);const delta=p.clone().sub(this.controls.target);
@@ -370,7 +371,7 @@ export class AtlasEngine {
       let btn=this.labelNodes.get(n.id);
       if(!btn){
         btn=document.createElement('button');btn.className='world-label';btn.type='button';btn.dataset.atlasId=n.id;
-        btn.addEventListener('click',()=>this.callbacks.onSelect?.(btn.dataset.atlasId,false));
+        btn.addEventListener('click',event=>this.callbacks.onSelect?.(btn.dataset.atlasId,false,event));
         btn.addEventListener('dblclick',()=>this.callbacks.onSelect?.(btn.dataset.atlasId,true));
         this.labelsRoot.append(btn);this.labelNodes.set(n.id,btn);
       }
@@ -383,12 +384,12 @@ export class AtlasEngine {
     }
     for(const [id,element] of this.labelNodes){if(!live.has(id)){element.remove();this.labelNodes.delete(id);}}
   }
-  tick(now){if(this.disposed)return;const elapsed=Math.min((now-this.last)||0,80);this.last=now;
+  tick(now){if(this.disposed)return;const elapsed=frameDelta(now,this.last);if(Number.isFinite(now))this.last=now;
     this.elapsed+=elapsed;
     const motion=this.state?.motion&&!this.reducedMotion&&!this.paused;
     if(motion){
       for(const m of this.motionObjects){if(m.orbit){const a=m.phase+this.elapsed*m.speed;m.obj.position.set(Math.cos(a)*m.orbit,0,Math.sin(a)*m.orbit);}else m.obj.rotation.y+=elapsed*m.speed;}
-      for(const p of this.routeParticles){const t=(p.phase+this.elapsed/1000*p.speed)%1;p.obj.position.copy(p.curve.getPointAt(t));}
+      for(const p of this.routeParticles){if(p.failed)continue;try{const t=wrapCurvePhase(p.phase+this.elapsed/1000*p.speed);const v=p.curve.getPointAt(t);if(v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Number.isFinite(v.z))p.obj.position.copy(v);else p.failed=true;}catch(error){p.failed=true;console.warn('Atlas route particle disabled:',error);}}
     }
     this.controls.update();this.renderer.render(this.scene,this.camera);
     if(++this.frame%3===0)this.updateLabels();
