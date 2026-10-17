@@ -43,23 +43,43 @@ async function test(){await ready();browser=await chromium.launch({executablePat
    assert.ok(await page.locator('#drawCalls').textContent(),'GPU remains active after drawer transitions');
    if(name==='desktop'){
      await page.locator('[data-drawer="nav"]').click();
+     await page.locator('#quality').selectOption('battery');
+     await page.waitForFunction(()=>{
+       const raw=localStorage.getItem('starsilk.map-of-the-all.draft.v1');
+       return raw&&JSON.parse(raw).quality==='battery';
+     },null,{timeout:5000});
+     const before=await page.evaluate(()=>localStorage.getItem('starsilk.map-of-the-all.draft.v1'));
      const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#exportBtn').click()]);
-     const input={name:'atlas-roundtrip.json',mimeType:'application/json',buffer:await readFile(await download.path())};
+     const incoming=JSON.parse((await readFile(await download.path())).toString('utf8'));
+     incoming.quality='cinematic';
+     const input={name:'atlas-roundtrip.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(incoming))};
      await page.locator('#fileInput').setInputFiles(input);
      await page.locator('#importReviewDialog').waitFor({state:'visible'});
      assert.match(await page.locator('#importReviewSummary').textContent(),/CURRENT:.*INCOMING:/s);
      await page.keyboard.press('Escape');
-     assert.equal(await page.locator('#importReviewDialog').isVisible(),false);
+     assert.equal(await page.locator('#importReviewDialog').isVisible(),false,'Escape cancels import');
+     assert.equal(await page.evaluate(()=>localStorage.getItem('starsilk.map-of-the-all.draft.v1')),before,'Escape preserves saved draft');
      await page.locator('#fileInput').setInputFiles(input);
      await page.locator('#importReviewDialog').waitFor({state:'visible'});
      await page.locator('#importReviewCancel').click();
-     assert.equal(await page.locator('#importReviewDialog').isVisible(),false);
+     assert.equal(await page.locator('#importReviewDialog').isVisible(),false,'Cancel closes review');
+     assert.equal(await page.evaluate(()=>localStorage.getItem('starsilk.map-of-the-all.draft.v1')),before,'Cancel preserves saved draft');
      await page.locator('#fileInput').setInputFiles(input);
      await page.locator('#importReviewDialog').waitFor({state:'visible'});
+     const [backup]=await Promise.all([page.waitForEvent('download'),page.locator('#importReviewBackup').click()]);
+     const exportedBackup=JSON.parse((await readFile(await backup.path())).toString('utf8'));
+     assert.equal(exportedBackup.quality,'battery','backup contains current draft, not incoming state');
      await page.locator('#importReviewApply').click();
-     assert.equal(await page.locator('#importReviewDialog').isVisible(),false);
-     await page.waitForFunction(()=>!!localStorage.getItem('starsilk.map-of-the-all.draft.v1'),null,{timeout:5000});
-     console.log('ATLAS_IMPORT_REVIEW_PASS');
+     assert.equal(await page.locator('#importReviewDialog').isVisible(),false,'Replace is explicit');
+     await page.waitForFunction(()=>{
+       const raw=localStorage.getItem('starsilk.map-of-the-all.draft.v1');
+       return raw&&JSON.parse(raw).quality==='cinematic';
+     },null,{timeout:5000});
+     const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('starsilk.map-of-the-all.draft.v1')));
+     assert.ok(saved.nodes.length>100,'incoming map is persisted');
+     assert.ok(saved.nodes.every(n=>n.status==='draft'),'imported source identities demoted');
+     assert.ok(Object.values(saved.timeline.snapshots).every(s=>s.nodes.every(n=>n.status==='draft')),'all imported eras demoted');
+     console.log('ATLAS_IMPORT_REVIEW_PASS escapePreserves=true cancelPreserves=true backup=true replacePersisted=true sourceDemotion=true');
    }
    await ctx.close();console.log('FOCUS_STAGE '+name+' '+JSON.stringify(geom));
  }
