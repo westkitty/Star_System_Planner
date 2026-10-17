@@ -2,7 +2,7 @@
 
 project_id: starsilk-map-of-the-all
 project_name: The Map of the All — 3D Prototype
-revision: 8
+revision: 9
 
 ## Current baseline
 
@@ -101,3 +101,14 @@ See docs/QA_EVIDENCE.md for observed browser paths and evidence limits.
 - **Failure-and-repair evidence:** run `39068974045` failed on modal confirmation; fixed an asynchronous `close` event clearing a later pending import (commit `3a2a394`). Run `39069215037` passed the revised import browser flow but the older Temporal Cartography acceptance script still assumed unconfirmed legacy imports; adapted that test and expanded import-data correctness checks (commit `a9a782b`).
 - **Unverified:** real Galaxy Tab S9 Ultra/S Pen input feel, thermals, long-session FPS, and production behavior for this PR. The chronology reconciliation in PR #4 remains a separate draft and is **not** silently merged into PR #5.
 - **Delivery boundary:** a draft GitHub PR is not publication; only merge and deploy after separate explicit authorization and a final revision-matched pass.
+
+## 2026-10-17 — Cinematic Survey candidate, revision 9
+
+- **Target and baseline:** isolated, clean clone of `westkitty/Star_System_Planner` at `e7930c71e74389a0ebd84c80ae4a807fc6f62c42`, branch `uplift/atlas-cinematic-render-polish-20261017`. Big Mac verified through DEX//REACH; never wrote the read-only Dossier, parent Planner runtime source, or old MacBook clone.
+- **Implemented:** authored procedural GPU galaxy filaments, deterministic 3D planetary textures, Fresnel atmospheric shell and cloud animation, rounded GPU starfield, starless Siege Wall exterior, revised light hierarchy, camera-facing selection geometry, optical Starsilk route cores and single-batch animated sparks, shared glow textures, batched survey grid and safe cleanup. Accessible HUD/focus/labels and responsive narrow-screen camera presets improved without touching editing controls or user data.
+- **Art provenance:** visual surfaces and positions are **editorial**; none become canon facts or planetary physical attributes. No new runtime dependency, external assets, new RAF owner, schema change, canon record, planetary physics, or forced postprocessing.
+- **Local code gate:** `node --test map-of-the-all/tests/*.node-check.mjs` **86/86**, `npm run check` **239/239** Planner Vitest, strict TypeScript PASS, production multi-entry Vite/PWA PASS, total gzip **417.5 KB** under 1,400 KB budget and main gzip **200.5 KB** under 950 KB budget. These results were observed in the verified isolated Big Mac checkout; `git diff --check` clean.
+- **Real browser:** new `scripts/atlas-cinematic-browser-ci.mjs` completed **exit 0** in Brave/Chromium on Big Mac, evaluating GPU draw calls and projected labels at All/galaxy/system, both nondefault historical eras, selection, battery mode, phone emulation and root Planner HTTP route. No detected browser page errors or WebGL shader console errors. Original all-phase acceptance remains required in GitHub Actions; this candidate's remote workflow and physical Tab S9 testing are **not yet verified**.
+- **Measured evidence:** desktop All **97** draw calls; galaxy approximately **97**; system **25**, battery **12**, all from this local browser run. These values are not hardware FPS/thermal measurements. Earlier desktop All **125** and galaxy **130** counts were captured before the overhaul's spark batching; final mobile framing exposes more objects and is not directly comparable with cropped baseline mobile measurements.
+- **Regression/preservation:** no change to `starsilk.map-of-the-all.draft.v1`, JSON v1, three eras, source-linked read-only identities, safeguarded import/Undo, Spatial/Strategic/Network/Temporal tools, the parent orbital simulator or canon chronology. CI workflow updated to run multi-tier/era visual QA on candidate PRs and pre-deployment.
+- **Remaining:** verify GitHub PR commit and all existing Chromium acceptance suites in CI, physical stylus and sustained GPU pacing on Galaxy Tab S9 Ultra, and post-merge actual two-app Pages publication **only after authorized merge/deploy**. See `docs/CINEMATIC_SURVEY_VISUAL_PASS_2026-10-17.md` for details.
