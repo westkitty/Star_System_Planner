@@ -70,6 +70,7 @@ async function test(){await ready();
  await page.locator('.node-btn').filter({hasText:'SOUTHERN TERRITORIES'}).click();
  await page.waitForTimeout(400);
  const routes=await page.evaluate(()=>JSON.parse(localStorage.getItem('starsilk.map-of-the-all.draft.v1')).routes.length);
+ console.log('STUDIO_ROUTE_DIAGNOSTIC '+JSON.stringify(await page.evaluate(()=>({storedRoutes:JSON.parse(localStorage.getItem('starsilk.map-of-the-all.draft.v1')).routes.length,notifications:document.querySelector('#notifications')?.textContent,previewHidden:document.querySelector('.studio-route-preview')?.hidden,mode:document.querySelector('#atlas')?.dataset?.studioMode}))));
  expect(routes===routeCount+1,'one proposed corridor created');console.log('STUDIO_BROWSER_STAGE corridor');
  await page.locator('.node-btn').filter({hasText:'NORTH REACH'}).click();
  await page.locator('.node-btn').filter({hasText:'SOUTHERN TERRITORIES'}).click();
