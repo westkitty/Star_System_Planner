@@ -2,7 +2,7 @@
 
 project_id: starsilk-map-of-the-all
 project_name: The Map of the All — 3D Prototype
-revision: 10
+revision: 11
 
 ## Current baseline
 
@@ -122,3 +122,11 @@ See docs/QA_EVIDENCE.md for observed browser paths and evidence limits.
 - **Performance:** tested balanced system had 3 editable planets, 3 illustrated moons, 270 instanced asteroids and one comet at **29 WebGL draw calls**, a specific local SwiftShader/Brave measurement, **not FPS**. Battery 75/balanced 270/cinematic 620 asteroid instances are hard-capped. Physical Galaxy Tab S9 Ultra latency, heat, pinch and S Pen interactions unverified.
 - **Preserve:** no Atlas v1 schema or localStorage changes; three independent eras, timeline/strategic/network/spatial tools, read-only source topology, import safeguards, undo, source authority and original Planner physics stay separate. New CI browser gate is registered for both PR validation and release gating.
 - **Delivery gate:** stage/commit and update the existing draft PR only after complete fresh checks. Validate exact remote Git tree, CI status and preserve both deployed paths after any separately authorized merge. Do not describe a draft PR as live publication. Details: `docs/SYSTEM_SCALE_ZOOM_2026-10-17.md`.
+
+## 2026-10-17 — Linux marker double-click regression, revision 11
+
+- **Found by real CI:** [Starsilk Atlas validation run 39078940725](https://github.com/westkitty/Star_System_Planner/actions/runs/39078940725) failed the pre-existing cinematic browser acceptance at `scripts/atlas-cinematic-browser-ci.mjs:82` waiting for the star-system breadcrumb. Node 91/91, Planner Vitest 239/239, strict TypeScript, production bundle, PWA budget and fullscreen browser acceptance had passed. This is a legitimate navigation regression, not a build problem.
+- **Root cause:** newly added immediate camera centering on a projected system's first click changed the marker's screen coordinates before the second click. On CI Chromium the projected label could move out from under the pointer, preventing the expected double-click to enter.
+- **Bounded repair:** `main.js` now defers *viewport-marker* single-click centering briefly, while cancelling it on real double-click/tier change/explicit focus/selection change. A capture-phase wheel listener immediately centers the selected system before OrbitControls processes an actual zoom gesture. Explicit navigator-list focusing remains immediate. The existing `enter('system',id)` flow and editor consent guard retain ownership; save format, canon, and parent Planner remain unchanged.
+- **Local verification of candidate fix:** Big Mac Brave `scripts/atlas-cinematic-browser-ci.mjs` completed with exit 0 across three eras and all 3 zoom tiers, including system double-click and battery/phone checks. 91/91 Atlas checks, 239/239 Planner tests, TypeScript and full multi-entry build/PWA budget passed locally. The dedicated `scripts/system-zoom-browser-ci.mjs` also completed with exit 0 after the same repair, exercising direct entry, close tracking and planet switching, creating a fourth planet and undoing it, real inward-wheel descent into a second system, and phone-sized touch navigation.
+- **Delivery state at this revision:** previous PR head `a3c41df805923721ad44374b7825f436ce0c629a` was tested locally but failed Linux CI; this repair must be committed to the same draft PR and proven by a new, exact-SHA CI success before any merge. This entry does not claim new CI or deployment success.

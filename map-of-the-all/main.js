@@ -18,6 +18,7 @@ const gui={
   form:$('objectForm'), search:$('search'), results:$('searchResults')
 };
 let state;let view={kind:'all',id:null};let engine=null;let studio=null;let strategy=null;let networkLab=null;let temporal=null;let revision=0;let pendingRoute=null;let allVisible=true;let saveTimer=null;let history=[];
+let systemFocusTimer=null;
 function message(text,error=false){const toast=el('div','toast'+(error?' error':''),text);$('notifications').append(toast);setTimeout(()=>toast.remove(),3500);}
 function bootstrapState(){
   try{const json=localStorage.getItem(STORAGE_KEY);if(json){const data=JSON.parse(json);const errors=validateAtlas(data);if(!errors.length)return data;message('Saved draft rejected: '+errors[0],true);}}
@@ -38,7 +39,21 @@ function change(mutator,{geometry=true}={}){
   if(geometry)engine?.setState(state,view);else engine?.updateLabels();
   updateUI();persist();return true;
 }
+function cancelSystemFocus(){clearTimeout(systemFocusTimer);systemFocusTimer=null;}
+function centerSelectedSystem(id){
+  const n=nodeById(state,id);
+  if(view.kind==='galaxy'&&n?.kind==='system'&&n.parentId===view.id&&
+    state.selected===id&&canDollyEnter()){
+    engine?.focusOn(n);engine?.updateLabels();
+  }
+}
+function queueSystemFocus(id){
+  cancelSystemFocus();
+  // A projected marker must not move between the two clicks of a double-click.
+  systemFocusTimer=setTimeout(()=>{systemFocusTimer=null;centerSelectedSystem(id);},400);
+}
 function enter(viewKind,id){
+  cancelSystemFocus();
   studio?.cancel();studio?.routeStop();strategy?.cancelGesture();strategy?.cancelDrawing();pendingRoute=null;
   const n=nodeById(state,id);
   if(viewKind==='galaxy'&&n?.kind!=='galaxy')return;
@@ -57,6 +72,7 @@ function up(){if(view.kind==='system'){
   const node=nodeById(state,view.id);enter('galaxy',node?.parentId);
 }else if(view.kind==='galaxy')enter('all',null);else{state.selected=null;updateUI();}}
 function select(id,autoEnter=false,ev=null){
+  if(autoEnter||state.selected!==id)cancelSystemFocus();
   if(strategy?.consumeSelect(id,ev))return;
   const n=nodeById(state,id);if(!n){if(id==='wall-concept')message('The Siege Wall: containment by heliocide, not ordinary masonry.');return;}
   if(studio?.mode==='route'){
@@ -83,12 +99,15 @@ function select(id,autoEnter=false,ev=null){
     engine?.focusOn(n);engine?.updateLabels();updateStellarNavigation();
   }
   if(!autoEnter&&view.kind==='galaxy'&&n.kind==='system'&&canDollyEnter()){
-    engine?.focusOn(n);engine?.updateLabels();
+    const clickedViewport=ev?.currentTarget===gui.canvas||
+      ev?.currentTarget?.classList?.contains('world-label');
+    if(clickedViewport)queueSystemFocus(n.id);
+    else centerSelectedSystem(n.id);
   }
   if(autoEnter)enterSelected();
   if(innerWidth<=620)gui.right.classList.add('mobile-open');
 }
-function focusSelected(){const n=nodeById(state,state.selected);if(n){engine?.focusOn(n);updateStellarNavigation();}}
+function focusSelected(){cancelSystemFocus();const n=nodeById(state,state.selected);if(n){engine?.focusOn(n);updateStellarNavigation();}}
 function button(text,cls,action){const b=el('button',cls,text);b.type='button';b.addEventListener('click',action);return b;}
 function updateBreadcrumb(){const frag=document.createDocumentFragment();frag.append(button('THE ALL','',()=>enter('all',null)));
   if(view.kind!=='all')for(const n of ancestry(state,view.id)){
@@ -312,6 +331,13 @@ function undo(){if(!history.length){message('No changes to undo.');return;}strat
 function resetCamera(){engine?.setView(view);}
 function toggleFocus(){gui.atlas.classList.toggle('focus-view');if(!gui.atlas.classList.contains('focus-view'))gui.right.classList.remove('mobile-open');}
 function bind(){
+  // A wheel immediately after selecting a marker is a deliberate zoom, not
+  // a delayed single-click: anchor it before OrbitControls processes the wheel.
+  gui.canvas.addEventListener('wheel',()=>{
+    if(systemFocusTimer){
+      const id=state.selected;cancelSystemFocus();centerSelectedSystem(id);
+    }
+  },{capture:true,passive:true});
   $('temporalOpen').addEventListener('click',()=>{networkLab?.close();strategy?.close();studio?.setMode('orbit');temporal?.open();});
   $('strategyOpen').addEventListener('click',()=>{if(!strategy)return;temporal?.close();networkLab?.close();studio?.setMode('orbit');strategy.open();});
   $('networkOpen').addEventListener('click',()=>{if(!networkLab)return;temporal?.close();studio?.setMode('orbit');strategy?.close();networkLab.open();});
