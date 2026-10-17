@@ -1,4 +1,6 @@
 import { AtlasEngine } from './atlas-engine.js';
+import { initSourceGraph } from './source-graph-ui.js';
+import { createPlannerHandoff, validateHandoff, makeHandoffFilename } from './planner-handoff.js';
 import { VERSION, STORAGE_KEY, CANON_BASE, EPOCHS, LAYERS, seedAtlas, nodeById, childNodes, ancestry, validateAtlas, sanitizeAtlas, addNode, removeNode, uniqueId, RESEARCH_ANCHORS } from './atlas-data.js';
 
 const $=id=>document.getElementById(id);
@@ -141,7 +143,31 @@ function updateEpoch(){const current=EPOCHS.find(x=>x.id===state.epoch);
   }
   $('eraOptions').replaceChildren(frag);
 }
-function updateUI(){updateBreadcrumb();updateLayers();updateNodeList();updateRoutes();fillInspector();updateSources();updateCounts();updateEpoch();
+function currentHandoffSystem(){
+  const selected=nodeById(state,state.selected);
+  if(selected?.kind==='system'&&selected.status==='draft')return selected;
+  const focused=view.kind==='system'?nodeById(state,view.id):null;
+  return focused?.status==='draft'?focused:null;
+}
+function updateHandoff(){
+  const system=currentHandoffSystem();
+  $('handoffExportBtn').disabled=!system;
+  $('plannerHandoffInfo').textContent=system
+    ? `Prepare ${system.name} and its draft planets as a hypothetical system. Orbital distances, star mass and planetary properties use sandbox defaults; these are NOT measurements of this atlas.`
+    : 'Select a draft system or enter its system view. Export creates a hypothetical .ssp.json, not canon coordinates.';
+}
+function exportPlannerHandoff(){
+  const system=currentHandoffSystem();if(!system){message('Select a draft system before orbital export.',true);return;}
+  try{
+    const project=createPlannerHandoff(state,system.id);
+    const errors=validateHandoff(project);if(errors.length)throw new Error(errors.join('; '));
+    const file=new Blob([JSON.stringify(project,null,2)+'\n'],{type:'application/json'});
+    const url=URL.createObjectURL(file),anchor=el('a');anchor.href=url;anchor.download=makeHandoffFilename(project);
+    document.body.append(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    message('Hypothetical system exported. Open System Planner and use IMPORT; nothing has been auto-loaded.');
+  }catch(e){message('Orbital export refused: '+e.message,true);}
+}
+function updateUI(){updateBreadcrumb();updateLayers();updateNodeList();updateRoutes();fillInspector();updateSources();updateCounts();updateEpoch();updateHandoff();
   $('quality').value=state.quality;$('motionBtn').textContent=state.motion?'MOTION ON':'MOTION OFF';
 }
 function focusSearch(){gui.search.focus();if(innerWidth<=620)gui.left.classList.add('expanded');}
@@ -201,11 +227,12 @@ function bind(){
   $('motionBtn').addEventListener('click',()=>change(()=>{state.motion=!state.motion;},{geometry:false}));
   $('presentBtn').addEventListener('click',toggleFocus);
   $('helpBtn').addEventListener('click',()=>$('helpDialog').showModal());$('closeHelp').addEventListener('click',()=>$('helpDialog').close());
+  $('handoffExportBtn').addEventListener('click',exportPlannerHandoff);
   $('exportBtn').addEventListener('click',exportAtlas);$('importBtn').addEventListener('click',()=>$('fileInput').click());
   $('fileInput').addEventListener('change',ev=>{importAtlas(ev.target.files?.[0]);ev.target.value='';});
   gui.search.addEventListener('input',showSearch);gui.search.addEventListener('focus',()=>{if(innerWidth<=620)gui.left.classList.add('expanded');});
   document.addEventListener('keydown',ev=>{
-    if(ev.target.matches('input,textarea,select')||$('helpDialog').open)return;
+    if(ev.target.matches('input,textarea,select')||$('helpDialog').open||$('sourceGraphDialog').open)return;
     if(ev.key==='/'&&!ev.ctrlKey){ev.preventDefault();focusSearch();}
     else if(ev.key.toLowerCase()==='h'){toggleFocus();}
     else if(ev.key.toLowerCase()==='f'){focusSelected();}
@@ -218,6 +245,7 @@ function bind(){
   document.addEventListener('visibilitychange',()=>{if(engine)engine.paused=document.hidden;});
 }
 function init(){updateUI();bind();
+  try{initSourceGraph();}catch(e){$('sourceGraphOpen').disabled=true;message('Source topology unavailable: '+e.message,true);}
   try{engine=new AtlasEngine(gui.canvas,gui.labels,{onSelect:select,onViewChanged:updateUI});engine.setState(state,view);
     $('loading').style.opacity='0';setTimeout(()=>$('loading').remove(),900);
     setInterval(()=>{if(engine&&document.visibilityState==='visible')$('drawCalls').textContent=String(engine.info().drawCalls).padStart(2,'0');},1000);

@@ -1,0 +1,37 @@
+name: Starsilk Atlas validation
+on:
+  push:
+    branches: [feature/map-of-the-all-prototype]
+    paths:
+      - 'map-of-the-all/**'
+      - 'src/tests/atlas-handoff-import.test.js'
+      - 'vite.config.ts'
+      - '.github/workflows/atlas-validation.yml'
+  pull_request:
+    paths:
+      - 'map-of-the-all/**'
+      - 'src/tests/atlas-handoff-import.test.js'
+      - 'vite.config.ts'
+      - '.github/workflows/atlas-validation.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Atlas source model and handoff checks
+        run: node --test map-of-the-all/tests/*.node-check.mjs
+      - name: Existing and new planner importer tests
+        run: npm run test
+      - name: TypeScript compatibility
+        run: npm run typecheck
+      - name: Production multi-entry build
+        run: npm run build
+      - name: Bundle and PWA budgets
+        run: npm run bundle:report

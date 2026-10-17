@@ -2,7 +2,7 @@
 
 project_id: starsilk-map-of-the-all
 project_name: The Map of the All — 3D Prototype
-revision: 2
+revision: 3
 
 ## Current baseline
 
@@ -40,3 +40,12 @@ See docs/QA_EVIDENCE.md for observed browser paths and evidence limits.
 - Source-live update path and authoritative spatial coordinate authoring (none published).
 - Future 4X strategic simulation and timeline snapshots (not included in this prototype).
 - Source-linked WorldsVault constellation graph, independent of illustrative galactic geometry.
+
+## Phase 2 scope, 2026-10-17
+
+- New read-only WorldsVault conceptual topology module: exact 11 published identities and 6 directed, source-cited relations, provenance pinned to Dossier Git blob `862bc476fb8165784704151eed35c915cbf31bf4`; no authored distance/position/route is inferred.
+- New opt-in orbital laboratory export with explicit `NON-CANON SANDBOX` classification and unknown canon status. Exports compatible `.ssp.json` files for manual user import into existing System Planner. No parent autosave, simulation, or source canon write routes.
+- Added focused Node source/bridge tests and a test that invokes the actual System Planner importer, plus branch/PR GitHub Actions validation workflow.
+- **Verified locally in this phase:** 21 Atlas Node tests pass and JavaScript syntax checks pass against the isolated project source.
+- **Awaiting CI/runtime proof:** parent Vitest importer compatibility, TypeScript, multi-page production bundle, new graph UI interaction, actual import journey, and mobile hardware behavior. Prior Phase 1 browser evidence remains valid only for the earlier version.
+- Preserve external source identity priority and never promote the source's `canon_status: unknown` to canonical.

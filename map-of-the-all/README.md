@@ -68,6 +68,15 @@ npm run typecheck && npm run test && npm run build && npm run bundle:report
 
 The Node checks prove the data model, editor markup and source integrity boundaries. Desktop Brave automation has exercised WebGL startup, layer toggles, full three-tier navigation, edits, persistence, export and the parent route. Tablet (1280×800) and phone (412×915) touch emulation have also passed. Physical Galaxy Tab S9/S Pen behavior, GPU frame rates, long sessions and GitHub Pages deployment remain unverified. See [QA evidence](docs/QA_EVIDENCE.md). The temporal lens remains editorial rather than a historical simulator.
 
+
+## Phase 2: source topology and orbital laboratory
+
+The header's **SOURCE GRAPH** opens an offline, read-only relationship projection of the Dossier's 11 WorldsVault identity nodes and 6 direct-authored relations, pinned to Dossier blob `862bc476fb8165784704151eed35c915cbf31bf4`. It is a conceptual graph without coordinates or route metrics, and its evidence links open the Dossier.
+
+Select a **draft stellar system** (or enter it), then choose **EXPORT SYSTEM .SSP** and **OPEN PLANNER**. Use the planner's existing **IMPORT** control to load the downloaded `.ssp.json`. The bridge generates explicitly hypothetical physical initial conditions with source status `unknown`; no atlas display distances become physical measurements, and no project is auto-imported or overwritten.
+
+See [Phase 2 design and risk boundary](docs/PHASE2_SOURCE_GRAPH_AND_HANDOFF.md). The Atlas Node tests run with `node --test map-of-the-all/tests/*.node-check.mjs` from the repository root; the existing Vitest suite also contains an actual planner-importer compatibility test. The dedicated GitHub workflow verifies both test suites and the parent build on feature-branch pushes and PRs.
+
 ## Future expansion roadmap
 
 1. Canon read-only sync with stable entities/edges and explicit missing-coordinate records, version/hash conflict indicator, topology versus metric view.
