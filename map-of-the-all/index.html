@@ -5,6 +5,7 @@
 <title>THE MAP OF THE ALL / Starsilk Atlas Laboratory</title>
 <link rel="stylesheet" href="./atlas.css"/>
 <link rel="stylesheet" href="./studio.css"/>
+<link rel="stylesheet" href="./strategic.css"/>
 </head><body>
 <div class="atlas" id="atlas">
   <div class="scene-host" id="sceneHost"><canvas id="spaceCanvas" aria-label="Rotatable 3D Starsilk universe. Drag to rotate, scroll or pinch to zoom; click to select."></canvas><div id="labels" class="labels"></div><div class="scene-grain" aria-hidden="true"></div></div>
@@ -12,7 +13,7 @@
   <header class="top-bar">
     <div class="brandmark" aria-hidden="true"><span class="brandmark-a">S</span><span class="brandmark-line"></span></div>
     <div class="branding"><div class="eyebrow">STARSILK <span class="brand-sep">/</span> CARTOGRAPHIC DIRECTORATE</div><h1>THE MAP OF THE ALL</h1><div class="minor">DRAFT ATLAS <span class="dot-amber"></span> UNAUTHORED COORDINATES <span class="separator">/</span> SURVEY 001</div></div>
-    <div class="header-actions"><div class="status-label" id="savedStatus" role="status">LOCAL DRAFT</div><button id="sourceGraphOpen" class="quiet-btn" title="Read-only WorldsVault relationship graph">SOURCE GRAPH · 11 / 6</button><button id="presentBtn" class="quiet-btn" title="Hide the interface (H)">FOCUS VIEW <span aria-hidden="true">&#8599;</span></button><button id="helpBtn" class="quiet-btn" aria-label="Open controls help">?</button></div>
+    <div class="header-actions"><div class="status-label" id="savedStatus" role="status">LOCAL DRAFT</div><button id="strategyOpen" class="quiet-btn strategic-entry" title="Open group transforms and draft territory authoring">STRATEGY LAB ✥</button><button id="sourceGraphOpen" class="quiet-btn" title="Read-only WorldsVault relationship graph">SOURCE GRAPH · 11 / 6</button><button id="presentBtn" class="quiet-btn" title="Hide the interface (H)">FOCUS VIEW <span aria-hidden="true">&#8599;</span></button><button id="helpBtn" class="quiet-btn" aria-label="Open controls help">?</button></div>
   </header>
   <aside class="left-panel" id="leftPanel">
     <div class="panel-heading"><span>ATLAS NAVIGATOR</span><small>01 / 04</small></div>
@@ -55,6 +56,34 @@
     <div class="panel-heading"><span>INSTRUMENTATION</span><small>GPU / LIVE</small></div>
     <div class="instrument-grid"><div><b id="countGalaxy">07</b><small>GALAXIES</small></div><div><b id="countSystems">35</b><small>SYSTEMS</small></div><div><b id="drawCalls">--</b><small>DRAW CALLS</small></div></div>
   </aside>
+  <section class="strategic-panel" id="strategyPanel" aria-label="Strategic Studio — draft 4X cartography" hidden>
+    <header class="strategy-header"><div><span class="eyebrow">SURVEY / PHASE 04</span><h2>THE STRATEGIC ATLAS</h2><p>Editable hypotheses, not jurisdictions or physical distances.</p></div><button id="strategyClose" type="button" aria-label="Close strategic studio">×</button></header>
+    <div class="strategy-modebar" role="group" aria-label="Strategic instrument"><button type="button" id="strategyModeGroup" aria-pressed="true">GROUP</button><button type="button" id="strategyModeRegion" aria-pressed="false">REGIONS</button><button type="button" id="strategyModePan" aria-pressed="false">ORBIT</button></div>
+    <div id="strategyGroupTools" class="strategy-group-tools">
+      <div class="strategy-inline"><strong><output id="strategyCount">0</output> SELECTED</strong><button type="button" id="strategySelectAll">ALL VISIBLE</button><button type="button" id="strategyClear">CLEAR</button></div>
+      <p id="strategyGroupSummary">Click draft markers, Shift-click to add, or drag a selection rectangle.</p>
+      <div class="strategy-inline"><label>AXIS <select id="strategyGroupAxis"><option value="xz">XZ PLANE</option><option value="y">Y / HEIGHT</option></select></label><label>SNAP <select id="strategyGroupSnap"><option value="0">FREE</option><option value="1">1</option><option value="5">5</option><option value="10">10</option></select></label></div>
+      <div class="strategy-nudge" aria-label="Accessible group translate controls"><button type="button" id="strategyNudgeLeft" aria-label="Nudge X negative">← X</button><button type="button" id="strategyNudgeRight" aria-label="Nudge X positive">X →</button><button type="button" id="strategyNudgeUp" aria-label="Nudge Z negative">↑ Z</button><button type="button" id="strategyNudgeDown" aria-label="Nudge Z positive">Z ↓</button><button type="button" id="strategyNudgeHeight" aria-label="Nudge Y positive">Y +</button></div>
+      <button type="button" id="strategyFromGroup" class="strategy-primary" disabled>CREATE SURVEY BOUNDARY FROM SELECTION</button>
+      <small>✥ Drag the group handle to translate all selected draft markers in one undo step. Snap units are editorial only.</small>
+    </div>
+    <div id="strategyRegionTools" class="strategy-region-tools" hidden>
+      <div class="strategy-inline"><button type="button" id="strategyStartDraw">DRAW POLYGON</button><button type="button" id="strategyFinishDraw" disabled>FINISH</button><button type="button" id="strategyCancelDraw">CANCEL</button></div>
+      <p id="strategyDrawHint">Draw a provisional boundary, or select one to edit its vertices.</p>
+      <div id="strategyRegionList" class="strategy-region-list" aria-label="Draft region list"></div>
+      <p id="strategyRegionEmpty">Select a region to inspect its vertices. Shape data never implies faction sovereignty.</p>
+      <form id="strategyRegionForm" hidden>
+        <label>REGION NAME <input id="strategyRegionName" maxlength="100" required/></label>
+        <label>AFFILIATION NOTE / PROVISIONAL <input id="strategyRegionAffiliation" maxlength="100"/></label>
+        <label>DISPLAY COLOR <input id="strategyRegionColor" type="color"/></label>
+        <div class="strategy-inline"><strong>BOUNDARY VERTICES</strong><button type="button" id="strategyAddVertex">+ VERTEX</button></div>
+        <div id="strategyVertexList" class="strategy-vertex-list"></div>
+        <output id="strategyRegionMetrics">0 nodes</output>
+        <div class="strategy-inline"><button type="submit" class="strategy-primary">SAVE DRAFT</button><button type="button" id="strategyDeleteRegion" class="strategy-danger">DELETE</button></div>
+      </form>
+    </div>
+    <p class="strategy-footer">SCHEMATIC / NOT CANON · No claims about territorial owners, real routes or distances.</p>
+  </section>
   <section class="studio-panel" id="studioPanel" aria-label="Spatial Studio — editorial map tools">
     <div class="studio-modes" role="group" aria-label="Editing mode">
       <button type="button" data-studio-mode="orbit" aria-pressed="true" class="active" title="Orbit camera and inspect objects">ORBIT</button>
@@ -77,7 +106,7 @@
     <div class="source-bottom-grid"><section><h3>DIRECT-AUTHORED RELATIONS</h3><div id="sourceGraphRelations" class="source-relations"></div></section><section id="sourceGraphDetails" aria-live="polite" class="source-details"></section></div>
     <p class="source-license-note">Read-only projection · Dossier machine publication SHA 862bc476fb8165784704151eed35c915cbf31bf4. No atlas editor action changes these records.</p>
   </dialog>
-  <dialog id="helpDialog" class="help-dialog"><h2>THE CARTOGRAPHER'S DESK</h2><p>This is a spatial hypothesis, not a canonical star chart. Every starting point and corridor is editable draft geometry. Only verified names and relationships should be promoted through separate canon governance.</p><div class="help-grid"><div><b>EXPLORATION</b><p>Drag or swipe to orbit. Pinch or scroll to zoom. Select a marker. Double-click a galaxy to explore its systems; double-click a system to inspect planets.</p></div><div><b>AUTHORING</b><p>Use Spatial Studio: ORBIT for camera movement, MOVE to drag editable draft markers in XZ or Y, ROUTE to connect same-tier draft objects, TYPE to drag editable labels. Press Escape to cancel an active gesture. The inspector also supports precise XYZ and typography values. Edits are saved in this browser and can be exported as JSON.</p></div><div><b>KEYBOARD</b><p>H: hide HUD. /: search. Escape: up one scale. F: focus selection. Home: return to the All.</p></div><div><b>CANON BOUNDARY</b><p>WorldsVault identities and documented relationships have references. None of the map's coordinates, proposed regions, displayed routes, or exemplary planetary orbits is established lore.</p></div></div><button id="closeHelp" class="primary-button">CLOSE INSTRUMENT</button></dialog>
+  <dialog id="helpDialog" class="help-dialog"><h2>THE CARTOGRAPHER'S DESK</h2><p>This is a spatial hypothesis, not a canonical star chart. Every starting point and corridor is editable draft geometry. Only verified names and relationships should be promoted through separate canon governance.</p><div class="help-grid"><div><b>EXPLORATION</b><p>Drag or swipe to orbit. Pinch or scroll to zoom. Select a marker. Double-click a galaxy to explore its systems; double-click a system to inspect planets.</p></div><div><b>AUTHORING</b><p>Use Spatial Studio: ORBIT for camera movement, MOVE to drag editable draft markers in XZ or Y, ROUTE to connect same-tier draft objects, TYPE to drag editable labels. Press Escape to cancel an active gesture. The inspector also supports precise XYZ and typography values. Edits are saved in this browser and can be exported as JSON.</p></div><div><b>STRATEGY LAB</b><p>Select draft objects into groups, drag the centroid handle or use nudge controls; draw or edit validated polygon boundaries; inspect corridor connectivity. Undo is one atomic edit per release.</p></div><div><b>KEYBOARD</b><p>H: hide HUD. /: search. Escape: up one scale. F: focus selection. Home: return to the All.</p></div><div><b>CANON BOUNDARY</b><p>WorldsVault identities and documented relationships have references. None of the map's coordinates, proposed regions, displayed routes, or exemplary planetary orbits is established lore.</p></div></div><button id="closeHelp" class="primary-button">CLOSE INSTRUMENT</button></dialog>
   <div class="notifications" id="notifications" aria-live="polite"></div>
   <div class="loading" id="loading"><div class="loading-symbol">S</div><div>CHARTING THE ALL</div><small>INITIALIZING THE OBSERVATORY</small></div>
 </div>

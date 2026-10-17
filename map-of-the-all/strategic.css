@@ -1,0 +1,77 @@
+/* Phase 4: distinct strategic editing plane. Every region is an editorial draft. */
+.atlas.strategic-open .right-panel{visibility:hidden;pointer-events:none}
+.strategic-panel{
+ position:absolute;z-index:12;top:93px;right:15px;bottom:92px;width:min(345px,calc(100vw - 32px));
+ display:flex;flex-direction:column;gap:12px;overflow-y:auto;overscroll-behavior:contain;
+ background:linear-gradient(165deg,rgba(5,24,38,.97),rgba(2,9,18,.95));
+ border:1px solid #406b81;box-shadow:0 15px 55px #000a, inset 0 1px #92ddf71f;
+ backdrop-filter:blur(18px);border-radius:7px;padding:14px;color:#d4ecf8;
+ font:11px/1.4 var(--mono);
+}
+.strategic-panel[hidden]{display:none!important}
+.strategy-header{display:flex;justify-content:space-between;align-items:start;gap:10px;border-bottom:1px solid #44748a;padding-bottom:10px}
+.strategy-header h2{font-family:var(--display);font-size:20px;letter-spacing:.075em;font-weight:500;margin:2px 0 5px;color:#f0f9ff}
+.strategy-header p{margin:0;color:#89b6cc;font-size:10px;line-height:1.55}
+.strategy-header button{flex-shrink:0;width:40px;height:40px;background:#0e3147;border:1px solid #638da1;color:#e8f9ff;font-size:24px}
+.strategy-modebar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.strategy-modebar button{min-height:46px;border:1px solid #426c84;background:#061f30;color:#b7d5e2;letter-spacing:.1em;font-size:11px}
+.strategy-modebar button[aria-pressed='true']{border-color:#6adfff;background:#175068;color:#f0ffff;box-shadow:inset 0 0 14px #31bfe52e}
+.strategy-group-tools,.strategy-region-tools{display:flex;flex-direction:column;gap:11px}
+.strategy-group-tools p,.strategy-region-tools p{margin:0;color:#a2c8d6;line-height:1.5;font-size:10px}
+.strategy-inline{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-start}
+.strategy-inline strong{letter-spacing:.07em;font-size:10px;color:#c5f0ff;margin-right:auto}
+.strategy-inline button,.strategy-nudge button,.strategy-sector-row,.strategic-panel form button,.strategy-primary{color:#bfeafb;border:1px solid #4e879e;background:#102d3c;padding:9px 11px;min-height:42px;cursor:pointer;font:10px/1.3 var(--mono);letter-spacing:.055em}
+.strategy-inline button:hover,.strategy-nudge button:hover,.strategy-sector-row:hover{background:#1d4b61;color:#fff}
+.strategic-panel button:disabled{opacity:.38;cursor:not-allowed}
+.strategic-panel input,.strategic-panel select{min-height:38px;color:#def6ff;background:#041b27;border:1px solid #406c81;padding:5px 7px;max-width:100%;min-width:0;font:11px var(--mono)}
+.strategic-panel input:focus-visible,.strategic-panel button:focus-visible{outline:2px solid #64dfff;outline-offset:2px}
+.strategy-inline label{display:flex;align-items:center;gap:5px;font-size:9px;color:#add6e5;letter-spacing:.07em}
+.strategy-nudge{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}
+.strategy-nudge button{padding:6px 2px;min-height:46px;font-size:10px}
+.strategy-primary{background:linear-gradient(110deg,#0a6480,#168ea7)!important;border-color:#67dff7!important;color:#fff!important;font-weight:600!important}
+.strategy-danger{border-color:#925a58!important;color:#ffb2a6!important}
+.strategy-region-list{max-height:170px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding-right:3px}
+.strategy-sector-row{width:100%;text-align:left;min-height:44px}
+.strategy-sector-row.active{border-color:#88f2ff;color:#fff;background:#225169}
+#strategyRegionForm{display:flex;flex-direction:column;gap:10px;padding:10px 0;border-top:1px solid #2b5669}
+#strategyRegionForm[hidden]{display:none!important}
+#strategyRegionForm>label{display:flex;flex-direction:column;gap:5px;font-size:9px;letter-spacing:.08em;color:#9dc4d6}
+#strategyRegionColor{padding:3px;min-width:100%;height:38px}
+.strategy-vertex-list{display:grid;gap:4px}
+.strategy-vertex-row{display:grid;grid-template-columns:27px 1fr 1fr 38px;gap:4px;align-items:center}
+.strategy-vertex-row span{font-size:10px;color:#90c6d7}
+.strategy-vertex-row input{width:100%;height:40px;font-variant-numeric:tabular-nums}
+.strategy-vertex-row button{padding:0!important;min-height:40px!important;font-size:18px!important}
+#strategyRegionMetrics{padding:9px;border:1px solid #366b80;background:#061e2c;color:#b6edff;font-size:10px;font-variant-numeric:tabular-nums}
+.strategy-footer{color:#7eabba;font-size:9px;line-height:1.5;border-top:1px solid #2f5566;padding-top:10px;margin-top:auto;letter-spacing:.07em}
+.strategy-group-handle{position:absolute;z-index:8;transform:translate(-50%,-50%);width:56px;height:56px;border-radius:50%;
+ display:grid;place-items:center;border:2px solid #89efff;background:#08283c;box-shadow:0 0 0 8px #3dd5ff27,0 0 34px #0cbbea6b;
+ color:#f3ffff;font-size:32px;cursor:grab;touch-action:none;user-select:none}
+.strategy-group-handle:before,.strategy-group-handle:after{content:'';position:absolute;background:#80e6ff66;pointer-events:none}
+.strategy-group-handle:before{height:2px;width:78px}.strategy-group-handle:after{height:78px;width:2px}
+.strategy-group-handle[hidden]{display:none!important}
+.strategy-vertex-layer{position:absolute;inset:0;z-index:9;pointer-events:none}
+.strategy-vertex{position:absolute;transform:translate(-50%,-50%);width:42px;height:42px;pointer-events:auto;
+ border-radius:50%;border:2px solid #c9f8ff;background:#15374b;color:#fff;box-shadow:0 0 15px #2ac5f4aa;
+ font:11px var(--mono);touch-action:none}
+.strategy-guides{position:absolute;inset:0;width:100%;height:100%;z-index:7;pointer-events:none}
+.strategy-marquee{fill:#3cbfff20;stroke:#77d9f9;stroke-dasharray:7 4;stroke-width:1.7}
+.strategy-draw-preview,.strategy-region-guides{fill:#39bdff17;stroke:#72e9ff;stroke-width:2;stroke-dasharray:8 4;vector-effect:non-scaling-stroke}
+.strategy-gesture-readout{position:absolute;z-index:11;top:54%;left:40%;pointer-events:none;padding:9px 12px;
+ color:#edfbff;background:#08202de8;border:1px solid #66cde9;font:11px var(--mono)}
+.node-btn.strategy-selected,.world-label.strategy-selected{color:#ebfdff!important;border-color:#7beaff!important;text-shadow:0 0 12px #9ff6ff!important}
+.atlas.strategic-open #spaceCanvas{touch-action:none}
+@media(max-width:1050px){.strategic-panel{top:118px;right:10px;width:min(330px,40vw)}}
+@media(max-width:620px){.strategic-entry{font-size:9px!important}.strategic-panel{top:171px;right:9px;left:9px;bottom:auto;width:auto;max-height:min(56vh,490px);padding:12px;z-index:20}
+.strategy-header h2{font-size:18px}.strategy-nudge button{min-height:48px}}
+@media(prefers-reduced-motion:reduce){.strategy-group-handle,.strategy-vertex{transition:none}}
+/* Existing breakpoint hid the first header button; preserve the new entry instead. */
+@media(max-width:850px){
+ .header-actions #strategyOpen{display:inline-flex!important;align-items:center;min-height:39px;padding:7px 8px}
+ .header-actions #sourceGraphOpen,.header-actions #presentBtn{display:none!important}
+}
+@media(max-width:620px){
+ .header-actions .status-label,.header-actions #sourceGraphOpen,.header-actions #presentBtn,.header-actions #helpBtn{display:none!important}
+ .header-actions #strategyOpen{font-size:8px!important;min-height:40px;padding:7px 6px;letter-spacing:.02em}
+ .top-bar .branding h1{font-size:14px;letter-spacing:.04em}
+}

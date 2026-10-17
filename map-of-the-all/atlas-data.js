@@ -1,3 +1,4 @@
+import {validateRegions} from './strategic-model.js';
 export const VERSION = 1;
 export const STORAGE_KEY = 'starsilk.map-of-the-all.draft.v1';
 export const CANON_BASE = 'https://westkitty.github.io/Starsilk_Character_Dossier';
@@ -58,7 +59,7 @@ export function seedAtlas() {
   ];
   const routes=connections.map(([from,to],i)=>({id:`lane-${i+1}`,from,to,kind:i%3===0?'starsilk':'hookshot',status:'draft'}));
   return { version:VERSION, title:'THE MAP OF THE ALL', epoch:'post', layers:{...DEFAULT_LAYERS},
-    nodes,routes, selected:null, quality:'balanced', motion:true, typographyScale:1, updatedAt:new Date().toISOString() };
+    nodes,routes, regions:[], selected:null, quality:'balanced', motion:true, typographyScale:1, updatedAt:new Date().toISOString() };
 }
 export const childNodes = (state,parentId,kind=null)=>state.nodes.filter(n=>n.parentId===parentId&&(!kind||n.kind===kind));
 export const nodeById = (state,id)=>state.nodes.find(n=>n.id===id)||null;
@@ -100,6 +101,7 @@ export function validateAtlas(value) {
   if(!value.layers||LAYERS.some(([key])=>typeof value.layers[key]!=='boolean'))errors.push('Invalid layers');
   if(!['balanced','cinematic','battery'].includes(value.quality))errors.push('Invalid quality tier');
   if(typeof value.motion!=='boolean'||!Number.isFinite(value.typographyScale)||value.typographyScale<.6||value.typographyScale>2)errors.push('Invalid preferences');
+  errors.push(...validateRegions(value));
   return [...new Set(errors)];
 }
 export function sanitizeAtlas(value) {
@@ -115,6 +117,7 @@ export function removeNode(state,id){
   while(changed){changed=false;for(const n of state.nodes)if(n.parentId&&removal.has(n.parentId)&&!removal.has(n.id)){removal.add(n.id);changed=true;}}
   state.nodes=state.nodes.filter(n=>!removal.has(n.id));
   state.routes=state.routes.filter(r=>!removal.has(r.from)&&!removal.has(r.to));
+  if(Array.isArray(state.regions))state.regions=state.regions.filter(r=>!removal.has(r.parentId));
   if(removal.has(state.selected))state.selected=null;
   return removal.size;
 }

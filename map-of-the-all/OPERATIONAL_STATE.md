@@ -2,7 +2,7 @@
 
 project_id: starsilk-map-of-the-all
 project_name: The Map of the All — 3D Prototype
-revision: 4
+revision: 5
 
 ## Current baseline
 
@@ -58,3 +58,10 @@ See docs/QA_EVIDENCE.md for observed browser paths and evidence limits.
 - Local pure regression run: **29 Atlas Node tests passed** including Phase 2 and new Phase 3 fixtures; JS syntax checked locally.
 - CI workflow augmented with Playwright/Chromium interaction check; verify actual run status after push. Physical Tab S9 stylus hover, thermals, target FPS, accessibility walk and deployed Pages remain unverified.
 - Protected: Dossier, original parent src, simulator physics, visual canon identity and topology source graph.
+
+## Phase 4 candidate, 2026-10-17
+
+- Added optional `regions` to legacy Atlas v1 draft schema, with safe polygon topology limits and no import elevation of canon identity. Region data remains editorial only, separate from read-only Dossier WorldsVault relations.
+- Group selection (up to 32 draft nodes), atomic rigid translations with snap/clamping, accessible nudge and drag, selection marquee. Region creation from group hull or pointer-drawn points, vertex edit and 4X-style member/route reports. Only Atlas app files and the CI script/workflow have changed.
+- **Locally verified:** 11 Phase 4 pure Node tests passing, JS syntax checks, and full DOM editor-control ID coverage. Earlier Phase 3 verification is a baseline, not Phase 4 browser proof.
+- **Awaiting fresh CI and runtime proof:** full parent tests, build/budgets, group move and vertex browser interactions, physical Galaxy Tab S9/S Pen tests. Do not claim a final Phase 4 pass until CI finishes.

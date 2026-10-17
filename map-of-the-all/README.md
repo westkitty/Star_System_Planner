@@ -97,3 +97,11 @@ Three **presentation-only** lenses—Survey, Signal and Cartographer—change ap
 
 Design limits and regression contract: [Phase 3 Spatial Studio](docs/PHASE3_SPATIAL_STUDIO.md). Node checks: `node --test map-of-the-all/tests/*.node-check.mjs` from the repository root; real browser acceptance: `node scripts/spatial-studio-browser-ci.mjs` after install and build on a Chromium-capable runner.
 
+
+## Phase 4: Strategic Atlas Laboratory
+
+Select **STRATEGY LAB ✥** in the header. In **GROUP**, Shift-select any two or more draft markers of the visible tier, marquee-select a collection, or choose **ALL VISIBLE**; drag the projected centroid handle or use accessible X/Z/Y nudge buttons. Group movement is bounded, snaps a single shared translation rather than distorting the constellation, and creates **one Undo entry** on release. Reference landmarks cannot be selected or moved.
+
+In **REGIONS**, create a provisional sector from the current selection or draw a 3–24-point polygon with the pointer. Drag individual vertex handles, edit numeric X/Z coordinates, add/remove vertices, name and recolor the draft sector, and inspect its enclosed nodes plus internal/frontier corridor counts. Regions cannot overlap their way into canon: membership is strictly editorial, measured only in **display units**. Region data remains optional in the original JSON v1 save format, preserving old drafts; it can be imported, exported, undone or deleted without modifying source topology.
+
+The original orbital laboratory, Phase 3 tools, WorldsVault source graph and original planner app remain isolated. No official faction ownership, star metric, territorial border or travel-time claim is made. See [Phase 4 scope, safeguards and QA](docs/PHASE4_STRATEGIC_ATLAS.md). Run `node --test map-of-the-all/tests/*.node-check.mjs`; dedicated Chromium QA is `node scripts/phase4-browser-ci.mjs` once the browser driver is installed in a disposable QA environment.

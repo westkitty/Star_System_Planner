@@ -1,4 +1,5 @@
 import { AtlasEngine } from './atlas-engine.js';
+import { StrategicStudio } from './strategic-studio.js';
 import { SpatialStudio } from './spatial-studio.js';
 import { validateCorridor } from './studio-math.js';
 import { initSourceGraph } from './source-graph-ui.js';
@@ -12,7 +13,7 @@ const gui={
   source:$('sourceLinks'), layers:$('layerControls'), nodes:$('nodeList'), breadcrumb:$('breadcrumb'),
   form:$('objectForm'), search:$('search'), results:$('searchResults')
 };
-let state;let view={kind:'all',id:null};let engine=null;let studio=null;let revision=0;let pendingRoute=null;let allVisible=true;let saveTimer=null;let history=[];
+let state;let view={kind:'all',id:null};let engine=null;let studio=null;let strategy=null;let revision=0;let pendingRoute=null;let allVisible=true;let saveTimer=null;let history=[];
 function message(text,error=false){const toast=el('div','toast'+(error?' error':''),text);$('notifications').append(toast);setTimeout(()=>toast.remove(),3500);}
 function bootstrapState(){
   try{const json=localStorage.getItem(STORAGE_KEY);if(json){const data=JSON.parse(json);const errors=validateAtlas(data);if(!errors.length)return data;message('Saved draft rejected: '+errors[0],true);}}
@@ -33,7 +34,7 @@ function change(mutator,{geometry=true}={}){
   updateUI();persist();return true;
 }
 function enter(viewKind,id){
-  studio?.cancel();studio?.routeStop();pendingRoute=null;
+  studio?.cancel();studio?.routeStop();strategy?.cancelGesture();strategy?.cancelDrawing();pendingRoute=null;
   const n=nodeById(state,id);
   if(viewKind==='galaxy'&&n?.kind!=='galaxy')return;
   if(viewKind==='system'&&n?.kind!=='system')return;
@@ -49,7 +50,8 @@ function enterSelected(){const n=nodeById(state,state.selected);
 function up(){if(view.kind==='system'){
   const node=nodeById(state,view.id);enter('galaxy',node?.parentId);
 }else if(view.kind==='galaxy')enter('all',null);else{state.selected=null;updateUI();}}
-function select(id,autoEnter=false){
+function select(id,autoEnter=false,ev=null){
+  if(strategy?.consumeSelect(id,ev))return;
   const n=nodeById(state,id);if(!n){if(id==='wall-concept')message('The Siege Wall: containment by heliocide, not ordinary masonry.');return;}
   if(studio?.mode==='route'){
     if(!pendingRoute){
@@ -94,7 +96,8 @@ function currentNodes(){
   return childNodes(state,view.id).filter(n=>view.kind==='galaxy'?['system','annotation'].includes(n.kind):['planet','annotation'].includes(n.kind));
 }
 function updateNodeList(){const frag=document.createDocumentFragment();for(const n of currentNodes()){
-  const b=button(n.name,'node-btn'+(state.selected===n.id?' active':''),()=>select(n.id));
+  const b=button(n.name,'node-btn'+(state.selected===n.id?' active':''),event=>select(n.id,false,event));
+  b.dataset.atlasId=n.id;
   const icon=el('span','node-icon');icon.style.background=n.color;icon.style.color=n.color;b.prepend(icon);
   b.title=n.kind.toUpperCase()+' / '+(n.status==='reference'?'SOURCE IDENTITY':'DRAFT');
   frag.append(b);
@@ -181,7 +184,7 @@ function exportPlannerHandoff(){
 }
 function updateUI(){updateBreadcrumb();updateLayers();updateNodeList();updateRoutes();fillInspector();updateSources();updateCounts();updateEpoch();updateHandoff();
   $('quality').value=state.quality;$('motionBtn').textContent=state.motion?'MOTION ON':'MOTION OFF';
-  studio?.sync();
+  studio?.sync();strategy?.sync();
 }
 function focusSearch(){gui.search.focus();if(innerWidth<=620)gui.left.classList.add('expanded');}
 function showSearch(){const q=gui.search.value.toLowerCase().trim();const frag=document.createDocumentFragment();if(q){
@@ -227,15 +230,17 @@ function exportAtlas(){const data={...state,selected:null,updatedAt:new Date().t
 }
 async function importAtlas(file){if(!file)return;if(file.size>800000){message('JSON exceeds 800 KB import limit.',true);return;}
   try{const contents=await file.text();const parsed=sanitizeAtlas(JSON.parse(contents));const previous=JSON.stringify(state);
+    strategy?.cancelGesture();strategy?.cancelDrawing();
     studio?.cancel();studio?.routeStop();state=parsed;history.push(previous);view={kind:'all',id:null};pendingRoute=null;engine?.setState(state,view);engine?.setView(view);updateUI();persist();message('Imported as draft: source status intentionally demoted.');
   }catch(e){message('Import refused: '+e.message,true);}
 }
-function undo(){if(!history.length){message('No changes to undo.');return;}studio?.cancel();studio?.routeStop();pendingRoute=null;state=JSON.parse(history.pop());
+function undo(){if(!history.length){message('No changes to undo.');return;}strategy?.cancelGesture();strategy?.cancelDrawing();studio?.cancel();studio?.routeStop();pendingRoute=null;state=JSON.parse(history.pop());
   if(view.id&&!nodeById(state,view.id))view={kind:'all',id:null};engine?.setState(state,view);updateUI();persist();message('Reverted last edit.');
 }
 function resetCamera(){engine?.setView(view);}
 function toggleFocus(){gui.atlas.classList.toggle('focus-view');if(!gui.atlas.classList.contains('focus-view'))gui.right.classList.remove('mobile-open');}
 function bind(){
+  $('strategyOpen').addEventListener('click',()=>{if(!strategy)return;studio?.setMode('orbit');strategy.open();});
   $('objectForm').addEventListener('submit',saveInspector);
   $('closeMobileInspector').addEventListener('click',()=>gui.right.classList.remove('mobile-open'));
   $('enterBtn').addEventListener('click',enterSelected);$('focusBtn').addEventListener('click',focusSelected);
@@ -273,7 +278,10 @@ function init(){updateUI();bind();
       getState:()=>state,getView:()=>view,onMove:moveDraftNode,onLabelCommit:moveDraftLabel,
       onRouteCancel:()=>{pendingRoute=null;},
       onScale:value=>change(()=>{state.typographyScale=value;},{geometry:false}),
-      onModeChange:()=>{pendingRoute=null;},message});studio.attachEngine(engine);updateUI();
+      onModeChange:()=>{pendingRoute=null;strategy?.close();},message});studio.attachEngine(engine);
+    strategy=new StrategicStudio({canvas:gui.canvas,labelsRoot:gui.labels,atlas:gui.atlas,panel:$('strategyPanel'),
+      getState:()=>state,getView:()=>view,onChange:mutator=>change(mutator),onMessage:message});
+    strategy.attachEngine(engine);updateUI();
     $('loading').style.opacity='0';setTimeout(()=>$('loading').remove(),900);
     setInterval(()=>{if(engine&&document.visibilityState==='visible')$('drawCalls').textContent=String(engine.info().drawCalls).padStart(2,'0');},1000);
     message('The All is ready. All starting coordinates remain provisional.');
