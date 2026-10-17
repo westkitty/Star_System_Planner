@@ -216,3 +216,59 @@
 @media(min-width:621px) {
   .atlas.atlas-minimal .world-label {max-width:265px;}
 }
+
+/* The orbital tier is a place, not a separate simulator or modal menu. */
+#stellarDive[hidden],#stellarHud[hidden]{display:none!important}
+.stellar-eyebrow{
+  font:600 9px/1.4 var(--mono);letter-spacing:.15em;color:#86cfe6;
+}
+.stellar-dive,.stellar-hud{
+  position:absolute;z-index:14;bottom:max(17px,env(safe-area-inset-bottom));
+  color:#e8f7ff;background:linear-gradient(135deg,rgba(3,16,30,.95),rgba(5,25,41,.88));
+  border:1px solid rgba(92,190,220,.58);
+  box-shadow:0 16px 45px rgba(0,0,0,.65),inset 0 1px rgba(165,240,255,.13);
+  backdrop-filter:blur(16px);border-radius:3px;
+}
+.stellar-dive{
+  right:20px;width:min(380px,calc(100vw - 95px));padding:15px 17px;
+}
+.stellar-dive>strong{display:block;margin:6px 0 13px;
+  font:500 21px/1.15 var(--display);letter-spacing:.025em;color:#f1fcff}
+.stellar-dive-controls{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.stellar-dive-controls>span{font:9px/1.6 var(--mono);color:#9dbdcb;max-width:145px}
+.stellar-hud{left:50%;transform:translateX(-50%);width:min(615px,calc(100vw - 135px));
+  padding:12px;display:flex;align-items:center;gap:12px;justify-content:space-between}
+.stellar-location{min-width:0;display:grid;gap:3px;text-align:center}
+.stellar-location strong{display:block;font:500 21px/1.1 var(--display);
+  letter-spacing:.055em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stellar-location small{color:#aac4d2;font:9px/1.4 var(--mono);letter-spacing:.025em}
+.stellar-dive button,.stellar-hud button{
+  min-height:44px;color:#d2f5ff;border:1px solid rgba(118,218,244,.65);
+  background:linear-gradient(180deg,rgba(16,74,97,.91),rgba(4,32,51,.89));
+  font:600 10px/1.2 var(--mono);letter-spacing:.07em;padding:10px 13px;
+  cursor:pointer;white-space:nowrap;flex-shrink:0;
+}
+.stellar-dive button:hover,.stellar-hud button:hover{
+  background:#125271;border-color:#d4f9ff;color:#fff;
+}
+.stellar-dive button:focus-visible,.stellar-hud button:focus-visible{
+  outline:2px solid #c1f5ff;outline-offset:3px;
+}
+@media(max-width:720px){
+  .stellar-dive{right:10px;padding:10px 12px}
+  .stellar-dive>strong{font-size:16px}
+  .stellar-dive-controls{flex-wrap:wrap}
+  .stellar-dive-controls button{width:100%}
+  .stellar-hud{width:calc(100vw - 85px);left:auto;right:9px;transform:none;
+    gap:5px;padding:8px 6px}
+  .stellar-location strong{font-size:13px}
+  .stellar-eyebrow{font-size:8px}
+  .stellar-location small{font-size:8px}
+  .stellar-hud button{font-size:9px;padding:8px 7px;min-height:44px}
+}
+@media(prefers-contrast:more){
+  .stellar-dive,.stellar-hud{background:#041420;border-color:#a8edff}
+}
+@media(prefers-reduced-transparency:reduce){
+  .stellar-dive,.stellar-hud{backdrop-filter:none;background:#051726}
+}

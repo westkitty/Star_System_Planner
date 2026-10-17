@@ -4,6 +4,8 @@ import { layoutVisibleLabels } from './label-layout.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { childNodes, nodeById } from './atlas-data.js';
 import { makePlanetVisual, makeAtmosphere, makeSelectionReticle } from './visual-fidelity.js';
+import { planSystemDetails, makeSystemDressing, makePlanetMoons } from './system-orbit-details.js';
+import { findSystemZoomTarget, closePlanetCameraDistance } from './system-zoom.js';
 
 const V = (p) => new THREE.Vector3(p[0],p[1],p[2]);
 const PALETTE = {azure:0x49dfff, gold:0xffd5a2, void:0x01040b};
@@ -25,6 +27,7 @@ function lines(points,color,opacity=.6,dashed=false){
 function disposeTree(root){
   const geometries=new Set(),materials=new Set(),textures=new Set();
   root.traverse(obj=>{
+    if(obj.isInstancedMesh)obj.dispose?.();
     if(obj.geometry?.dispose)geometries.add(obj.geometry);
     const mats=obj.material?Array.isArray(obj.material)?obj.material:[obj.material]:[];
     for(const mat of mats){
@@ -50,6 +53,7 @@ export class AtlasEngine {
     this.renderer.toneMappingExposure=1.5;
     this.controls=new OrbitControls(this.camera,canvas);
     this.controls.enableDamping=true;this.controls.dampingFactor=.075;
+    this.controls.zoomToCursor=true; // Native mouse/touch dolly respects the pointed-at star.
     this.controls.minDistance=6;this.controls.maxDistance=950;this.controls.maxPolarAngle=Math.PI*.91;
     this.controls.screenSpacePanning=true;
     this.group=new THREE.Group();this.scene.add(this.group);
@@ -63,7 +67,8 @@ export class AtlasEngine {
     this.raycaster=new THREE.Raycaster();this.pointer=new THREE.Vector2();
     this.view={kind:'all',id:null};this.state=null;this.resizeObserver=new ResizeObserver(()=>this.resize());
     this.resizeObserver.observe(canvas.parentElement);
-    this.pointerStart=null;
+    this.pointerStart=null;this.focusedPlanetId=null;this.focusLastPosition=null;
+    this._lastDollyDistance=null;this._dollyIntentUntil=0;this.systemDressingStats=null;
     canvas.addEventListener('pointerdown',this._down=(ev)=>{this.pointerStart=[ev.clientX,ev.clientY];});
     canvas.addEventListener('pointerup',this._up=(ev)=>{if(!this.pointerStart||Math.hypot(ev.clientX-this.pointerStart[0],ev.clientY-this.pointerStart[1])>8)return;this.pick(ev);this.pointerStart=null;});
     canvas.addEventListener('dblclick',this._double=(ev)=>{this.pick(ev,true);});
@@ -135,14 +140,19 @@ export class AtlasEngine {
     this.camera.updateProjectionMatrix();
   }
   setState(state,view=this.view){this.state=state;this.view=view;this.resize();this.rebuild();this.camera.updateMatrixWorld();this.updateLabels();}
-  setView(view){this.view=view;this.rebuild();
+  setView(view){
+    this.view=view;this.focusedPlanetId=null;this.focusLastPosition=null;
+    this._dollyIntentUntil=0;this.controls.zoomToCursor=true;
+    this.rebuild();
     const camera=this.cameraPreset(view);
     this.controls.target.set(0,0,0);this.camera.position.set(...camera);this.controls.update();
+    this._lastDollyDistance=this.controls.getDistance();
     this.camera.updateMatrixWorld();this.updateLabels();
     this.callbacks.onViewChanged?.(view);
   }
   rebuild(){if(!this.state)return;
     disposeTree(this.group);this.glowTextures.clear();this.dynamicMaterials=[];this.routeParticlePositions=null;
+    this.systemDressingStats=null;this.focusLastPosition=null;
     this.selectionReticle.visible=false;
     this.pickables=[];this.labelItems=[];this.motionObjects=[];this.routeParticles=[];
     if(this.view.kind==='all')this.buildAll();
@@ -457,26 +467,55 @@ export class AtlasEngine {
     if(s.layers.routes||s.layers.starsilk)this.makeRoutes(g.id);
     if(s.layers.annotations)this.makeAnnotations(g.id);
   }
-  buildSystem(){const s=this.state,sys=nodeById(s,this.view.id);if(!sys)return;
-    this.controls.minDistance=5;this.controls.maxDistance=280;this.sunLight.position.set(0,0,0);
-    const center=new THREE.Group();this.group.add(center);
-    const sun=sphere(3.6,0xffeac3,0xffbd65);sun.material.emissiveIntensity=2;center.add(sun);
+  buildSystem(){
+    const s=this.state,sys=nodeById(s,this.view.id);
+    if(!sys)return;
+    this.controls.minDistance=2.6;this.controls.maxDistance=280;
+    this.sunLight.position.set(0,0,0);
+    const center=new THREE.Group();center.name='system-primary-star';this.group.add(center);
+    const sun=sphere(3.6,0xffeac3,0xffbd65);
+    sun.name='stellar-photosphere';sun.material.emissiveIntensity=2;center.add(sun);
     if(s.quality!=='battery')center.add(makeAtmosphere(4.1,'#ffd19a',.65));
     this.addGlow(center,25,'#ffb866',.7);this.addGlow(center,12,'#fff0cc',.9);
     if(s.layers.grid)this.makeGrid(120,8);
-    for(const [idx,n] of childNodes(s,sys.id,'planet').entries()){
-      const r=Math.max(7,V(n.position).length());
-      const orbit=[];for(let k=0;k<=120;k++){const angle=k/120*Math.PI*2;orbit.push(new THREE.Vector3(Math.cos(angle)*r,0,Math.sin(angle)*r));}
-      if(s.layers.routes)this.group.add(lines(orbit,0x5e87b2,.24));
+
+    const planets=childNodes(s,sys.id,'planet');
+    const plan=planSystemDetails(sys.id,planets,s.quality);
+    if(s.layers.stars){
+      const dressing=makeSystemDressing(plan);
+      this.group.add(dressing.group);
+      this.motionObjects.push(...dressing.actors);
+      this.systemDressingStats=dressing.stats;
+    }else this.systemDressingStats={asteroids:0,moons:0,comets:0,companions:0};
+    for(const [idx,n] of planets.entries()){
+      const r=Math.max(7,Math.hypot(n.position[0],n.position[2]));
+      const orbit=[];for(let k=0;k<=120;k++){
+        const angle=k/120*Math.PI*2;
+        orbit.push(new THREE.Vector3(Math.cos(angle)*r,n.position[1],Math.sin(angle)*r));
+      }
+      if(s.layers.routes)this.group.add(lines(orbit,0x5e87b2,.28));
       const group=new THREE.Group();group.position.copy(V(n.position));this.group.add(group);
       const visual=makePlanetVisual(n,s.quality);group.add(visual.group);
       this.motionObjects.push({obj:visual.surface,spin:.000013+idx*.000004});
       if(visual.clouds)this.motionObjects.push({obj:visual.clouds,spin:.000022+idx*.000003});
-      if(idx===1){const ring=new THREE.Mesh(new THREE.RingGeometry(2.45,3.55,50),new THREE.MeshBasicMaterial({color:0x87a8bd,side:THREE.DoubleSide,opacity:.4,transparent:true}));ring.rotation.x=-.25;group.add(ring);}
-      const target=new THREE.Mesh(new THREE.SphereGeometry(3,12,8),new THREE.MeshBasicMaterial({visible:false}));group.add(target);this.hitTarget(n,target);
-      this.motionObjects.push({obj:group,orbit:r,phase:Math.atan2(n.position[2],n.position[0]),speed:.00015/(idx+1)});
+      if(idx===1){
+        const ring=new THREE.Mesh(new THREE.RingGeometry(2.45,3.55,50),
+          new THREE.MeshBasicMaterial({color:0x87a8bd,side:THREE.DoubleSide,opacity:.4,transparent:true}));
+        ring.rotation.x=-.25;group.add(ring);
+      }
+      // These little orbiters are visual hypotheses, never new saved map nodes.
+      const spec=plan.moons.find(m=>m.parentId===n.id);
+      if(s.layers.stars&&spec){
+        const moons=makePlanetMoons(n,idx,spec.count,s.quality);
+        group.add(moons.group);this.motionObjects.push(...moons.actors);
+      }
+      const target=new THREE.Mesh(new THREE.SphereGeometry(3,12,8),
+        new THREE.MeshBasicMaterial({visible:false}));
+      group.add(target);this.hitTarget(n,target);
+      this.motionObjects.push({obj:group,orbit:r,offsetY:n.position[1],
+        phase:Math.atan2(n.position[2],n.position[0]),speed:.00015/(idx+1)});
     }
-    // Do not imply that every source-unknown stellar system canonically had a Blood Ring.
+    // Never infer that a source-unknown system had a historical Blood Ring.
     if(s.layers.annotations)this.makeAnnotations(sys.id);
   }
   pick(ev,enter=false){const rect=this.canvas.getBoundingClientRect();this.pointer.set(((ev.clientX-rect.left)/rect.width)*2-1,1-((ev.clientY-rect.top)/rect.height)*2);
@@ -484,15 +523,30 @@ export class AtlasEngine {
     const hits=this.raycaster.intersectObjects(this.pickables,false);if(!hits.length)return;
     const id=hits[0].object.userData.atlasId;if(id)this.callbacks.onSelect?.(id,enter,ev);
   }
-  focusOn(node){const obj=this.labelItems.find(p=>p.node.id===node.id)?.obj;if(!obj)return;
-    const p=new THREE.Vector3();obj.getWorldPosition(p);const delta=p.clone().sub(this.controls.target);
-    this.camera.position.add(delta);this.controls.target.copy(p);this.controls.update();
+  focusOn(node){
+    const obj=this.labelItems.find(p=>p.node.id===node.id)?.obj;if(!obj)return;
+    const target=new THREE.Vector3();obj.getWorldPosition(target);
+    const towards=this.camera.position.clone().sub(this.controls.target).normalize();
+    const isPlanet=this.view.kind==='system'&&node.kind==='planet';
+    const distance=isPlanet?closePlanetCameraDistance(node.size):this.controls.getDistance();
+    this.camera.position.copy(target).addScaledVector(towards,distance);
+    this.controls.target.copy(target);
+    this.focusedPlanetId=isPlanet?node.id:null;
+    this.focusLastPosition=isPlanet?target.clone():null;
+    this._dollyIntentUntil=0; // Selecting a different object is not a new zoom gesture.
+    // A selected stellar system or planet is the user's zoom target. Zooming
+    // at an off-center screen position must never push that target away.
+    this.controls.zoomToCursor=!isPlanet&&!(this.view.kind==='galaxy'&&node.kind==='system');
+    this.controls.update();
+    this._lastDollyDistance=this.controls.getDistance();
   }
   updateLabels(){
     const state=this.state;
     if(!state||!state.layers.labels){for(const node of this.labelNodes.values())node.remove();this.labelNodes.clear();return;}
     const candidates=[];const w=this.width,h=this.height;
-    for(const item of this.labelItems){const n=item.node;if(n.label?.show===false)continue;
+    for(const item of this.labelItems){const n=item.node;
+      if(n.label?.show===false)continue;
+      if(this.focusedPlanetId&&this.view.kind==='system'&&n.id!==this.focusedPlanetId)continue;
       const wp=new THREE.Vector3();item.obj.getWorldPosition(wp);const p=wp.project(this.camera);
       if(p.z< -1||p.z>1||Math.abs(p.x)>1.06||Math.abs(p.y)>1.06)continue;
       const x=(p.x*.5+.5)*w,y=(-p.y*.5+.5)*h;
@@ -523,7 +577,8 @@ export class AtlasEngine {
     this.elapsed+=elapsed;
     const motion=this.state?.motion&&!this.reducedMotion&&!this.paused;
     if(motion){
-      for(const m of this.motionObjects){if(m.orbit){const a=m.phase+this.elapsed*m.speed;m.obj.position.set(Math.cos(a)*m.orbit,0,Math.sin(a)*m.orbit);}
+      for(const m of this.motionObjects){if(m.orbit){const a=m.phase+this.elapsed*m.speed;
+          m.obj.position.set(Math.cos(a)*m.orbit,m.offsetY||0,Math.sin(a)*m.orbit*(m.flattenZ??1));}
         else m.obj.rotation.y+=elapsed*(m.spin||m.speed);}
       for(const [i,p] of this.routeParticles.entries()){
         if(p.failed)continue;
@@ -537,7 +592,35 @@ export class AtlasEngine {
       if(this.routeParticlePositions)this.routeParticlePositions.needsUpdate=true;
     }
     if(motion)for(const material of this.dynamicMaterials)material.uniforms.time.value=this.elapsed/1000;
+    // Follow a zoomed planet's 3D orbit without stealing scroll, orbit, or pan input.
+    if(this.focusedPlanetId&&this.view.kind==='system'){
+      const planet=this.labelItems.find(i=>i.node.id===this.focusedPlanetId);
+      if(planet){
+        const position=new THREE.Vector3();planet.obj.getWorldPosition(position);
+        if(this.focusLastPosition){
+          const shift=position.clone().sub(this.focusLastPosition);
+          this.camera.position.add(shift);this.controls.target.add(shift);
+        }
+        this.focusLastPosition=position;
+      }
+    }
     this.controls.update();
+    const distance=this.controls.getDistance();
+    if(this._lastDollyDistance!==null&&distance<this._lastDollyDistance-.012)
+      this._dollyIntentUntil=now+600;
+    this._lastDollyDistance=distance;
+    if(this.view.kind==='galaxy'&&this._dollyIntentUntil>=now){
+      const candidates=this.labelItems.filter(i=>i.node.kind==='system').map(i=>{
+        const wp=new THREE.Vector3();i.obj.getWorldPosition(wp);
+        const projected=wp.clone().project(this.camera);
+        return {id:i.node.id,kind:i.node.kind,distance:wp.distanceTo(this.camera.position),
+          screenX:projected.x,screenY:projected.y,visible:projected.z>=-1&&projected.z<=1};
+      });
+      const id=findSystemZoomTarget({viewKind:this.view.kind,zooming:true,
+        blocked:this.callbacks.canDollyEnter?!this.callbacks.canDollyEnter():false,
+        candidates,selectedId:this.state?.selected});
+      if(id){this._dollyIntentUntil=0;this.callbacks.onDollyEnter?.(id);}
+    }
     const selected=this.state?.selected;
     const target=selected?this.pickables.find(o=>o.userData.atlasId===selected):null;
     this.selectionReticle.visible=Boolean(target);
@@ -553,6 +636,6 @@ export class AtlasEngine {
     this.renderer.render(this.scene,this.camera);
     if(++this.frame%5===0)this.updateLabels();
   }
-  info(){return {drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,geometries:this.renderer.info.memory.geometries,textures:this.renderer.info.memory.textures};}
+  info(){return {drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,geometries:this.renderer.info.memory.geometries,textures:this.renderer.info.memory.textures,systemDetails:this.systemDressingStats,focusedPlanetId:this.focusedPlanetId,cameraDistance:this.controls.getDistance()};}
   dispose(){this.disposed=true;this.renderer.setAnimationLoop(null);this.resizeObserver.disconnect();this.canvas.removeEventListener('pointerdown',this._down);this.canvas.removeEventListener('pointerup',this._up);this.canvas.removeEventListener('dblclick',this._double);this.controls.dispose();disposeTree(this.group);disposeTree(this.bg);disposeTree(this.selectionReticle);this.scene.remove(this.selectionReticle);this.glowTextures.clear();this.renderer.dispose();this.renderer.forceContextLoss();this.labelsRoot.replaceChildren();this.labelNodes.clear();}
 }

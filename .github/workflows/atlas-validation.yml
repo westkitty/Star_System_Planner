@@ -11,6 +11,7 @@ on:
       - 'scripts/phase6-browser-ci.mjs'
       - 'scripts/atlas-focus-browser-ci.mjs'
       - 'scripts/atlas-cinematic-browser-ci.mjs'
+      - 'scripts/system-zoom-browser-ci.mjs'
       - 'vite.config.ts'
       - '.github/workflows/atlas-validation.yml'
   pull_request:
@@ -23,6 +24,7 @@ on:
       - 'scripts/phase6-browser-ci.mjs'
       - 'scripts/atlas-focus-browser-ci.mjs'
       - 'scripts/atlas-cinematic-browser-ci.mjs'
+      - 'scripts/system-zoom-browser-ci.mjs'
       - 'vite.config.ts'
       - '.github/workflows/atlas-validation.yml'
 permissions:
@@ -53,6 +55,8 @@ jobs:
         run: node scripts/atlas-focus-browser-ci.mjs
       - name: Cinematic renderer multi-tier and era acceptance
         run: node scripts/atlas-cinematic-browser-ci.mjs
+      - name: Actual star system zoom, orbital objects, touch and navigation
+        run: node scripts/system-zoom-browser-ci.mjs
       - name: Spatial Studio real browser acceptance
         run: node scripts/spatial-studio-browser-ci.mjs
       - name: Strategic Atlas Phase 4 browser acceptance

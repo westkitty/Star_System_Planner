@@ -50,6 +50,7 @@ function enter(viewKind,id){
 function enterSelected(){const n=nodeById(state,state.selected);
   if(n?.kind==='galaxy')enter('galaxy',n.id);
   else if(n?.kind==='system')enter('system',n.id);
+  else if(n?.kind==='planet'&&view.kind==='system')focusSelected();
   else message('This object has no deeper cartographic tier.');
 }
 function up(){if(view.kind==='system'){
@@ -76,11 +77,18 @@ function select(id,autoEnter=false,ev=null){
   if(view.kind==='all'&&n.parentId){
     const chain=ancestry(state,id);if(chain[0]?.kind==='galaxy'){if(n.kind==='planet'){enter('system',n.parentId);}else enter('galaxy',chain[0].id);}
   }else if(view.kind==='galaxy'&&n.kind==='planet'){enter('system',n.parentId);}
+  const trackedPlanet=engine?.info().focusedPlanetId;
   state.selected=n.id;updateUI();
+  if(!autoEnter&&view.kind==='system'&&n.kind==='planet'&&trackedPlanet&&trackedPlanet!==n.id){
+    engine?.focusOn(n);engine?.updateLabels();updateStellarNavigation();
+  }
+  if(!autoEnter&&view.kind==='galaxy'&&n.kind==='system'&&canDollyEnter()){
+    engine?.focusOn(n);engine?.updateLabels();
+  }
   if(autoEnter)enterSelected();
   if(innerWidth<=620)gui.right.classList.add('mobile-open');
 }
-function focusSelected(){const n=nodeById(state,state.selected);if(n)engine?.focusOn(n);}
+function focusSelected(){const n=nodeById(state,state.selected);if(n){engine?.focusOn(n);updateStellarNavigation();}}
 function button(text,cls,action){const b=el('button',cls,text);b.type='button';b.addEventListener('click',action);return b;}
 function updateBreadcrumb(){const frag=document.createDocumentFragment();frag.append(button('THE ALL','',()=>enter('all',null)));
   if(view.kind!=='all')for(const n of ancestry(state,view.id)){
@@ -143,7 +151,9 @@ function fillInspector(){const n=nodeById(state,state.selected);const intro=$('i
   $('objLabelSize').value=n.label.size;$('objLabelFamily').value=n.label.family;
   const readOnly=n.status==='reference';
   for(const field of gui.form.querySelectorAll('input,textarea,select'))field.disabled=readOnly;
-  $('applyBtn').disabled=readOnly;$('enterBtn').disabled=!['galaxy','system'].includes(n.kind);
+  $('applyBtn').disabled=readOnly;
+  $('enterBtn').disabled=!['galaxy','system','planet'].includes(n.kind);
+  $('enterBtn').textContent=n.kind==='planet'?'ZOOM TO PLANET':n.kind==='system'?'ENTER SYSTEM':'ENTER GALAXY';
   $('deleteBtn').textContent=readOnly?'FORK AS DRAFT':'DELETE DRAFT';
   $('connectBtn').disabled=readOnly||!['galaxy','system','planet'].includes(n.kind);
 }
@@ -193,7 +203,30 @@ function exportPlannerHandoff(){
     message('Hypothetical system exported. Open System Planner and use IMPORT; nothing has been auto-loaded.');
   }catch(e){message('Orbital export refused: '+e.message,true);}
 }
-function updateUI(){updateBreadcrumb();updateLayers();updateNodeList();updateRoutes();fillInspector();updateSources();updateCounts();updateEpoch();updateHandoff();
+function updateStellarNavigation(){
+  const system=view.kind==='system'?nodeById(state,view.id):null;
+  const selected=nodeById(state,state.selected);
+  const drill=view.kind==='galaxy'&&selected?.kind==='system'&&selected.parentId===view.id;
+  $('stellarDive').hidden=!drill;
+  if(drill)$('stellarDiveName').textContent=selected.name;
+  $('stellarHud').hidden=!system;
+  if(system){
+    $('stellarHudName').textContent=system.name;
+    const count=childNodes(state,system.id,'planet').length;
+    const scene=engine?.info(),details=scene?.systemDetails;
+    const objects=details
+      ? details.moons+' MOONS · '+details.asteroids+' ASTEROIDS'+
+        (details.comets?' · COMET':'')+(details.companions?' · COMPANION STAR':'')
+      : 'ORBITAL SCENERY';
+    $('stellarHudInfo').textContent=count+' EDITABLE PLANETS · '+objects+' / NON-CANON DISPLAY';
+    $('stellarHud').dataset.tracking=selected?.kind==='planet'&&scene?.focusedPlanetId===selected.id?'planet':'none';
+  }
+}
+function canDollyEnter(){
+  return !pendingRoute&&(!studio||studio.mode==='orbit')&&
+    !(strategy?.opened&&strategy.mode!=='pan')&&!networkLab?.opened&&!temporal?.opened;
+}
+function updateUI(){updateBreadcrumb();updateLayers();updateNodeList();updateRoutes();fillInspector();updateSources();updateCounts();updateEpoch();updateHandoff();updateStellarNavigation();
   $('quality').value=state.quality;$('motionBtn').textContent=state.motion?'MOTION ON':'MOTION OFF';
   studio?.sync();strategy?.sync();networkLab?.sync();temporal?.sync();
 }
@@ -285,6 +318,9 @@ function bind(){
   $('objectForm').addEventListener('submit',saveInspector);
   $('closeMobileInspector').addEventListener('click',()=>gui.right.classList.remove('mobile-open'));
   $('enterBtn').addEventListener('click',enterSelected);$('focusBtn').addEventListener('click',focusSelected);
+  $('stellarDiveButton').addEventListener('click',enterSelected);
+  $('stellarBackButton').addEventListener('click',up);
+  $('stellarOverviewButton').addEventListener('click',resetCamera);
   $('connectBtn').addEventListener('click',connectRoute);$('deleteBtn').addEventListener('click',removeOrFork);
   $('addNodeBtn').addEventListener('click',()=>addCurrentNode(view.kind==='all'?'galaxy':view.kind==='galaxy'?'system':'planet'));
   $('addAnnotationBtn').addEventListener('click',()=>addCurrentNode('annotation'));
@@ -311,6 +347,8 @@ function bind(){
     if(ev.key==='/'&&!ev.ctrlKey){ev.preventDefault();focusSearch();}
     else if(ev.key.toLowerCase()==='h'){toggleFocus();}
     else if(ev.key.toLowerCase()==='f'){focusSelected();}
+    else if(ev.key==='Enter'&&!ev.target.closest('button,a,[role="button"]')&&
+      ['galaxy','system'].includes(view.kind)&&state.selected){enterSelected();}
     else if(ev.key==='Escape'){ev.preventDefault();up();gui.right.classList.remove('mobile-open');}
     else if(ev.key==='Home'){enter('all',null);}
     else if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='z'){ev.preventDefault();undo();}
@@ -321,7 +359,11 @@ function bind(){
 }
 function init(){updateUI();bind();
   try{initSourceGraph();}catch(e){$('sourceGraphOpen').disabled=true;message('Source topology unavailable: '+e.message,true);}
-  try{engine=new AtlasEngine(gui.canvas,gui.labels,{onSelect:select,onViewChanged:updateUI});engine.setState(state,view);
+  try{engine=new AtlasEngine(gui.canvas,gui.labels,{onSelect:select,onViewChanged:updateUI,
+      canDollyEnter,onDollyEnter:id=>{
+        const n=nodeById(state,id);
+        if(view.kind==='galaxy'&&n?.kind==='system'&&n.parentId===view.id)enter('system',id);
+      }});engine.setState(state,view);
     studio=new SpatialStudio({canvas:gui.canvas,labelsRoot:gui.labels,atlas:gui.atlas,panel:$('studioPanel'),
       getState:()=>state,getView:()=>view,onMove:moveDraftNode,onLabelCommit:moveDraftLabel,
       onRouteCancel:()=>{pendingRoute=null;},
