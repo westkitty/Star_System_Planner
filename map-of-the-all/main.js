@@ -280,7 +280,7 @@ function init(){updateUI();bind();
       onScale:value=>change(()=>{state.typographyScale=value;},{geometry:false}),
       onModeChange:()=>{pendingRoute=null;strategy?.close();},message});studio.attachEngine(engine);
     strategy=new StrategicStudio({canvas:gui.canvas,labelsRoot:gui.labels,atlas:gui.atlas,panel:$('strategyPanel'),
-      getState:()=>state,getView:()=>view,onChange:mutator=>change(mutator),onMessage:message});
+      getState:()=>state,getView:()=>view,onChange:mutator=>change(()=>mutator(state)),onMessage:message});
     strategy.attachEngine(engine);updateUI();
     $('loading').style.opacity='0';setTimeout(()=>$('loading').remove(),900);
     setInterval(()=>{if(engine&&document.visibilityState==='visible')$('drawCalls').textContent=String(engine.info().drawCalls).padStart(2,'0');},1000);
