@@ -633,6 +633,38 @@ async function runBrowserValidation() {
   console.log('Journey 5 Status:', results.journey5_flight_director ? 'PASS' : 'FAIL');
   await client.send('Emulation.clearDeviceMetricsOverride', {}, sid);
 
+  // ==========================================
+  // JOURNEY 6 — REAL KEYBOARD MODAL OWNERSHIP
+  // Verify focus confinement, scroll lock, Escape, and focus restoration.
+  // ==========================================
+  console.log('\n--- EXERCISING JOURNEY 6: KEYBOARD MODAL FOCUS & RECOVERY ---');
+  const previousOverflow = await client.evaluate('document.body.style.overflow', sid);
+  const helpLauncherFound = await client.evaluate(
+    "(() => { const button = Array.from(document.querySelectorAll('button[aria-label]')).find(b => b.getAttribute('aria-label') === 'Open shortcut help'); if (!button) return false; button.focus(); button.click(); return true; })()",
+    sid,
+  );
+  await new Promise((r) => setTimeout(r, 160));
+  const focusInModal = await client.evaluate(
+    "(() => { const dialog = Array.from(document.querySelectorAll('[role=dialog]')).find(b => b.getAttribute('aria-label') === 'Keyboard shortcuts'); return { present: !!dialog, focusInside: !!dialog?.contains(document.activeElement), backgroundLocked: document.body.style.overflow === 'hidden' }; })()",
+    sid,
+  );
+  const wrapsFocus = await client.evaluate(
+    "(() => { const dialog = Array.from(document.querySelectorAll('[role=dialog]')).find(b => b.getAttribute('aria-label') === 'Keyboard shortcuts'); if (!dialog) return false; const controls = Array.from(dialog.querySelectorAll('button')).filter((item) => !item.disabled); const first = controls[0]; const last = controls.at(-1); if (!first || !last) return false; last.focus(); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })); return document.activeElement === first; })()",
+    sid,
+  );
+  await client.evaluate(
+    "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))",
+    sid,
+  );
+  await new Promise((r) => setTimeout(r, 180));
+  const focusAfterClose = await client.evaluate(
+    "(() => ({ closed: !Array.from(document.querySelectorAll('[role=dialog]')).some(b => b.getAttribute('aria-label') === 'Keyboard shortcuts'), restored: document.activeElement?.getAttribute('aria-label') === 'Open shortcut help', overflowRestored: document.body.style.overflow }))()",
+    sid,
+  );
+  results.journey6_keyboard_modal = Boolean(helpLauncherFound && focusInModal.present && focusInModal.focusInside && focusInModal.backgroundLocked && wrapsFocus && focusAfterClose.closed && focusAfterClose.restored && focusAfterClose.overflowRestored === previousOverflow);
+  console.log('  Modal ownership:', { helpLauncherFound, focusInModal, wrapsFocus, focusAfterClose });
+  console.log('Journey 6 Status:', results.journey6_keyboard_modal ? 'PASS' : 'FAIL');
+
   // Final Screenshot for evidence
   const screenshotData = await client.send('Page.captureScreenshot', { format: 'png' }, sid);
   const ssPath = path.resolve(__dirname, '../browser-qa-evidence.png');

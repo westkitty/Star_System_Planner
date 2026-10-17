@@ -79,6 +79,9 @@ export function validateProjectStructure(project: unknown): ValidationReport {
         issues.push({ path: bPath, message: 'branch must be an object' });
         return;
       }
+      if (typeof branch.name !== 'string' || branch.name.trim().length === 0) {
+        issues.push({ path: `${bPath}.name`, message: 'branch name must be a non-empty string' });
+      }
       if (typeof branch.id !== 'string' || branch.id.length === 0) {
         issues.push({ path: `${bPath}.id`, message: 'branch id must be a non-empty string' });
       } else if (seenIds.has(branch.id)) {
@@ -91,8 +94,8 @@ export function validateProjectStructure(project: unknown): ValidationReport {
         return;
       }
       const snapshotTimestamp = (branch.snapshot as Record<string, unknown>).timestampSec;
-      if (snapshotTimestamp !== undefined && !isFiniteNumber(snapshotTimestamp)) {
-        issues.push({ path: `${bPath}.snapshot.timestampSec`, message: 'snapshot timestampSec must be a finite number when present' });
+      if (!isFiniteNumber(snapshotTimestamp) || snapshotTimestamp < 0) {
+        issues.push({ path: `${bPath}.snapshot.timestampSec`, message: 'snapshot timestampSec must be a finite non-negative number' });
       }
       const bodies = (branch.snapshot as Record<string, unknown>).bodies;
       if (!Array.isArray(bodies)) {

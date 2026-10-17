@@ -2,7 +2,7 @@
 
 > A tactile 3D stellar-architecture laboratory engineered first for the Samsung Galaxy Tab S9 and S Pen.
 
-[![Verification](https://img.shields.io/badge/Verification-230%2F230%20Passed-0cc6ff)](./OPERATIONAL_STATE.md)
+[![Verification](https://img.shields.io/badge/Verification-239%2F239%20Passed-0cc6ff)](./OPERATIONAL_STATE.md)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Zero--Errors-blue)](./tsconfig.json)
 [![PWA](https://img.shields.io/badge/PWA-Offline--First%20IndexedDB-49e7ff)](./src/persistence/db.ts)
 [![Canon Boundary](https://img.shields.io/badge/Canon%20Boundary-Strictly%20Read--Only-crimson)](./CANON_SOURCES.md)
@@ -137,11 +137,13 @@ npm run check
 | Verification Stage | Command | Status |
 | :--- | :--- | :--- |
 | **Typecheck** | `npm run typecheck` (`tsc --noEmit`) | **0 Errors, Strict Mode** |
-| **Unit Tests** | `npm run test` (`vitest run`) | **230/230 Passing (20 suites)** |
+| **Unit Tests** | `npm run test` (`vitest run`) | **239/239 Passing (23 suites)** |
 | **Production Build** | `npm run build` (`tsc && vite build`) | **Clean Bundle, PWA Generated** |
 | **Canon Snapshot** | `npm run canon:refresh` | **Verified Manifest Synced** |
 
 ---
+
+**October 17, 2026:** Fixed anchored-star gravity in both live and worker calculations; added long-horizon orbit checks, strict forecast-fidelity disclosure, import recovery and keyboard accessibility proof. See [the evidence-led five-loop uplift report](./QUALITY_UPLIFT_2026-10-17.md). The scorecard is deliberately conservative; physical Tab S9/S Pen tests remain unverified.
 
 ## 7. Development & Scripts
 

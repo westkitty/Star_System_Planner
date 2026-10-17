@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseAndValidateProjectJson, sanitizeProject, buildProjectFilename } from '../persistence/export-import';
+import { parseAndValidateProjectJson, parseProjectWithDiagnostics, sanitizeProject, buildProjectFilename } from '../persistence/export-import';
 import { createSerializableProject } from '../persistence/serializer';
 import { SimulationEngine } from '../simulation/engine';
 import { BranchManager } from '../branching/branch-manager';
@@ -83,6 +83,28 @@ describe('Schema migration & deep sanitization (adversarial persistence)', () =>
     expect(name).not.toContain('/');
     expect(name).toMatch(/^[a-z0-9-]+-\d{4}-\d{2}-\d{2}\.ssp\.json$/);
     expect(buildProjectFilename('   ', '2026-09-15T00:00:00Z')).toBe('system-2026-09-15.ssp.json');
+  });
+
+  it('normalizes an omitted legacy branch history before a live import', () => {
+    const payload = liveProjectPayload();
+    const imported = JSON.parse(JSON.stringify(payload));
+    delete imported.branches[0].events;
+    const diagnostics = parseProjectWithDiagnostics(JSON.stringify(imported));
+    expect(diagnostics.ok).toBe(true);
+    expect(diagnostics.migrated).toBe(true);
+    expect(diagnostics.project?.branches[0].events).toEqual([]);
+    expect(diagnostics.migrationNotes.join(' ')).toMatch(/empty.*history/i);
+  });
+
+  it('rejects missing simulation clocks and unnamed branches before physics restoration', () => {
+    const payload = JSON.parse(JSON.stringify(liveProjectPayload()));
+    delete payload.branches[0].snapshot.timestampSec;
+    payload.branches[0].name = '';
+    const diagnostics = parseProjectWithDiagnostics(JSON.stringify(payload));
+    expect(diagnostics.ok).toBe(false);
+    expect(diagnostics.issues.map((issue) => issue.path)).toEqual(expect.arrayContaining([
+      '$.branches[0].name', '$.branches[0].snapshot.timestampSec',
+    ]));
   });
 
   it('Accepts garbage JSON with a parse error, not a crash', () => {

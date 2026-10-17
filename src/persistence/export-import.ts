@@ -116,6 +116,18 @@ export function parseProjectWithDiagnostics(jsonStr: string): ImportDiagnostics 
   }
 
   const project = parsed as SavedSystemProject;
+  // Older handoffs sometimes omit a branch's ledger. Treat that as an
+  // explicitly empty history before the live engine can be mutated.
+  let emptyLedgersRestored = 0;
+  for (const branch of project.branches) {
+    if (branch.events === undefined) {
+      branch.events = [];
+      emptyLedgersRestored++;
+    }
+  }
+  if (emptyLedgersRestored) {
+    migration.notes.push(`Initialized ${emptyLedgersRestored} missing branch event ledger(s) as empty; no history was inferred.`);
+  }
   if (wasLegacy) {
     project.schemaVersion = CURRENT_SCHEMA_VERSION;
     project.visualSettings = { ...project.visualSettings, showXRay: false, showLabels: false, showTrails: false, showHabitableZone: false };
@@ -123,7 +135,7 @@ export function parseProjectWithDiagnostics(jsonStr: string): ImportDiagnostics 
   if (!project.activeBranchId) {
     project.activeBranchId = project.branches[0].id;
   }
-  return { ok: true, project, migrated: migration.migrated, migrationNotes: migration.notes, issues: [] };
+  return { ok: true, project, migrated: migration.migrated || emptyLedgersRestored > 0, migrationNotes: migration.notes, issues: [] };
 }
 
 /**

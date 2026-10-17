@@ -24,6 +24,7 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     // ASSET07: every modal announces itself with tactile open/close ticks.
     audioSynth.playModalOpen();
@@ -49,7 +50,10 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(
       }
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
+      if (!container.contains(document.activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      } else if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
         last.focus();
       } else if (!e.shiftKey && document.activeElement === last) {
@@ -65,6 +69,7 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(
       audioSynth.playModalClose();
       document.removeEventListener('keydown', handleKeyDown, true);
       document.body.style.overflow = prevOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
     };
   }, [closeOnEscape, autoFocus]);
 

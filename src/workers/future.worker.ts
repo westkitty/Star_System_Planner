@@ -39,6 +39,8 @@ export interface FutureForecastResponse {
   trajectories: Record<string, PredictedPoint[]>;
   collisions: PredictedCollision[];
   sensitivityFans?: Vector3D[][];
+  /** True only for straight-line fallback; never a physics-integrated prediction. */
+  approximate?: boolean;
   /** Worker protocol version (iteration 3, BACK12). */
   protocolVersion?: number;
 }
@@ -58,7 +60,8 @@ function computeWorkerAccs(
   const softeningSq = 1000.0;
 
   for (let i = 0; i < n; i++) {
-    if (fixed[i]) continue;
+    // Fixed bodies remain gravity sources; only their own acceleration is zero.
+    // Keep this pairwise rule identical to the live integrator.
     const ix = i * 3;
     const px = pos[ix];
     const py = pos[ix + 1];

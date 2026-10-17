@@ -37,8 +37,8 @@ export function computeAccelerations(bodies: CelestialBody[]): AccelerationVecto
 
   for (let i = 0; i < n; i++) {
     const bi = bodies[i];
-    if (bi.fixed) continue;
-
+    // Anchored bodies do not move, but still gravitate other bodies.
+    // Skipping the whole pair silently turned fixed-star presets ballistic.
     for (let j = i + 1; j < n; j++) {
       const bj = bodies[j];
 

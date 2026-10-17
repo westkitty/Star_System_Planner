@@ -167,6 +167,7 @@ const PlannerApp: React.FC = () => {
   const [followEnabled, setFollowEnabled] = useState(false);
   const [topDownEnabled, setTopDownEnabled] = useState(false);
   const [forecastAlerts, setForecastAlerts] = useState<ForecastAlert[]>([]);
+  const [forecastApproximate, setForecastApproximate] = useState(false);
   const [undoDepth, setUndoDepth] = useState(0);
   const [challenges, setChallenges] = useState<ChallengeState[]>([]);
   const [contractCards, setContractCards] = useState<ContractCardState[]>([]);
@@ -282,6 +283,7 @@ const PlannerApp: React.FC = () => {
     }
     if (!showFuture && sceneRef.current) {
       sceneRef.current.trajectoryRenderer.clearAll();
+      setForecastApproximate(false);
     }
   }, [showFuture, showSensitivity]);
 
@@ -644,6 +646,7 @@ const PlannerApp: React.FC = () => {
 
     // 6. Initialize Future Client
     const futureClient = new FutureClient((response) => {
+      setForecastApproximate(response.approximate === true);
       const maxPoints = settingsRef.current.trajectoryPoints;
       for (const [bodyId, points] of Object.entries(response.trajectories)) {
         sceneMgr.trajectoryRenderer.updateBodyTrajectory({
@@ -694,6 +697,12 @@ const PlannerApp: React.FC = () => {
 
     // WOW-01: a separate forecast client renders a ghost path from cloned Flight Director state.
     const directorPreviewClient = new FutureClient((response) => {
+      if (response.approximate) {
+        // A straight-line emergency fallback cannot certify a flight maneuver.
+        sceneMgr.trajectoryRenderer.clearPlanPreview();
+        setDirectorPreview((current) => current ? { ...current, status: 'error', points: 0, horizonSec: 0 } : null);
+        return;
+      }
       const craftId = directorPreviewCraftIdRef.current;
       const points = craftId ? response.trajectories[craftId] ?? [] : [];
       if (!craftId || points.length < 2) {
@@ -2538,6 +2547,8 @@ const PlannerApp: React.FC = () => {
             return;
           }
           const { project, migrated, migrationNotes } = { project: diag.project, migrated: diag.migrated, migrationNotes: diag.migrationNotes };
+          // Rehydrate causal branches before mutating the live simulation.
+          const bMgr = BranchManager.fromPersisted(project.branches, project.activeBranchId);
           if (engineRef.current && sceneRef.current && undoStackRef.current) {
             undoStackRef.current.checkpoint(engineRef.current, 'bulk', `Import ${project.projectName}`);
             const activeBranch = project.branches.find(b => b.id === project.activeBranchId) || project.branches[0];
@@ -2546,7 +2557,6 @@ const PlannerApp: React.FC = () => {
             engineRef.current.systemStatus = project.systemStatus || activeBranch.snapshot.systemStatus || 'active';
             setSystemStatus(engineRef.current.systemStatus);
 
-            const bMgr = BranchManager.fromPersisted(project.branches, project.activeBranchId);
             branchManagerRef.current = bMgr;
             setBranches(bMgr.getAllBranches());
             setActiveBranchId(bMgr.activeBranchId);
@@ -2722,6 +2732,12 @@ const PlannerApp: React.FC = () => {
           onDeleteProject={handleDeleteProject}
         />
         </PanelErrorBoundary>
+        )}
+        {showFuture && forecastApproximate && mode !== 'PRESENT' && (
+          <div className="forecast-quality-banner hud-interactive" role="status">
+            <strong>FORECAST DEGRADED</strong>
+            <span>Linear motion guide only · gravitational prediction and collision risk unavailable</span>
+          </div>
         )}
         {/* Forecast impact banner (GAME04) */}
         {forecastAlerts.length > 0 && (

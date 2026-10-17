@@ -29,6 +29,7 @@ export class FutureClient {
   private pendingPayload: FutureForecastRequest | null = null;
   private coalesceTimer: ReturnType<typeof setTimeout> | null = null;
   private timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  private inFlightPayload: FutureForecastRequest | null = null;
   // BACK04: state-hash-keyed forecast cache (LRU, small: responses are large).
   private forecastCache = new Map<string, FutureForecastResponse>();
   private lastRequestKey = '';
@@ -84,15 +85,27 @@ export class FutureClient {
           // Discard stale responses from older requests
           if (resp.requestId === this.currentRequestId) {
             this.clearTimeout();
-            const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-            this.lastLatencyMs = Math.max(0, now - this.dispatchAtMs);
-            this.consecutiveTimeouts = 0;
-            if (resp.protocolVersion !== undefined && resp.protocolVersion !== FORECAST_PROTOCOL_VERSION) {
-              logger.warn('future-worker', 'Forecast protocol mismatch; treating response as suspect', {
+            // A mismatched worker is not an alternate physics authority: never
+            // render, cache, or announce its trajectories as genuine forecasts.
+            if (resp.protocolVersion !== FORECAST_PROTOCOL_VERSION) {
+              logger.warn('future-worker', 'Forecast protocol mismatch; using a marked approximation', {
                 got: resp.protocolVersion,
                 want: FORECAST_PROTOCOL_VERSION,
               });
+              this.workerErrors++;
+              this.workerDisabled = true;
+              const payload = this.inFlightPayload;
+              this.inFlightPayload = null;
+              if (payload) {
+                this.currentRequestId++;
+                this.syncFallback({ ...payload, requestId: this.currentRequestId });
+              }
+              return;
             }
+            this.inFlightPayload = null;
+            const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+            this.lastLatencyMs = Math.max(0, now - this.dispatchAtMs);
+            this.consecutiveTimeouts = 0;
             this.storeInCache(resp);
             this.callback?.(resp);
           }
@@ -185,6 +198,7 @@ export class FutureClient {
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     this.lastDispatchMs = now;
     this.dispatchAtMs = now;
+    this.inFlightPayload = payload;
     if (this.worker && !this.workerDisabled) {
       this.worker.postMessage(payload);
       this.armTimeout(payload);
@@ -206,6 +220,7 @@ export class FutureClient {
         } else {
           logger.warn('future-worker', 'Forecast timed out; using synchronous fallback');
         }
+        this.inFlightPayload = null;
         this.currentRequestId++;
         this.syncFallback({ ...payload, requestId: this.currentRequestId });
       }
@@ -239,7 +254,7 @@ export class FutureClient {
         }
         dummyTraj[b.id] = points;
       }
-      this.callback?.({ requestId: payload.requestId, trajectories: dummyTraj, collisions: [] });
+      this.callback?.({ requestId: payload.requestId, trajectories: dummyTraj, collisions: [], approximate: true });
     }, 0);
   }
 
@@ -255,6 +270,11 @@ export class FutureClient {
       parts.push(
         [
           b.id,
+          // Mass, radius and fixed-body status materially change orbital outcomes.
+          // Excluding them caused stale forecasts after star/planet edits.
+          b.massKg,
+          b.radiusKm,
+          b.fixed ? 'fixed' : 'dynamic',
           Math.round(b.position.x),
           Math.round(b.position.y),
           Math.round(b.position.z),
@@ -279,6 +299,7 @@ export class FutureClient {
   }
 
   public destroy(): void {
+    this.inFlightPayload = null;
     if (this.coalesceTimer) clearTimeout(this.coalesceTimer);
     this.clearTimeout();
     if (this.worker) {

@@ -827,6 +827,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
 }
 
 /* ============ FORECAST BANNER (GAME04) + HUD HINT ============ */
+.forecast-quality-banner {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 720px);
+  margin-top: 7px;
+  padding: 8px 12px;
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  border-left: 3px solid #fbbf24;
+  background: rgba(22, 18, 12, 0.94);
+  border-radius: 6px;
+  color: #f4e5c4;
+  font: 11px/1.4 var(--font-mono);
+  pointer-events: auto;
+}
+.forecast-quality-banner strong { flex-shrink: 0; color: #fbbf24; letter-spacing: 0.035em; }
+.forecast-quality-banner span { min-width: 0; }
+@media (max-width: 700px) {
+  .forecast-quality-banner { flex-direction: column; align-items: flex-start; gap: 3px; }
+}
 .forecast-banner {
   align-self: center;
   display: flex;
@@ -2008,6 +2029,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focu
   font-size: 11px;
   color: var(--text-muted);
   text-align: center;
+}
+.import-diag-copy-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #fbbf24;
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+.import-diag-copy-fallback textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 76px;
+  background: rgba(3, 5, 10, 0.92);
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  color: var(--text-primary);
+  padding: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 .import-diag-actions {
   display: flex;

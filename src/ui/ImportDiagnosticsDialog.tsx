@@ -26,19 +26,26 @@ export const ImportDiagnosticsDialog: React.FC<ImportDiagnosticsDialogProps> = (
 }) => {
   const ref = useModalA11y<HTMLDivElement>(onClose);
   const [copied, setCopied] = React.useState(false);
+  const [manualCopy, setManualCopy] = React.useState<string | null>(null);
+  const manualCopyRef = React.useRef<HTMLTextAreaElement | null>(null);
 
-  const copyDiagnostics = (): void => {
+  const copyDiagnostics = async (): Promise<void> => {
     const text = [
       `Import diagnostics for ${fileName}`,
       ...migrationNotes.map((n) => `migrated: ${n}`),
       ...issues.map((i) => `${i.path}: ${i.message}`),
     ].join('\n');
     try {
-      void navigator.clipboard?.writeText(text);
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(text);
+      setManualCopy(null);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
-      /* clipboard unavailable */
+      // Permission denial and HTTP contexts must never show a fake success.
+      setCopied(false);
+      setManualCopy(text);
+      requestAnimationFrame(() => { manualCopyRef.current?.focus(); manualCopyRef.current?.select(); });
     }
   };
 
@@ -79,6 +86,12 @@ export const ImportDiagnosticsDialog: React.FC<ImportDiagnosticsDialogProps> = (
             <div className="import-diag-more">…plus {issues.length - 60} more issues</div>
           )}
         </div>
+        {manualCopy !== null && (
+          <label className="import-diag-copy-fallback">
+            Clipboard unavailable — select and copy the diagnostics below.
+            <textarea ref={manualCopyRef} value={manualCopy} readOnly rows={4} aria-label="Diagnostics for manual copying" />
+          </label>
+        )}
         <div className="import-diag-actions">
           <button className="btn-secondary" onClick={copyDiagnostics}>
             {copied ? <Check size={13} /> : <ClipboardCopy size={13} />}

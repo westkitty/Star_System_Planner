@@ -125,3 +125,19 @@ Environment notes (honest):
 - `SELF_IMPROVEMENT_LOG.md` records the audited Iteration-4 ledger: 20 `UIUX-*`, 20 `GAME-*`, 20 `BACK-*`, 20 `QOL-*`, 20 `FEAT-*`, and 1 additional `WOW-*`.
 - Full current validation: **230/230 tests**, production build PASS, PWA generation PASS, bundle budgets PASS, **5/5 browser journeys PASS**.
 - Device boundary unchanged: no ADB/scrcpy/device-install path was used; physical Tab S9 / S Pen testing remains a manual follow-up.
+
+---
+
+## 9. Five-Loop Evidence Uplift — 2026-10-17
+
+**Project authority:** \`westkitty/Star_System_Planner\`, baseline \`cb257fafb2029fc42eaf8dd434004f86b7ab07a7\`. The similarly named \`/Users/andrew/Star_System_Planner\` directory pointed to a different remote and was preserved, untouched. All changes were isolated to a correctly verified checkout.
+
+- **Core gravity repaired:** fixed bodies remain gravitational sources; live integrator and forecast worker preserve anchored-star attraction regardless of body ordering. Added physical reference tests extending through a quarter-year orbit and checking actual worker trajectories.
+- **Forecast trust:** cache keys include source masses/radii/fixed flags; protocol mismatches demote to marked approximation; straight-line fallback is never a verified gravitational forecast or Flight Director Ghost Flight Path. The UI visibly discloses degraded predictions.
+- **Import durability:** all imported branches have explicit history arrays, valid names and finite simulation clocks before live state changes. Unknown old history is empty, not invented, and migration is noted.
+- **UX/a11y:** honest clipboard failure handling and copyable manual fallback; modal keyboard focus re-entrance/restoration; added live browser journey for Escape, focus trap and prior scroll-lock preservation.
+- **Verified local closure:** \`npm run check\` 239/239 Vitest tests in 23 suites, zero TypeScript errors, production/PWA PASS, main bundle 200.5 KB gzip and total 412.8 KB gzip (both budgets PASS); independent Atlas 76/76 Node tests; full browser runner 6/6 PASS.
+- **Unverified:** physical Galaxy Tab S9/S Pen handling and sustained GPU FPS; Linux-only Atlas Chromium acceptance awaits corresponding GitHub workflow; deploy revision must be checked separately after push.
+- **Boundary:** no ADB, cross-repository changes, source canon writes, new dependencies or arbitrary placeholder asset promotions.
+
+See \`QUALITY_UPLIFT_2026-10-17.md\` for the complete 25-dimension before/after scorecard, intervention ledger, nonregression contract, uncertainty, and remaining work. The historical September sections above remain intact.
