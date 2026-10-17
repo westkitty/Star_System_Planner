@@ -5,6 +5,11 @@ import path from 'path';
 
 // https://vite.dev/config/
 export default defineConfig({
+  // The Atlas is an independent page; the mature star-system simulator remains the default entry.
+  build: { rollupOptions: { input: {
+    app: path.resolve(__dirname, 'index.html'),
+    atlas: path.resolve(__dirname, 'map-of-the-all/index.html'),
+  } } },
   base: '/Star_System_Planner/',
   resolve: {
     alias: {

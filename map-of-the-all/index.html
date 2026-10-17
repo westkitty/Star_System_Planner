@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#03060a"/><meta name="description" content="A provisional, source-aware, editable Three.js atlas of the Starsilk All."/>
+<title>THE MAP OF THE ALL / Starsilk Atlas Laboratory</title>
+<link rel="stylesheet" href="./atlas.css"/>
+</head><body>
+<div class="atlas" id="atlas">
+  <div class="scene-host" id="sceneHost"><canvas id="spaceCanvas" aria-label="Rotatable 3D Starsilk universe. Drag to rotate, scroll or pinch to zoom; click to select."></canvas><div id="labels" class="labels"></div><div class="scene-grain" aria-hidden="true"></div></div>
+  <div class="edge-top" aria-hidden="true"></div>
+  <header class="top-bar">
+    <div class="brandmark" aria-hidden="true"><span class="brandmark-a">S</span><span class="brandmark-line"></span></div>
+    <div class="branding"><div class="eyebrow">STARSILK <span class="brand-sep">/</span> CARTOGRAPHIC DIRECTORATE</div><h1>THE MAP OF THE ALL</h1><div class="minor">DRAFT ATLAS <span class="dot-amber"></span> UNAUTHORED COORDINATES <span class="separator">/</span> SURVEY 001</div></div>
+    <div class="header-actions"><div class="status-label" id="savedStatus" role="status">LOCAL DRAFT</div><button id="presentBtn" class="quiet-btn" title="Hide the interface (H)">FOCUS VIEW <span aria-hidden="true">&#8599;</span></button><button id="helpBtn" class="quiet-btn" aria-label="Open controls help">?</button></div>
+  </header>
+  <aside class="left-panel" id="leftPanel">
+    <div class="panel-heading"><span>ATLAS NAVIGATOR</span><small>01 / 04</small></div>
+    <div class="breadcrumb" id="breadcrumb" aria-label="Navigation path"></div>
+    <div class="search-box"><span aria-hidden="true">&#9906;</span><input id="search" type="search" aria-label="Find a galaxy, system, planet or annotation" placeholder="Find an object...  /" autocomplete="off"/></div>
+    <div id="searchResults" class="search-results" hidden></div>
+    <div class="panel-heading inline"><span>VISIBLE STRUCTURES</span><button id="allLayersBtn" class="text-btn">ALL / NONE</button></div>
+    <div id="layerControls" class="layer-controls"></div>
+    <div class="panel-heading inline"><span>SURVEY CONTENT</span><small>PROVISIONAL</small></div>
+    <div id="nodeList" class="node-list"></div>
+    <div class="panel-heading inline"><span>DRAFT CORRIDORS</span><small>EDITABLE</small></div><div id="routeList" class="route-list"></div>
+    <div class="add-controls"><button id="addNodeBtn" class="button-outline">+ ADD GALAXY</button><button id="addAnnotationBtn" class="button-outline faint">+ LABEL</button></div>
+    <div class="small-note"><span class="glowdot"></span> Blue denotes visualization, not a verified coordinate system.</div>
+  </aside>
+  <aside class="right-panel" id="rightPanel">
+    <div class="panel-heading"><span>THE OBSERVATORY</span><small id="inspectorCounter">LIVE / DRAFT</small></div>
+    <div class="inspector-hero"><div id="objectSigil" class="object-sigil"><span>&#10023;</span></div><div class="inspector-kicker" id="inspectorKind">COSMOLOGICAL SURVEY</div><h2 id="inspectorTitle">A UNIVERSE IN REVISION</h2><p id="inspectorDescription">Select a galaxy to inspect its provisional position, or double-click it to descend into its stellar systems.</p></div>
+    <div class="inspector-divider"></div>
+    <div class="inspector-status" id="inspectorStatus">SOURCE / VISUALIZATION SEPARATED</div>
+    <form id="objectForm" class="editor" hidden>
+      <label>DISPLAY NAME <input id="objName" maxlength="100" required/></label>
+      <label>ANNOTATION / CONTEXT <textarea id="objDescription" rows="3" maxlength="2500"></textarea></label>
+      <div class="form-group-caption">CARTOGRAPHIC COORDINATES <span>NON-CANON</span></div>
+      <div class="xyz"><label>X <input type="number" id="objX" step="0.5" min="-10000" max="10000"/></label><label>Y <input type="number" id="objY" step="0.5" min="-10000" max="10000"/></label><label>Z <input type="number" id="objZ" step="0.5" min="-10000" max="10000"/></label></div>
+      <div class="two-col"><label>OBJECT COLOR <input type="color" id="objColor"/></label><label>SIZE <input type="number" id="objSize" min="0.1" max="10" step="0.1"/></label></div>
+      <div class="form-group-caption">TYPOGRAPHY</div>
+      <label class="inline-check"><input id="objLabelShow" type="checkbox"/> DISPLAY LABEL</label>
+      <div class="two-col"><label>LABEL COLOR <input type="color" id="objLabelColor"/></label><label>FONT SIZE <input id="objLabelSize" type="number" min="9" max="36" step="1"/></label></div>
+      <label>FONT FAMILY <select id="objLabelFamily"><option value="display">EDITORIAL / SERIF</option><option value="mono">CARTOGRAPHIC / MONO</option></select></label>
+      <div class="editor-actions"><button type="submit" class="primary-button" id="applyBtn">APPLY CHANGES</button><button type="button" class="button-outline" id="enterBtn">ENTER</button><button type="button" class="button-outline" id="focusBtn">FOCUS</button></div>
+      <div class="editor-actions"><button type="button" class="text-btn" id="connectBtn">CONNECT ROUTE</button><button type="button" class="text-btn destructive" id="deleteBtn">DELETE DRAFT</button></div>
+    </form>
+    <div class="source-section"><div class="panel-heading"><span>CANON PROVENANCE</span><small>READ ONLY</small></div><div id="sourceLinks" class="source-list"></div></div>
+    <div class="panel-heading"><span>INSTRUMENTATION</span><small>GPU / LIVE</small></div>
+    <div class="instrument-grid"><div><b id="countGalaxy">07</b><small>GALAXIES</small></div><div><b id="countSystems">35</b><small>SYSTEMS</small></div><div><b id="drawCalls">--</b><small>DRAW CALLS</small></div></div>
+  </aside>
+  <div class="side-tools" id="sideTools"><button id="homeBtn" title="Return to The All" aria-label="Return to The All">&#9678;</button><button id="topBtn" title="Top-down camera" aria-label="Top-down camera">&#9635;</button><button id="resetCameraBtn" title="Reset camera" aria-label="Reset camera">&#8635;</button></div>
+  <div id="hudNote" class="hud-note"><span class="crosshair">+</span> DRAG TO ORBIT <span class="separator">/</span> PINCH OR SCROLL TO ZOOM <span class="separator">/</span> DOUBLE-CLICK TO ENTER</div>
+  <footer class="bottom-bar"><div class="era-title"><span class="eyebrow">TEMPORAL LENS</span><strong id="eraLabel">POST-SIEGE SURVEY</strong></div><div class="era-options" id="eraOptions"></div><div class="bottom-utility"><label>QUALITY <select id="quality"><option value="battery">BATTERY</option><option value="balanced">BALANCED</option><option value="cinematic">CINEMATIC</option></select></label><button id="motionBtn" title="Toggle ambient animation">MOTION ON</button><button id="exportBtn" class="primary-button">EXPORT &#8599;</button><button id="importBtn" class="button-outline">IMPORT</button><input id="fileInput" type="file" accept="application/json,.json" hidden/></div></footer>
+  <dialog id="helpDialog" class="help-dialog"><h2>THE CARTOGRAPHER'S DESK</h2><p>This is a spatial hypothesis, not a canonical star chart. Every starting point and corridor is editable draft geometry. Only verified names and relationships should be promoted through separate canon governance.</p><div class="help-grid"><div><b>EXPLORATION</b><p>Drag or swipe to orbit. Pinch or scroll to zoom. Select a marker. Double-click a galaxy to explore its systems; double-click a system to inspect planets.</p></div><div><b>AUTHORING</b><p>Use the inspector to rename and reposition draft objects, change their typography, add annotations, or connect draft routes. Edits are saved in this browser and can be exported as JSON.</p></div><div><b>KEYBOARD</b><p>H: hide HUD. /: search. Escape: up one scale. F: focus selection. Home: return to the All.</p></div><div><b>CANON BOUNDARY</b><p>WorldsVault identities and documented relationships have references. None of the map's coordinates, proposed regions, displayed routes, or exemplary planetary orbits is established lore.</p></div></div><button id="closeHelp" class="primary-button">CLOSE INSTRUMENT</button></dialog>
+  <div class="notifications" id="notifications" aria-live="polite"></div>
+  <div class="loading" id="loading"><div class="loading-symbol">S</div><div>CHARTING THE ALL</div><small>INITIALIZING THE OBSERVATORY</small></div>
+</div>
+<script type="module" src="./main.js"></script>
+</body></html>
