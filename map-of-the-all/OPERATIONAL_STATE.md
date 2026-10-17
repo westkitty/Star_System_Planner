@@ -2,7 +2,7 @@
 
 project_id: starsilk-map-of-the-all
 project_name: The Map of the All — 3D Prototype
-revision: 1
+revision: 2
 
 ## Current baseline
 
@@ -16,11 +16,14 @@ revision: 1
 
 ## Verification states
 
-- JS syntax: run `node --check` for all 3 JS files.
-- Schema invariant tests: run `node --test tests/atlas-data.node-check.mjs`.
-- HTML/CSS static inspection: review source and snapshots.
-- WebGL/browser/physical tablet performance: **unverified** until representative hardware exercises the app.
-- Parent repo CI, GitHub Pages publishing, and remote push: determined from actual post-commit workflow evidence, not source presence.
+- VERIFIED (2026-10-17): Node atlas schema, safety and editor-markup tests; JavaScript syntax.
+- VERIFIED (2026-10-17): parent TypeScript checks; 230/230 pre-existing Vitest tests; Vite production multi-page build, bundle/PWA budget.
+- VERIFIED (desktop Brave): WebGL viewport, projected labels, 11 layer toggles, rename and local autosave through reload, All-to-galaxy-to-system navigation, added planet/annotation, JSON export, parent entrypoint HTTP 200, zero observed runtime page exceptions or HTTP failures.
+- VERIFIED (emulated touch): 1280x800 tablet and 412x915 phone viewports, no page errors or horizontal overflow; inspector dismissal and hidden unselected edit form.
+- NOT VERIFIED: Galaxy Tab S9/S Pen physical behavior, hardware frame rates and thermals, long-session reliability, production GitHub Pages publication, canonical map coordinates.
+- After committing, confirm the remote feature-branch commit and push against GitHub evidence. This state file is not proof of publication.
+
+See docs/QA_EVIDENCE.md for observed browser paths and evidence limits.
 
 ## Protected invariants
 
@@ -33,7 +36,7 @@ revision: 1
 
 ## Pending / unknown
 
-- Production visual QA, physical Tab S9 S Pen gesture latency and performance.
+- Physical Tab S9 S Pen gesture latency and performance, real-device visual QA and public deployment.
 - Source-live update path and authoritative spatial coordinate authoring (none published).
 - Future 4X strategic simulation and timeline snapshots (not included in this prototype).
 - Source-linked WorldsVault constellation graph, independent of illustrative galactic geometry.

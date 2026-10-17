@@ -189,6 +189,7 @@ function resetCamera(){engine?.setView(view);}
 function toggleFocus(){gui.atlas.classList.toggle('focus-view');if(!gui.atlas.classList.contains('focus-view'))gui.right.classList.remove('mobile-open');}
 function bind(){
   $('objectForm').addEventListener('submit',saveInspector);
+  $('closeMobileInspector').addEventListener('click',()=>gui.right.classList.remove('mobile-open'));
   $('enterBtn').addEventListener('click',enterSelected);$('focusBtn').addEventListener('click',focusSelected);
   $('connectBtn').addEventListener('click',connectRoute);$('deleteBtn').addEventListener('click',removeOrFork);
   $('addNodeBtn').addEventListener('click',()=>addCurrentNode(view.kind==='all'?'galaxy':view.kind==='galaxy'?'system':'planet'));

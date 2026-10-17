@@ -66,7 +66,7 @@ node --check main.js
 npm run typecheck && npm run test && npm run build && npm run bundle:report
 ```
 
-The tests prove the data model and source integrity boundaries, **not** browser experience or physical tablet rendering. Browser navigation, GPU frame rate, accessibility and deployment require device-visible verification. In particular, this prototype's temporal lens is an editorial model rather than a physics or faction simulation.
+The Node checks prove the data model, editor markup and source integrity boundaries. Desktop Brave automation has exercised WebGL startup, layer toggles, full three-tier navigation, edits, persistence, export and the parent route. Tablet (1280×800) and phone (412×915) touch emulation have also passed. Physical Galaxy Tab S9/S Pen behavior, GPU frame rates, long sessions and GitHub Pages deployment remain unverified. See [QA evidence](docs/QA_EVIDENCE.md). The temporal lens remains editorial rather than a historical simulator.
 
 ## Future expansion roadmap
 

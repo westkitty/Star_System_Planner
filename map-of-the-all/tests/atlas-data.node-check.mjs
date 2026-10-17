@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {seedAtlas,validateAtlas,sanitizeAtlas,removeNode,addNode,nodeById,childNodes,CANON_BASE,EPOCHS,LAYERS} from '../atlas-data.js';
@@ -47,4 +48,21 @@ test('cyclic parent graphs rejected and source URL prefix is constrained',()=>{
 test('high object counts are rejected before loading scene',()=>{
  const s=seedAtlas();while(s.nodes.length<751){const n=addNode(s,'annotation');n.name='Unverified';}
  assert.ok(validateAtlas(s).includes('Invalid node collection'));
+});
+
+
+test('number editor accepts generated fractional values without step mismatch',()=>{
+  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  for(const id of ['objX','objY','objZ','objSize']) {
+    assert.match(html,new RegExp('id="'+id+'"[^>]*step="any"'));
+  }
+});
+test('hidden form and mobile inspector dismissal are regression guarded',()=>{
+  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const css=readFileSync(new URL('../atlas.css',import.meta.url),'utf8');
+  const main=readFileSync(new URL('../main.js',import.meta.url),'utf8');
+  assert.match(html,/id="objectForm"[^>]*hidden/);
+  assert.ok(css.includes('[hidden]{display:none!important}'));
+  assert.match(html,/id="closeMobileInspector"/);
+  assert.ok(main.includes('closeMobileInspector'));
 });

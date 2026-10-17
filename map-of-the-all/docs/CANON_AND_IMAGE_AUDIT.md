@@ -19,6 +19,7 @@ Authoritative published source: `https://westkitty.github.io/Starsilk_Character_
 Validated relation identities, *not coordinates*:
 
 - WorldsVault **contains** thirty extinct-civilization templates.
+- Extinct-civilization templates **seed** the Partition.
 - Siege Wall **contains** Drakken domain.
 - Mother is **located in** Aureal Nebula.
 - Meridian Station **orbits** Virgil.

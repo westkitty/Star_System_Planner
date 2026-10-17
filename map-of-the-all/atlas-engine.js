@@ -62,13 +62,13 @@ export class AtlasEngine {
     const rnd=rng(1106),p=[],colors=[];
     for(let i=0;i<2500;i++){
       const x=(rnd()-.5)*1250,y=(rnd()-.5)*650,z=(rnd()-.5)*900;
-      if(z<-110&&y<80)continue; // The area beyond the Siege Wall is deliberately starless.
+      if(z < -110)continue; // The area beyond the Siege Wall is deliberately starless.
       p.push(x,y,z);
       const c=new THREE.Color().setHSL(.54+rnd()*.13,.15+rnd()*.3,.45+rnd()*.4);
       colors.push(c.r,c.g,c.b);
     }
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
-    const pts=new THREE.Points(g,new THREE.PointsMaterial({size:.7,vertexColors:true,transparent:true,opacity:.7,depthWrite:false,sizeAttenuation:true}));
+    const pts=new THREE.Points(g,new THREE.PointsMaterial({size:1.7,vertexColors:true,transparent:true,opacity:.7,depthWrite:false,sizeAttenuation:true}));
     pts.name='deep-starfield';this.bg.add(pts);
   }
   resize(){const el=this.canvas.parentElement;const w=Math.max(1,el.clientWidth),h=Math.max(1,el.clientHeight);
@@ -78,10 +78,11 @@ export class AtlasEngine {
     if(this.dpr!==dpr){this.dpr=dpr;this.renderer.setPixelRatio(dpr);}
     this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
   }
-  setState(state,view=this.view){this.state=state;this.view=view;this.resize();this.rebuild();}
+  setState(state,view=this.view){this.state=state;this.view=view;this.resize();this.rebuild();this.camera.updateMatrixWorld();this.updateLabels();}
   setView(view){this.view=view;this.rebuild();
     const camera=view.kind==='all'?[0,195,265]:view.kind==='galaxy'?[0,55,110]:[0,38,82];
     this.controls.target.set(0,0,0);this.camera.position.set(...camera);this.controls.update();
+    this.camera.updateMatrixWorld();this.updateLabels();
     this.callbacks.onViewChanged?.(view);
   }
   rebuild(){if(!this.state)return;
@@ -100,21 +101,118 @@ export class AtlasEngine {
     const m=new THREE.MeshBasicMaterial({color,transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false});
     const mesh=new THREE.Mesh(g,m);mesh.rotation.x=-Math.PI/2+tilt;parent.add(mesh);return mesh;
   }
+  /**
+   * Stylized volumetric galaxy: the cloudy spiral disc is a single transparent
+   * mesh, and its luminous stars live in one GPU particle batch. This is
+   * editorial cartography, never a real astrometric reconstruction.
+   */
+  galaxyDisk(parent,seed,rad,color){
+    const mesh=new THREE.Mesh(
+      new THREE.PlaneGeometry(rad*2.18,rad*2.18),
+      new THREE.ShaderMaterial({
+        uniforms:{
+          tint:{value:new THREE.Color(color)},
+          phase:{value:(hash(seed)%628)/100},
+        },
+        vertexShader: String.raw`
+          varying vec2 vUv;
+          void main(){
+            vUv=uv;
+            gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+          }`,
+        fragmentShader: String.raw`
+          uniform vec3 tint;
+          uniform float phase;
+          varying vec2 vUv;
+          float noise(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+          void main(){
+            vec2 q=(vUv-.5)*2.0;
+            float radius=length(q);
+            if(radius>1.0) discard;
+            float angle=atan(q.y,q.x);
+            float spiral=pow(max(.0,cos(4.0*angle-14.0*radius+phase)*.5+.5),5.0);
+            float radial=1.0-smoothstep(.32,1.0,radius);
+            float cloud=noise(floor(q*130.0))+noise(floor(q*48.0))*.45;
+            float dust=radial*(.17+.78*spiral)*(.52+.42*cloud);
+            float inner=exp(-radius*radius*23.0);
+            float blue=exp(-radius*radius*3.0)*.075;
+            vec3 innerColor=vec3(1.0,.75,.47);
+            vec3 color=mix(tint,innerColor,clamp(inner*1.9,0.0,1.0));
+            float alpha=min(.76,dust+inner*.38+blue);
+            gl_FragColor=vec4(color,alpha);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+          }`,
+        transparent:true,blending:THREE.AdditiveBlending,
+        depthWrite:false,side:THREE.DoubleSide
+      })
+    );
+    mesh.rotation.x=-Math.PI/2;
+    mesh.position.y=-.4;
+    parent.add(mesh);
+  }
   starCloud(parent,seed,count,rad,flatten=.22,spiral=true){
     if(!this.state.layers.stars)return;
-    const rnd=rng(hash(seed)),p=[],col=[];
+    const rnd=rng(hash(seed)),p=[],col=[],sizes=[],intensities=[];
     for(let i=0;i<count;i++){
-      const r=Math.pow(rnd(),.64)*rad;
+      const r=Math.pow(rnd(),.8)*rad;
       const arm=(i%4)*Math.PI/2;
-      const a=spiral?arm+(r/rad)*Math.PI*2.7+(rnd()-.5)*1.4:rnd()*Math.PI*2;
-      const x=Math.cos(a)*r+(rnd()-.5)*4,z=Math.sin(a)*r+(rnd()-.5)*4,y=(rnd()-.5)*rad*flatten*(1-r/rad*.65);
+      const a=spiral?arm+(r/rad)*Math.PI*2.25+(rnd()-.5)*.95:rnd()*Math.PI*2;
+      const jitter=Math.max(.22,rad*.045);
+      const x=Math.cos(a)*r+(rnd()-.5)*jitter;
+      const z=Math.sin(a)*r+(rnd()-.5)*jitter;
+      const y=(rnd()-.5)*rad*flatten*(1-r/rad*.75);
       p.push(x,y,z);
-      const color=new THREE.Color().setHSL((rnd()>.82?.075:.56)+rnd()*.08,.25+rnd()*.4,.48+rnd()*.3);
+      const temperature=rnd();
+      const warm=r/rad<.23||temperature>.90;
+      const violet=!warm&&temperature<.09;
+      const color=new THREE.Color(warm?'#ffd9a8':violet?'#c9b8ff':'#63cbfa');
+      color.multiplyScalar(.75+rnd()*.5);
       col.push(color.r,color.g,color.b);
+      sizes.push(.75+Math.pow(rnd(),4)*1.85);
+      intensities.push((r/rad<.25?.78:.54)+rnd()*.32);
     }
-    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
-    const m=new THREE.PointsMaterial({size:this.view.kind==='all'?.39:.54,vertexColors:true,transparent:true,opacity:.87,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true});
-    const pts=new THREE.Points(g,m);pts.rotation.y=rnd()*Math.PI;parent.add(pts);this.motionObjects.push({obj:pts,speed:.0003+rnd()*.0002});
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+    g.setAttribute('aSize',new THREE.Float32BufferAttribute(sizes,1));
+    g.setAttribute('aLight',new THREE.Float32BufferAttribute(intensities,1));
+    const m=new THREE.ShaderMaterial({
+      uniforms:{pixelRatio:{value:this.dpr||1}},
+      vertexShader: String.raw`
+        attribute float aSize;
+        attribute float aLight;
+        attribute vec3 color;
+        uniform float pixelRatio;
+        varying vec3 vColor;
+        varying float vLight;
+        void main(){
+          vColor=color;vLight=aLight;
+          vec4 mvPosition=modelViewMatrix*vec4(position,1.0);
+          gl_Position=projectionMatrix*mvPosition;
+          float distanceScale=220.0/max(32.0,-mvPosition.z);
+          gl_PointSize=clamp(aSize*distanceScale*pixelRatio,1.0,3.8*pixelRatio);
+        }`,
+      fragmentShader: String.raw`
+        varying vec3 vColor;
+        varying float vLight;
+        void main(){
+          float r=length(gl_PointCoord-.5)*2.0;
+          if(r>1.0) discard;
+          float core=exp(-20.0*r*r);
+          float halo=pow(1.0-r,3.0);
+          float alpha=(core*.78+halo*.22)*vLight;
+          gl_FragColor=vec4(vColor*1.1,alpha);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+      transparent:true,blending:THREE.AdditiveBlending,
+      depthWrite:false
+    });
+    const pts=new THREE.Points(g,m);
+    pts.rotation.y=rnd()*Math.PI;
+    parent.add(pts);
+    this.motionObjects.push({obj:pts,speed:.000006+rnd()*.000003});
   }
   buildAll(){const s=this.state;
     this.controls.minDistance=45;this.controls.maxDistance=900;
@@ -124,10 +222,11 @@ export class AtlasEngine {
     if(s.layers.galaxies){
       for(const n of childNodes(s,null,'galaxy')){
         const group=new THREE.Group();group.position.copy(V(n.position));this.group.add(group);
-        const level=s.quality==='cinematic'?2000:s.quality==='battery'?420:900;
-        this.starCloud(group,n.id,Math.floor(level*n.size),n.size*14,.24,true);
-        this.addGlow(group,14*n.size,n.color,.5);
-        this.addGlow(group,3.7*n.size,'#fff0c9',.85);
+        const level=s.quality==='cinematic'?2000:s.quality==='battery'?420:1150;
+        this.galaxyDisk(group,n.id,n.size*22,n.color);
+        this.starCloud(group,n.id,Math.floor(level*n.size),n.size*20,.18,true);
+        this.addGlow(group,37*n.size,n.color,.44);
+        this.addGlow(group,7.5*n.size,'#fff0c9',.7);
         this.addRing(group,12*n.size,n.color,.20,.24);
         const pick=new THREE.Mesh(new THREE.SphereGeometry(13*n.size,12,10),new THREE.MeshBasicMaterial({visible:false}));group.add(pick);this.hitTarget(n,pick);
       }
@@ -151,7 +250,7 @@ export class AtlasEngine {
       const c=new THREE.Color(n.color);
       const group=new THREE.Group();group.position.copy(V(n.position));this.group.add(group);
       const g=new THREE.CircleGeometry(19*n.size,64);
-      const material=new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide,transparent:true,opacity:.045,depthWrite:false});
+      const material=new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide,transparent:true,opacity:.065,depthWrite:false});
       const sheet=new THREE.Mesh(g,material);sheet.rotation.x=-Math.PI/2;sheet.position.y=-15;group.add(sheet);
       const pts=[];for(let i=0;i<=96;i++){const a=i/96*Math.PI*2;const r=(19+2*Math.sin(a*5+hash(n.id)%5))*n.size;pts.push(new THREE.Vector3(Math.cos(a)*r,-14.5,Math.sin(a)*r));}
       group.add(lines(pts,c,.3,true));
@@ -194,7 +293,7 @@ export class AtlasEngine {
     }
     if(parentId===null&&this.state.layers.starsilk){
       const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(-158,-11,65),new THREE.Vector3(-90,-9,77),new THREE.Vector3(-35,-15,87),new THREE.Vector3(30,-8,72),new THREE.Vector3(95,-10,80),new THREE.Vector3(152,-7,65)]);
-      this.group.add(new THREE.Mesh(new THREE.TubeGeometry(curve,128,.82,7,false),new THREE.MeshBasicMaterial({color:0x13cfff,transparent:true,opacity:.36,blending:THREE.AdditiveBlending,depthWrite:false})));
+      this.group.add(new THREE.Mesh(new THREE.TubeGeometry(curve,128,1.1,7,false),new THREE.MeshBasicMaterial({color:0x13cfff,transparent:true,opacity:.36,blending:THREE.AdditiveBlending,depthWrite:false})));
       this.group.add(lines(curve.getPoints(128),0x9cf6ff,.68));
       for(let i=0;i<14;i++){const particle=this.addGlow(this.group,i%3?2.5:4,'#3bdeff',.65);this.routeParticles.push({obj:particle,curve,phase:i/14,speed:.04});}
     }
@@ -209,13 +308,14 @@ export class AtlasEngine {
   }}
   buildGalaxy(){const s=this.state,g=nodeById(s,this.view.id);if(!g)return;
     this.controls.minDistance=12;this.controls.maxDistance=350;
+    this.galaxyDisk(this.group,g.id+'-interior',68,g.color);
     this.starCloud(this.group,g.id+'-interior',s.quality==='cinematic'?8500:s.quality==='battery'?1300:4100,70,.23,true);
     this.addGlow(this.group,37,'#fbe6cc',.38);
     this.addGlow(this.group,12,g.color,.7);
     if(s.layers.grid)this.makeGrid(190,12);
     for(const n of childNodes(s,g.id,'system')){
       const pg=new THREE.Group();pg.position.copy(V(n.position));this.group.add(pg);
-      this.addGlow(pg,8,n.color,.72);
+      this.addGlow(pg,15,n.color,.8);
       const core=sphere(.9,0xffffff,0x4488ff);pg.add(core);
       const target=new THREE.Mesh(new THREE.SphereGeometry(3.5,12,10),new THREE.MeshBasicMaterial({visible:false}));pg.add(target);this.hitTarget(n,target);
       if(s.layers.routes){this.addRing(pg,3.8,n.color,.42);}
