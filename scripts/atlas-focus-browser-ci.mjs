@@ -1,6 +1,7 @@
 /** Live-render contract for the All: no first-frame curve crash, no invasive HUD. */
 import {spawn} from 'node:child_process';
 import {existsSync,mkdirSync} from 'node:fs';
+import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 import assert from 'node:assert/strict';
 const ROOT='http://127.0.0.1:4173/Star_System_Planner/';
@@ -14,7 +15,7 @@ async function ready(){for(let i=0;i<70;i++){if(server.exitCode!==null)throw Err
 async function test(){await ready();browser=await chromium.launch({executablePath:chrome,headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader']});
  const errors=[];
  for(const [name,w,h,touch] of [['desktop',1536,864,false],['tablet',1280,800,true],['phone',412,915,true]]){
-   const ctx=await browser.newContext({viewport:{width:w,height:h},isMobile:touch,hasTouch:touch,reducedMotion:'reduce'});
+   const ctx=await browser.newContext({viewport:{width:w,height:h},isMobile:touch,hasTouch:touch,acceptDownloads:true,reducedMotion:'reduce'});
    const page=await ctx.newPage();page.on('pageerror',e=>errors.push(name+': '+e.message));
    const res=await page.goto(ROOT+'map-of-the-all/',{waitUntil:'domcontentloaded',timeout:30000});assert.equal(res.status(),200);
    await page.locator('.world-label').first().waitFor({timeout:30000});
@@ -40,6 +41,26 @@ async function test(){await ready();browser=await chromium.launch({executablePat
    assert.equal(await page.locator('#eraOptions').isVisible(),true);
    await page.locator('[data-drawer="eras"]').click();assert.equal(await page.locator('#temporalPanel').isVisible(),false);
    assert.ok(await page.locator('#drawCalls').textContent(),'GPU remains active after drawer transitions');
+   if(name==='desktop'){
+     await page.locator('[data-drawer="nav"]').click();
+     const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#exportBtn').click()]);
+     const input={name:'atlas-roundtrip.json',mimeType:'application/json',buffer:await readFile(await download.path())};
+     await page.locator('#fileInput').setInputFiles(input);
+     await page.locator('#importReviewDialog').waitFor({state:'visible'});
+     assert.match(await page.locator('#importReviewSummary').textContent(),/CURRENT:.*INCOMING:/s);
+     await page.keyboard.press('Escape');
+     assert.equal(await page.locator('#importReviewDialog').isVisible(),false);
+     await page.locator('#fileInput').setInputFiles(input);
+     await page.locator('#importReviewDialog').waitFor({state:'visible'});
+     await page.locator('#importReviewCancel').click();
+     assert.equal(await page.locator('#importReviewDialog').isVisible(),false);
+     await page.locator('#fileInput').setInputFiles(input);
+     await page.locator('#importReviewDialog').waitFor({state:'visible'});
+     await page.locator('#importReviewApply').click();
+     assert.equal(await page.locator('#importReviewDialog').isVisible(),false);
+     await page.waitForFunction(()=>!!localStorage.getItem('starsilk.map-of-the-all.draft.v1'),null,{timeout:5000});
+     console.log('ATLAS_IMPORT_REVIEW_PASS');
+   }
    await ctx.close();console.log('FOCUS_STAGE '+name+' '+JSON.stringify(geom));
  }
  assert.deepEqual(errors,[],'no page errors, including negative curve sampling');
