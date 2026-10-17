@@ -129,3 +129,11 @@ See [Phase 6 design, safeguards and release checks](docs/PHASE6_TEMPORAL_CARTOGR
 The All is the default full-screen view. Six closed pull-down tabs provide EXPLORE, INSPECT, EDIT, REGIONS, ROUTES and ERAS. Existing controls remain connected in their respective drawers, including save/export, camera, timeline and source graph. Escape closes the active drawer. A minimal return-to-All control stays available.
 
 Published regression reproduced: WebGL initialized, but a negative first-frame curve parameter caused a getPointAt TypeError and prevented rendered draw calls. A clamped animation delta, wrapped curve phases and exception isolation for decorative particles fix this; new real Chromium CI asserts nonzero draw calls on desktop, tablet and phone layouts.
+
+## Guarded local imports and selected-label clarity (PR #5)
+
+Importing an Atlas JSON file now validates the data **before** asking whether to replace the current browser-local draft. The review compares current and incoming counts and provides **EXPORT CURRENT DRAFT**, **CANCEL**, and **REPLACE LOCAL DRAFT**. Escape and Cancel leave the saved draft unchanged. The backup button exports the currently open map, not the pending import. Undo lasts only for the current session, so keep the JSON export as your durable backup.
+
+Imported identities remain noncanonical drafts across all timeline snapshots; no new persistence fields or source permissions are introduced. On the cosmic viewport, selected visible-object labels have priority when colliding with others; remaining candidates fill the established 28-label budget after collisions are resolved. These are editorial label positions, not canonical physical coordinates.
+
+Implementation and browser acceptance are tracked in [PR #5](https://github.com/westkitty/Star_System_Planner/pull/5). Its source-branch CI results do not imply that production GitHub Pages has been updated.
