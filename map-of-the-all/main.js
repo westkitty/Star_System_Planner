@@ -1,5 +1,6 @@
 import { AtlasEngine } from './atlas-engine.js';
 import { StrategicStudio } from './strategic-studio.js';
+import { NetworkLab } from './network-lab.js';
 import { SpatialStudio } from './spatial-studio.js';
 import { validateCorridor } from './studio-math.js';
 import { initSourceGraph } from './source-graph-ui.js';
@@ -13,7 +14,7 @@ const gui={
   source:$('sourceLinks'), layers:$('layerControls'), nodes:$('nodeList'), breadcrumb:$('breadcrumb'),
   form:$('objectForm'), search:$('search'), results:$('searchResults')
 };
-let state;let view={kind:'all',id:null};let engine=null;let studio=null;let strategy=null;let revision=0;let pendingRoute=null;let allVisible=true;let saveTimer=null;let history=[];
+let state;let view={kind:'all',id:null};let engine=null;let studio=null;let strategy=null;let networkLab=null;let revision=0;let pendingRoute=null;let allVisible=true;let saveTimer=null;let history=[];
 function message(text,error=false){const toast=el('div','toast'+(error?' error':''),text);$('notifications').append(toast);setTimeout(()=>toast.remove(),3500);}
 function bootstrapState(){
   try{const json=localStorage.getItem(STORAGE_KEY);if(json){const data=JSON.parse(json);const errors=validateAtlas(data);if(!errors.length)return data;message('Saved draft rejected: '+errors[0],true);}}
@@ -184,7 +185,7 @@ function exportPlannerHandoff(){
 }
 function updateUI(){updateBreadcrumb();updateLayers();updateNodeList();updateRoutes();fillInspector();updateSources();updateCounts();updateEpoch();updateHandoff();
   $('quality').value=state.quality;$('motionBtn').textContent=state.motion?'MOTION ON':'MOTION OFF';
-  studio?.sync();strategy?.sync();
+  studio?.sync();strategy?.sync();networkLab?.sync();
 }
 function focusSearch(){gui.search.focus();if(innerWidth<=620)gui.left.classList.add('expanded');}
 function showSearch(){const q=gui.search.value.toLowerCase().trim();const frag=document.createDocumentFragment();if(q){
@@ -225,6 +226,15 @@ function moveDraftLabel(id,offset){
   const n=nodeById(state,id);if(!n||n.status!=='draft')return;
   if(change(()=>{n.label.offset=offset;},{geometry:false}))message('Draft label offset saved. Undo available.');
 }
+function commitNetworkLink({from,to,kind}){
+  const reason=validateCorridor(state,from,to);
+  if(reason||!['hookshot','starsilk'].includes(kind)){message('Draft corridor refused: '+(reason||'Invalid corridor kind'),true);return false;}
+  return change(()=>{
+    let next=1,id;
+    do{id='draft-network-'+next++;}while(state.routes.some(r=>r.id===id)||state.nodes.some(n=>n.id===id));
+    state.routes.push({id,from,to,kind,status:'draft'});
+  });
+}
 function exportAtlas(){const data={...state,selected:null,updatedAt:new Date().toISOString()};const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});
   const url=URL.createObjectURL(blob);const a=el('a');a.href=url;a.download='starsilk-map-of-the-all-draft-v'+VERSION+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);message('JSON atlas exported. No canon has been changed.');
 }
@@ -240,7 +250,8 @@ function undo(){if(!history.length){message('No changes to undo.');return;}strat
 function resetCamera(){engine?.setView(view);}
 function toggleFocus(){gui.atlas.classList.toggle('focus-view');if(!gui.atlas.classList.contains('focus-view'))gui.right.classList.remove('mobile-open');}
 function bind(){
-  $('strategyOpen').addEventListener('click',()=>{if(!strategy)return;studio?.setMode('orbit');strategy.open();});
+  $('strategyOpen').addEventListener('click',()=>{if(!strategy)return;networkLab?.close();studio?.setMode('orbit');strategy.open();});
+  $('networkOpen').addEventListener('click',()=>{if(!networkLab)return;studio?.setMode('orbit');strategy?.close();networkLab.open();});
   $('objectForm').addEventListener('submit',saveInspector);
   $('closeMobileInspector').addEventListener('click',()=>gui.right.classList.remove('mobile-open'));
   $('enterBtn').addEventListener('click',enterSelected);$('focusBtn').addEventListener('click',focusSelected);
@@ -269,7 +280,7 @@ function bind(){
   });
   const mobile=button('INSPECT OBJECT','mobile-inspect',()=>{gui.right.classList.toggle('mobile-open');gui.left.classList.remove('expanded');});
   gui.atlas.append(mobile);
-  document.addEventListener('visibilitychange',()=>{if(engine)engine.paused=document.hidden;});
+  document.addEventListener('visibilitychange',()=>{if(engine)engine.paused=document.hidden||!!networkLab?.opened||!!(strategy?.opened&&strategy.mode!=='pan')||['move','label'].includes(studio?.mode);});
 }
 function init(){updateUI();bind();
   try{initSourceGraph();}catch(e){$('sourceGraphOpen').disabled=true;message('Source topology unavailable: '+e.message,true);}
@@ -278,10 +289,14 @@ function init(){updateUI();bind();
       getState:()=>state,getView:()=>view,onMove:moveDraftNode,onLabelCommit:moveDraftLabel,
       onRouteCancel:()=>{pendingRoute=null;},
       onScale:value=>change(()=>{state.typographyScale=value;},{geometry:false}),
-      onModeChange:()=>{pendingRoute=null;strategy?.close();},message});studio.attachEngine(engine);
+      onModeChange:()=>{pendingRoute=null;strategy?.close();networkLab?.close();},message});studio.attachEngine(engine);
     strategy=new StrategicStudio({canvas:gui.canvas,labelsRoot:gui.labels,atlas:gui.atlas,panel:$('strategyPanel'),
       getState:()=>state,getView:()=>view,onChange:mutator=>change(()=>mutator(state)),onMessage:message});
-    strategy.attachEngine(engine);updateUI();
+    strategy.attachEngine(engine);
+    networkLab=new NetworkLab({canvas:gui.canvas,atlas:gui.atlas,panel:$('networkPanel'),
+      getState:()=>state,getView:()=>view,onCommit:commitNetworkLink,message,
+      isOtherEditorActive:()=>!!(strategy?.opened&&strategy.mode!=='pan')||['move','label'].includes(studio?.mode)});
+    networkLab.attachEngine(engine);updateUI();
     $('loading').style.opacity='0';setTimeout(()=>$('loading').remove(),900);
     setInterval(()=>{if(engine&&document.visibilityState==='visible')$('drawCalls').textContent=String(engine.info().drawCalls).padStart(2,'0');},1000);
     message('The All is ready. All starting coordinates remain provisional.');

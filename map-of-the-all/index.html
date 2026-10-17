@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="./atlas.css"/>
 <link rel="stylesheet" href="./studio.css"/>
 <link rel="stylesheet" href="./strategic.css"/>
+<link rel="stylesheet" href="./network.css"/>
 </head><body>
 <div class="atlas" id="atlas">
   <div class="scene-host" id="sceneHost"><canvas id="spaceCanvas" aria-label="Rotatable 3D Starsilk universe. Drag to rotate, scroll or pinch to zoom; click to select."></canvas><div id="labels" class="labels"></div><div class="scene-grain" aria-hidden="true"></div></div>
@@ -13,7 +14,7 @@
   <header class="top-bar">
     <div class="brandmark" aria-hidden="true"><span class="brandmark-a">S</span><span class="brandmark-line"></span></div>
     <div class="branding"><div class="eyebrow">STARSILK <span class="brand-sep">/</span> CARTOGRAPHIC DIRECTORATE</div><h1>THE MAP OF THE ALL</h1><div class="minor">DRAFT ATLAS <span class="dot-amber"></span> UNAUTHORED COORDINATES <span class="separator">/</span> SURVEY 001</div></div>
-    <div class="header-actions"><div class="status-label" id="savedStatus" role="status">LOCAL DRAFT</div><button id="strategyOpen" class="quiet-btn strategic-entry" title="Open group transforms and draft territory authoring">STRATEGY LAB ✥</button><button id="sourceGraphOpen" class="quiet-btn" title="Read-only WorldsVault relationship graph">SOURCE GRAPH · 11 / 6</button><button id="presentBtn" class="quiet-btn" title="Hide the interface (H)">FOCUS VIEW <span aria-hidden="true">&#8599;</span></button><button id="helpBtn" class="quiet-btn" aria-label="Open controls help">?</button></div>
+    <div class="header-actions"><div class="status-label" id="savedStatus" role="status">LOCAL DRAFT</div><button id="networkOpen" class="quiet-btn" title="Open draft corridor network analysis">NETWORK LAB</button><button id="strategyOpen" class="quiet-btn strategic-entry" title="Open group transforms and draft territory authoring">STRATEGY LAB ✥</button><button id="sourceGraphOpen" class="quiet-btn" title="Read-only WorldsVault relationship graph">SOURCE GRAPH · 11 / 6</button><button id="presentBtn" class="quiet-btn" title="Hide the interface (H)">FOCUS VIEW <span aria-hidden="true">&#8599;</span></button><button id="helpBtn" class="quiet-btn" aria-label="Open controls help">?</button></div>
   </header>
   <aside class="left-panel" id="leftPanel">
     <div class="panel-heading"><span>ATLAS NAVIGATOR</span><small>01 / 04</small></div>
@@ -56,6 +57,31 @@
     <div class="panel-heading"><span>INSTRUMENTATION</span><small>GPU / LIVE</small></div>
     <div class="instrument-grid"><div><b id="countGalaxy">07</b><small>GALAXIES</small></div><div><b id="countSystems">35</b><small>SYSTEMS</small></div><div><b id="drawCalls">--</b><small>DRAW CALLS</small></div></div>
   </aside>
+  <section class="network-panel" id="networkPanel" aria-label="Hookshot network intelligence for provisional draft corridors" hidden>
+    <header class="network-head"><div><small>STARSILK / SURVEY INSTRUMENT 05</small><h2>NETWORK INTELLIGENCE</h2></div><button id="networkClose" type="button" aria-label="Close network lab">&times;</button></header>
+    <p class="network-notice">Analyze proposed corridors. A hop is ONE draft connection, never a known distance, duration, political permission, or canonical Starsilk rule.</p>
+    <output id="networkTier">ALL / GALAXIES</output>
+    <label>ACTIVE CONNECTION TYPES<select id="networkKind"><option value="all">ALL DRAFT CORRIDORS</option><option value="hookshot">HOOKSHOT DRAFTS ONLY</option><option value="starsilk">STARSILK DRAFTS ONLY</option></select></label>
+    <div class="network-metrics" aria-label="Network connectivity counts">
+      <div class="network-metric"><strong id="networkNodes">0</strong><span>NODES</span></div>
+      <div class="network-metric"><strong id="networkLinks">0</strong><span>LANES</span></div>
+      <div class="network-metric"><strong id="networkIslands">0</strong><span>CLUSTERS</span></div>
+      <div class="network-metric"><strong id="networkBridgesCount">0</strong><span>CUT EDGES</span></div>
+    </div>
+    <h3>TRACE AN EDITORIAL PATH</h3>
+    <div class="network-endpoints"><label>ORIGIN<select id="networkFrom"></select></label><label>DESTINATION<select id="networkTo"></select></label></div>
+    <div class="network-actions"><button id="networkTrace" type="button" class="network-primary">TRACE FEWEST HOPS</button><button id="networkReset" type="button">CLEAR OUTAGES</button></div>
+    <output id="networkPath" class="network-outcome" aria-live="polite">Choose two draft objects to analyze connectivity.</output>
+    <h3>PROPOSE AN EXTRA CORRIDOR</h3>
+    <label>NEW DRAFT TYPE<select id="networkNewKind"><option value="hookshot">HOOKSHOT / PROPOSED</option><option value="starsilk">AZURE / PROPOSED</option></select></label>
+    <button id="networkCommit" type="button" disabled class="network-primary">+ COMMIT ONE DRAFT CORRIDOR</button>
+    <h3>TEMPORARY CORRIDOR CLOSURES</h3>
+    <p id="networkOutageInfo" class="network-impact">All draft corridors active. Closures are analysis-only.</p>
+    <div class="network-closures" id="networkRouteList" aria-label="Hypothetical disabled corridors"></div>
+    <h3>SINGLE-CORRIDOR FAILURE POINTS</h3>
+    <ul id="networkBridgeList" class="network-bridges"></ul>
+    <p class="network-foot">LOCAL HYPOTHESIS ONLY / The Dossier's sourced WorldsVault edges are a separate read-only topology. Closing a corridor here cannot alter your saved map or Starsilk canon.</p>
+  </section>
   <section class="strategic-panel" id="strategyPanel" aria-label="Strategic Studio — draft 4X cartography" hidden>
     <header class="strategy-header"><div><span class="eyebrow">SURVEY / PHASE 04</span><h2>THE STRATEGIC ATLAS</h2><p>Editable hypotheses, not jurisdictions or physical distances.</p></div><button id="strategyClose" type="button" aria-label="Close strategic studio">×</button></header>
     <div class="strategy-modebar" role="group" aria-label="Strategic instrument"><button type="button" id="strategyModeGroup" aria-pressed="true">GROUP</button><button type="button" id="strategyModeRegion" aria-pressed="false">REGIONS</button><button type="button" id="strategyModePan" aria-pressed="false">ORBIT</button></div>
@@ -106,7 +132,7 @@
     <div class="source-bottom-grid"><section><h3>DIRECT-AUTHORED RELATIONS</h3><div id="sourceGraphRelations" class="source-relations"></div></section><section id="sourceGraphDetails" aria-live="polite" class="source-details"></section></div>
     <p class="source-license-note">Read-only projection · Dossier machine publication SHA 862bc476fb8165784704151eed35c915cbf31bf4. No atlas editor action changes these records.</p>
   </dialog>
-  <dialog id="helpDialog" class="help-dialog"><h2>THE CARTOGRAPHER'S DESK</h2><p>This is a spatial hypothesis, not a canonical star chart. Every starting point and corridor is editable draft geometry. Only verified names and relationships should be promoted through separate canon governance.</p><div class="help-grid"><div><b>EXPLORATION</b><p>Drag or swipe to orbit. Pinch or scroll to zoom. Select a marker. Double-click a galaxy to explore its systems; double-click a system to inspect planets.</p></div><div><b>AUTHORING</b><p>Use Spatial Studio: ORBIT for camera movement, MOVE to drag editable draft markers in XZ or Y, ROUTE to connect same-tier draft objects, TYPE to drag editable labels. Press Escape to cancel an active gesture. The inspector also supports precise XYZ and typography values. Edits are saved in this browser and can be exported as JSON.</p></div><div><b>STRATEGY LAB</b><p>Select draft objects into groups, drag the centroid handle or use nudge controls; draw or edit validated polygon boundaries; inspect corridor connectivity. Undo is one atomic edit per release.</p></div><div><b>KEYBOARD</b><p>H: hide HUD. /: search. Escape: up one scale. F: focus selection. Home: return to the All.</p></div><div><b>CANON BOUNDARY</b><p>WorldsVault identities and documented relationships have references. None of the map's coordinates, proposed regions, displayed routes, or exemplary planetary orbits is established lore.</p></div></div><button id="closeHelp" class="primary-button">CLOSE INSTRUMENT</button></dialog>
+  <dialog id="helpDialog" class="help-dialog"><h2>THE CARTOGRAPHER'S DESK</h2><p>This is a spatial hypothesis, not a canonical star chart. Every starting point and corridor is editable draft geometry. Only verified names and relationships should be promoted through separate canon governance.</p><div class="help-grid"><div><b>EXPLORATION</b><p>Drag or swipe to orbit. Pinch or scroll to zoom. Select a marker. Double-click a galaxy to explore its systems; double-click a system to inspect planets.</p></div><div><b>AUTHORING</b><p>Use Spatial Studio: ORBIT for camera movement, MOVE to drag editable draft markers in XZ or Y, ROUTE to connect same-tier draft objects, TYPE to drag editable labels. Press Escape to cancel an active gesture. The inspector also supports precise XYZ and typography values. Edits are saved in this browser and can be exported as JSON.</p></div><div><b>NETWORK INTELLIGENCE</b><p>Trace minimal corridor hops, inspect disconnected clusters and cut edges, simulate temporary closures, and optionally create one explicit draft link. No real travel metrics.</p></div><div><b>STRATEGY LAB</b><p>Select draft objects into groups, drag the centroid handle or use nudge controls; draw or edit validated polygon boundaries; inspect corridor connectivity. Undo is one atomic edit per release.</p></div><div><b>KEYBOARD</b><p>H: hide HUD. /: search. Escape: up one scale. F: focus selection. Home: return to the All.</p></div><div><b>CANON BOUNDARY</b><p>WorldsVault identities and documented relationships have references. None of the map's coordinates, proposed regions, displayed routes, or exemplary planetary orbits is established lore.</p></div></div><button id="closeHelp" class="primary-button">CLOSE INSTRUMENT</button></dialog>
   <div class="notifications" id="notifications" aria-live="polite"></div>
   <div class="loading" id="loading"><div class="loading-symbol">S</div><div>CHARTING THE ALL</div><small>INITIALIZING THE OBSERVATORY</small></div>
 </div>

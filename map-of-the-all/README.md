@@ -105,3 +105,11 @@ Select **STRATEGY LAB ✥** in the header. In **GROUP**, Shift-select any two or
 In **REGIONS**, create a provisional sector from the current selection or draw a 3–24-point polygon with the pointer. Drag individual vertex handles, edit numeric X/Z coordinates, add/remove vertices, name and recolor the draft sector, and inspect its enclosed nodes plus internal/frontier corridor counts. Regions cannot overlap their way into canon: membership is strictly editorial, measured only in **display units**. Region data remains optional in the original JSON v1 save format, preserving old drafts; it can be imported, exported, undone or deleted without modifying source topology.
 
 The original orbital laboratory, Phase 3 tools, WorldsVault source graph and original planner app remain isolated. No official faction ownership, star metric, territorial border or travel-time claim is made. See [Phase 4 scope, safeguards and QA](docs/PHASE4_STRATEGIC_ATLAS.md). Run `node --test map-of-the-all/tests/*.node-check.mjs`; dedicated Chromium QA is `node scripts/phase4-browser-ci.mjs` once the browser driver is installed in a disposable QA environment.
+
+## Phase 5: Network Intelligence (draft connectivity)
+
+Open **NETWORK LAB** in the header at the All, galaxy or system tier. Select a corridor filter, two draft objects and **TRACE FEWEST HOPS** to highlight a route in the existing Three.js camera. A hop is *one proposed connection*, never light-years, transit time or travel permission. See the number of components, isolated nodes and cut corridors; toggle hypothetical outages to explore connectivity without modifying saved routes. **CLEAR OUTAGES** restores the view.
+
+The **COMMIT ONE DRAFT CORRIDOR** button is optional and writes **only a new draft** route through the existing editor validation/Undo ledger. Canonical WorldsVault relationships cannot be navigated or edited as transport corridors. No new saved data fields, metric weights, servers, dependencies or second render loop.
+
+See [Phase 5 architecture, comparison and acceptance criteria](docs/PHASE5_NETWORK_INTELLIGENCE.md). Model tests: `node --test map-of-the-all/tests/*.node-check.mjs`. The real Chromium route journey is checked by `scripts/phase5-browser-ci.mjs` on feature-branch CI.

@@ -2,7 +2,7 @@
 
 project_id: starsilk-map-of-the-all
 project_name: The Map of the All — 3D Prototype
-revision: 5
+revision: 6
 
 ## Current baseline
 
@@ -65,3 +65,12 @@ See docs/QA_EVIDENCE.md for observed browser paths and evidence limits.
 - Group selection (up to 32 draft nodes), atomic rigid translations with snap/clamping, accessible nudge and drag, selection marquee. Region creation from group hull or pointer-drawn points, vertex edit and 4X-style member/route reports. Only Atlas app files and the CI script/workflow have changed.
 - **Locally verified:** 11 Phase 4 pure Node tests passing, JS syntax checks, and full DOM editor-control ID coverage. Earlier Phase 3 verification is a baseline, not Phase 4 browser proof.
 - **Awaiting fresh CI and runtime proof:** full parent tests, build/budgets, group move and vertex browser interactions, physical Galaxy Tab S9/S Pen tests. Do not claim a final Phase 4 pass until CI finishes.
+
+## Phase 5 candidate, 2026-10-17
+
+- The Network Intelligence Lab derives the active-tier draft graph, minimum-hop paths, disconnected components and cut-edge bottlenecks; it offers temporary hypothetical lane closures and read-only before/after reports.
+- A projected SVG overlay reuses the existing 3D engine camera/controls without owning another frame loop. One explicit proposed-link action uses the existing route validation, draft mutation, Undo and persistence path.
+- No changes to saved schema v1, physical distances, source identity canon, Dossier, protected original parent simulation, or external services.
+- **Verified locally:** 13 new pure Node tests (path BFS, filters, undirected multigraph bridges, closures, tier bounds and source protection) and JavaScript syntax/DOM wiring checks. Full CI and browser journey need evidence from this commit's workflow run.
+- Phase 4 actually passed its full Actions QA at https://github.com/westkitty/Star_System_Planner/actions/runs/39028632301, including Phase 3/4 Chromium testing, 42 Atlas Node tests, original planner tests, TypeScript and bundle gates.
+- **Unverified:** physical Galaxy Tab S9 stylus/touch thermals; platform-wide frame times, user approval of actual canonical layout, merge and Pages deployment.

@@ -7,6 +7,7 @@ on:
       - 'src/tests/atlas-handoff-import.test.js'
       - 'scripts/spatial-studio-browser-ci.mjs'
       - 'scripts/phase4-browser-ci.mjs'
+      - 'scripts/phase5-browser-ci.mjs'
       - 'vite.config.ts'
       - '.github/workflows/atlas-validation.yml'
   pull_request:
@@ -15,6 +16,7 @@ on:
       - 'src/tests/atlas-handoff-import.test.js'
       - 'scripts/spatial-studio-browser-ci.mjs'
       - 'scripts/phase4-browser-ci.mjs'
+      - 'scripts/phase5-browser-ci.mjs'
       - 'vite.config.ts'
       - '.github/workflows/atlas-validation.yml'
 permissions:
@@ -45,11 +47,13 @@ jobs:
         run: node scripts/spatial-studio-browser-ci.mjs
       - name: Strategic Atlas Phase 4 browser acceptance
         run: node scripts/phase4-browser-ci.mjs
+      - name: Network Intelligence Phase 5 browser acceptance
+        run: node scripts/phase5-browser-ci.mjs
       - name: Preserve Atlas UI evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: atlas-phase3-visual-qa
+          name: atlas-all-phases-visual-qa
           path: atlas-qa-evidence/*.png
           if-no-files-found: ignore
           retention-days: 14
