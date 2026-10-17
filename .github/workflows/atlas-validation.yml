@@ -5,12 +5,14 @@ on:
     paths:
       - 'map-of-the-all/**'
       - 'src/tests/atlas-handoff-import.test.js'
+      - 'scripts/spatial-studio-browser-ci.mjs'
       - 'vite.config.ts'
       - '.github/workflows/atlas-validation.yml'
   pull_request:
     paths:
       - 'map-of-the-all/**'
       - 'src/tests/atlas-handoff-import.test.js'
+      - 'scripts/spatial-studio-browser-ci.mjs'
       - 'vite.config.ts'
       - '.github/workflows/atlas-validation.yml'
 permissions:
@@ -35,3 +37,15 @@ jobs:
         run: npm run build
       - name: Bundle and PWA budgets
         run: npm run bundle:report
+      - name: Install CI-only browser driver
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit playwright-core@1.56.1
+      - name: Spatial Studio real browser acceptance
+        run: node scripts/spatial-studio-browser-ci.mjs
+      - name: Preserve Atlas UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-phase3-visual-qa
+          path: atlas-qa-evidence/*.png
+          if-no-files-found: ignore
+          retention-days: 14

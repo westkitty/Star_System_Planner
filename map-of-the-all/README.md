@@ -88,3 +88,12 @@ See [Phase 2 design and risk boundary](docs/PHASE2_SOURCE_GRAPH_AND_HANDOFF.md).
 7. Source-ledger and contradiction review UI with explicit canon-promotion approval outside the editor.
 
 This is a prototype, not an asserted complete cosmos.
+
+## Phase 3: Spatial Studio (draft editing)
+
+The top editing rail supplies **ORBIT**, **MOVE**, **ROUTE** and **TYPE**. Move: select a draft and drag the glowing handle in its XZ plane or Y axis; optional snap is in **display units**, never real measurements. Route: select two draft objects of the same tier and parent. TYPE: drag an editable label; offset is normalized to viewport size and survives JSON export, local autosave, and import. Escape cancels an active gesture. All gestures are undoable with Ctrl/Cmd+Z.
+
+Three **presentation-only** lenses—Survey, Signal and Cartographer—change appearance without altering coordinates, canon or the current draft state. Overall type scale is adjustable. Published source identities are read-only in every editing mode.
+
+Design limits and regression contract: [Phase 3 Spatial Studio](docs/PHASE3_SPATIAL_STUDIO.md). Node checks: `node --test map-of-the-all/tests/*.node-check.mjs` from the repository root; real browser acceptance: `node scripts/spatial-studio-browser-ci.mjs` after install and build on a Chromium-capable runner.
+

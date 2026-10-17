@@ -83,6 +83,7 @@ export function validateAtlas(value) {
     if(!validName(n.name)||!['galaxy','system','planet','landmark','annotation'].includes(n.kind)||!validPos(n.position)||!isHex(n.color)||!Number.isFinite(n.size)||n.size<=0||n.size>10) errors.push('Invalid node geometry or name');
     if(typeof n.description!=='string'||n.description.length>2500||!['draft','reference'].includes(n.status))errors.push('Invalid node metadata');
     if(!n.label||typeof n.label.show!=='boolean'||!isHex(n.label.color)||!Number.isFinite(n.label.size)||n.label.size<9||n.label.size>36||!['display','mono'].includes(n.label.family))errors.push('Invalid label');
+    if(n.label?.offset!==undefined&&(!Array.isArray(n.label.offset)||n.label.offset.length!==2||n.label.offset.some(v=>typeof v!=='number'||!Number.isFinite(v)||Math.abs(v)>.3)))errors.push('Invalid label offset');
     if(n.sourceUrl!==null&&n.sourceUrl!==undefined&&(typeof n.sourceUrl!=='string'||n.sourceUrl.length>1024||!n.sourceUrl.startsWith(CANON_BASE+'/')))errors.push('Untrusted canon URL');
   }
   const map=new Map(value.nodes.map(n=>[n.id,n]));

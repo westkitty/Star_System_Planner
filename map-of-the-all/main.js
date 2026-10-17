@@ -1,4 +1,6 @@
 import { AtlasEngine } from './atlas-engine.js';
+import { SpatialStudio } from './spatial-studio.js';
+import { validateCorridor } from './studio-math.js';
 import { initSourceGraph } from './source-graph-ui.js';
 import { createPlannerHandoff, validateHandoff, makeHandoffFilename } from './planner-handoff.js';
 import { VERSION, STORAGE_KEY, CANON_BASE, EPOCHS, LAYERS, seedAtlas, nodeById, childNodes, ancestry, validateAtlas, sanitizeAtlas, addNode, removeNode, uniqueId, RESEARCH_ANCHORS } from './atlas-data.js';
@@ -10,7 +12,7 @@ const gui={
   source:$('sourceLinks'), layers:$('layerControls'), nodes:$('nodeList'), breadcrumb:$('breadcrumb'),
   form:$('objectForm'), search:$('search'), results:$('searchResults')
 };
-let state;let view={kind:'all',id:null};let engine=null;let revision=0;let pendingRoute=null;let allVisible=true;let saveTimer=null;let history=[];
+let state;let view={kind:'all',id:null};let engine=null;let studio=null;let revision=0;let pendingRoute=null;let allVisible=true;let saveTimer=null;let history=[];
 function message(text,error=false){const toast=el('div','toast'+(error?' error':''),text);$('notifications').append(toast);setTimeout(()=>toast.remove(),3500);}
 function bootstrapState(){
   try{const json=localStorage.getItem(STORAGE_KEY);if(json){const data=JSON.parse(json);const errors=validateAtlas(data);if(!errors.length)return data;message('Saved draft rejected: '+errors[0],true);}}
@@ -31,6 +33,7 @@ function change(mutator,{geometry=true}={}){
   updateUI();persist();return true;
 }
 function enter(viewKind,id){
+  studio?.cancel();studio?.routeStop();pendingRoute=null;
   const n=nodeById(state,id);
   if(viewKind==='galaxy'&&n?.kind!=='galaxy')return;
   if(viewKind==='system'&&n?.kind!=='system')return;
@@ -48,11 +51,20 @@ function up(){if(view.kind==='system'){
 }else if(view.kind==='galaxy')enter('all',null);else{state.selected=null;updateUI();}}
 function select(id,autoEnter=false){
   const n=nodeById(state,id);if(!n){if(id==='wall-concept')message('The Siege Wall: containment by heliocide, not ordinary masonry.');return;}
-  if(pendingRoute&&pendingRoute!==id){
-    const from=nodeById(state,pendingRoute);pendingRoute=null;
-    if(from?.kind!==n.kind||from?.parentId!==n.parentId){message('Connect objects in the same scale and parent.',true);return;}
-    change(()=>{state.routes.push({id:uniqueId(state,'draft-lane'),from:from.id,to:id,kind:'hookshot',status:'draft'});});
-    message('Draft corridor created. Its route geometry is not canon.');return;
+  if(studio?.mode==='route'){
+    if(!pendingRoute){
+      if(n.status!=='draft'||!['galaxy','system','planet'].includes(n.kind)){message('Select an editable galaxy, system or planet as corridor origin.',true);return;}
+      if(!currentNodes().some(x=>x.id===id)){message('Corridor origin must be visible in the current tier.',true);return;}
+      pendingRoute=id;state.selected=id;updateUI();studio.routeStart(id);
+      message('Now choose another draft '+n.kind+' in this tier. Escape cancels.');return;
+    }
+    if(pendingRoute===id){pendingRoute=null;studio.routeStop();message('Corridor drafting cancelled.');return;}
+    const source=pendingRoute, issue=validateCorridor(state,source,id);
+    if(issue){message(issue,true);return;}
+    const kind=$('studioRouteKind').value;
+    const ok=change(()=>{state.routes.push({id:uniqueId(state,'draft-lane'),from:source,to:id,kind,status:'draft'});});
+    if(ok){pendingRoute=null;studio.routeStop();state.selected=id;updateUI();message('Draft corridor committed. No physical path or canon route asserted.');}
+    return;
   }
   if(view.kind==='all'&&n.parentId){
     const chain=ancestry(state,id);if(chain[0]?.kind==='galaxy'){if(n.kind==='planet'){enter('system',n.parentId);}else enter('galaxy',chain[0].id);}
@@ -125,7 +137,7 @@ function fillInspector(){const n=nodeById(state,state.selected);const intro=$('i
   for(const field of gui.form.querySelectorAll('input,textarea,select'))field.disabled=readOnly;
   $('applyBtn').disabled=readOnly;$('enterBtn').disabled=!['galaxy','system'].includes(n.kind);
   $('deleteBtn').textContent=readOnly?'FORK AS DRAFT':'DELETE DRAFT';
-  $('connectBtn').disabled=readOnly||!['galaxy','system'].includes(n.kind);
+  $('connectBtn').disabled=readOnly||!['galaxy','system','planet'].includes(n.kind);
 }
 function updateSources(){const frag=document.createDocumentFragment();const n=nodeById(state,state.selected);
   const entries=n?.sourceUrl?[{name:n.name,description:'Source-backed identity; position on this map is draft.',url:n.sourceUrl},...RESEARCH_ANCHORS.slice(0,2)]:RESEARCH_ANCHORS;
@@ -169,6 +181,7 @@ function exportPlannerHandoff(){
 }
 function updateUI(){updateBreadcrumb();updateLayers();updateNodeList();updateRoutes();fillInspector();updateSources();updateCounts();updateEpoch();updateHandoff();
   $('quality').value=state.quality;$('motionBtn').textContent=state.motion?'MOTION ON':'MOTION OFF';
+  studio?.sync();
 }
 function focusSearch(){gui.search.focus();if(innerWidth<=620)gui.left.classList.add('expanded');}
 function showSearch(){const q=gui.search.value.toLowerCase().trim();const frag=document.createDocumentFragment();if(q){
@@ -187,7 +200,7 @@ function saveInspector(ev){ev.preventDefault();const n=nodeById(state,state.sele
   const nums=['X','Y','Z'].map(a=>Number($('obj'+a).value));const sz=Number($('objSize').value),fs=Number($('objLabelSize').value);
   if(nums.some(v=>!Number.isFinite(v))||!Number.isFinite(sz)||!Number.isFinite(fs)){message('Invalid numeric value.',true);return;}
   if(change(()=>{n.name=$('objName').value.trim();n.description=$('objDescription').value.trim();n.position=nums;
-    n.color=$('objColor').value;n.size=sz;n.label={show:$('objLabelShow').checked,color:$('objLabelColor').value,size:fs,family:$('objLabelFamily').value};}))message('Draft geometry and typography updated.');
+    n.color=$('objColor').value;n.size=sz;n.label={show:$('objLabelShow').checked,color:$('objLabelColor').value,size:fs,family:$('objLabelFamily').value, ...(n.label.offset?{offset:[...n.label.offset]}:{})};}))message('Draft geometry and typography updated.');
 }
 function removeOrFork(){const n=nodeById(state,state.selected);if(!n)return;
   if(n.status==='reference'){
@@ -198,17 +211,26 @@ function removeOrFork(){const n=nodeById(state,state.selected);if(!n)return;
   change(()=>{removeNode(state,n.id);});message('Draft object deleted.');
 }
 function connectRoute(){const n=nodeById(state,state.selected);if(!n||n.status!=='draft')return;
-  pendingRoute=n.id;message('Select another '+n.kind+' in this view to connect a draft hookshot route.');
+  studio?.setMode('route');pendingRoute=n.id;studio?.routeStart(n.id);
+  message('Choose another '+n.kind+' at this tier. Proposed route only; Escape cancels.');
+}
+function moveDraftNode(id,position){
+  const n=nodeById(state,id);if(!n||n.status!=='draft')return;
+  if(change(()=>{n.position=position;}))message('Draft marker repositioned. Undo available; no canon coordinates changed.');
+}
+function moveDraftLabel(id,offset){
+  const n=nodeById(state,id);if(!n||n.status!=='draft')return;
+  if(change(()=>{n.label.offset=offset;},{geometry:false}))message('Draft label offset saved. Undo available.');
 }
 function exportAtlas(){const data={...state,selected:null,updatedAt:new Date().toISOString()};const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});
   const url=URL.createObjectURL(blob);const a=el('a');a.href=url;a.download='starsilk-map-of-the-all-draft-v'+VERSION+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);message('JSON atlas exported. No canon has been changed.');
 }
 async function importAtlas(file){if(!file)return;if(file.size>800000){message('JSON exceeds 800 KB import limit.',true);return;}
   try{const contents=await file.text();const parsed=sanitizeAtlas(JSON.parse(contents));const previous=JSON.stringify(state);
-    state=parsed;history.push(previous);view={kind:'all',id:null};pendingRoute=null;engine?.setState(state,view);engine?.setView(view);updateUI();persist();message('Imported as draft: source status intentionally demoted.');
+    studio?.cancel();studio?.routeStop();state=parsed;history.push(previous);view={kind:'all',id:null};pendingRoute=null;engine?.setState(state,view);engine?.setView(view);updateUI();persist();message('Imported as draft: source status intentionally demoted.');
   }catch(e){message('Import refused: '+e.message,true);}
 }
-function undo(){if(!history.length){message('No changes to undo.');return;}state=JSON.parse(history.pop());
+function undo(){if(!history.length){message('No changes to undo.');return;}studio?.cancel();studio?.routeStop();pendingRoute=null;state=JSON.parse(history.pop());
   if(view.id&&!nodeById(state,view.id))view={kind:'all',id:null};engine?.setState(state,view);updateUI();persist();message('Reverted last edit.');
 }
 function resetCamera(){engine?.setView(view);}
@@ -247,6 +269,11 @@ function bind(){
 function init(){updateUI();bind();
   try{initSourceGraph();}catch(e){$('sourceGraphOpen').disabled=true;message('Source topology unavailable: '+e.message,true);}
   try{engine=new AtlasEngine(gui.canvas,gui.labels,{onSelect:select,onViewChanged:updateUI});engine.setState(state,view);
+    studio=new SpatialStudio({canvas:gui.canvas,labelsRoot:gui.labels,atlas:gui.atlas,panel:$('studioPanel'),
+      getState:()=>state,getView:()=>view,onMove:moveDraftNode,onLabelCommit:moveDraftLabel,
+      onRouteCancel:()=>{pendingRoute=null;},
+      onScale:value=>change(()=>{state.typographyScale=value;},{geometry:false}),
+      onModeChange:()=>{pendingRoute=null;},message});studio.attachEngine(engine);updateUI();
     $('loading').style.opacity='0';setTimeout(()=>$('loading').remove(),900);
     setInterval(()=>{if(engine&&document.visibilityState==='visible')$('drawCalls').textContent=String(engine.info().drawCalls).padStart(2,'0');},1000);
     message('The All is ready. All starting coordinates remain provisional.');

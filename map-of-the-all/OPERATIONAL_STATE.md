@@ -2,7 +2,7 @@
 
 project_id: starsilk-map-of-the-all
 project_name: The Map of the All — 3D Prototype
-revision: 3
+revision: 4
 
 ## Current baseline
 
@@ -49,3 +49,12 @@ See docs/QA_EVIDENCE.md for observed browser paths and evidence limits.
 - **Verified locally in this phase:** 21 Atlas Node tests pass and JavaScript syntax checks pass against the isolated project source.
 - **Awaiting CI/runtime proof:** parent Vitest importer compatibility, TypeScript, multi-page production bundle, new graph UI interaction, actual import journey, and mobile hardware behavior. Prior Phase 1 browser evidence remains valid only for the earlier version.
 - Preserve external source identity priority and never promote the source's `canon_status: unknown` to canonical.
+
+## Phase 3 state, 2026-10-17
+
+- Isolated Spatial Studio (Orbit / Move / Route / Label), controlled pointer interactions, bounded normalized label offsets and 3 visual lenses. Works with schema-v1 legacy drafts without migration.
+- Move and label drag produce preview-only pointer updates; one release = one Undo entry. ESC/cancel makes no draft edit. No extra Three.js frame owner added. Source-linked concepts are not draggable.
+- Route authoring checks same parent/kind, forbids source links and duplicate corridors. Snap units are display units only.
+- Local pure regression run: **29 Atlas Node tests passed** including Phase 2 and new Phase 3 fixtures; JS syntax checked locally.
+- CI workflow augmented with Playwright/Chromium interaction check; verify actual run status after push. Physical Tab S9 stylus hover, thermals, target FPS, accessibility walk and deployed Pages remain unverified.
+- Protected: Dossier, original parent src, simulator physics, visual canon identity and topology source graph.
