@@ -2,7 +2,7 @@
 
 project_id: starsilk-map-of-the-all
 project_name: The Map of the All — 3D Prototype
-revision: 6
+revision: 7
 
 ## Current baseline
 
@@ -74,3 +74,13 @@ See docs/QA_EVIDENCE.md for observed browser paths and evidence limits.
 - **Verified locally:** 13 new pure Node tests (path BFS, filters, undirected multigraph bridges, closures, tier bounds and source protection) and JavaScript syntax/DOM wiring checks. Full CI and browser journey need evidence from this commit's workflow run.
 - Phase 4 actually passed its full Actions QA at https://github.com/westkitty/Star_System_Planner/actions/runs/39028632301, including Phase 3/4 Chromium testing, 42 Atlas Node tests, original planner tests, TypeScript and bundle gates.
 - **Unverified:** physical Galaxy Tab S9 stylus/touch thermals; platform-wide frame times, user approval of actual canonical layout, merge and Pages deployment.
+
+## Phase 6 / release candidate (2026-10-17)
+
+- Added optional `timeline.version=1` with `war`, `locking`, `post` editorial snapshots. Each snapshot owns draft nodes, routes, regions, and layer visibility; animation quality and typography scale stay global.
+- Current top-level state mirrors the selected snapshot for backward compatibility. All mutating editor paths sync the active era before validation; switches and explicit copies are undoable. No generated real dates, mathematical ephemerides, canonical travel times, or sovereign borders.
+- New temporal model validates every nested snapshot through the parent Atlas validator, rejects incoherent mirrors and incomplete manifests, and demotes all imported reference identities across all eras.
+- Separate comparison panel, discrete scrubber, per-era notes, and read-only SVG camera-projected change trails. Three.js still owns one render loop.
+- **Verified locally:** 14 Phase 6 Node tests and JavaScript syntax checks. **Full feature CI, browser interaction and public deployment remain unverified until successful run evidence is captured**.
+- Release scope explicitly authorized: stage/commit/push feature; PR merge all prior phases into main; main branch GitHub Actions Pages deployment with live root and Atlas HTTP verification. The original planner app remains the root entry.
+- New `.github/workflows/deploy.yml` gates Atlas model tests, all four browser journeys, root bundle gates, and post-deploy public URL proof. Do not claim deployed until actual Pages run and HTTP evidence exist.

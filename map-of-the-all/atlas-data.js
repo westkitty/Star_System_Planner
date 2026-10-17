@@ -1,4 +1,5 @@
 import {validateRegions} from './strategic-model.js';
+import {validateTimeline, sanitizeTimeline} from './temporal-model.js';
 export const VERSION = 1;
 export const STORAGE_KEY = 'starsilk.map-of-the-all.draft.v1';
 export const CANON_BASE = 'https://westkitty.github.io/Starsilk_Character_Dossier';
@@ -102,6 +103,7 @@ export function validateAtlas(value) {
   if(!['balanced','cinematic','battery'].includes(value.quality))errors.push('Invalid quality tier');
   if(typeof value.motion!=='boolean'||!Number.isFinite(value.typographyScale)||value.typographyScale<.6||value.typographyScale>2)errors.push('Invalid preferences');
   errors.push(...validateRegions(value));
+  if (!errors.length) errors.push(...validateTimeline(value, validateAtlas));
   return [...new Set(errors)];
 }
 export function sanitizeAtlas(value) {
@@ -109,6 +111,7 @@ export function sanitizeAtlas(value) {
   const data=JSON.parse(JSON.stringify(value));
   // Imported source pointers do not grant canon authority. Keep the official read-only evidence separate.
   for(const n of data.nodes){n.status='draft';n.sourceUrl=null;}
+  sanitizeTimeline(data);
   data.updatedAt=new Date().toISOString();data.selected=null;
   return data;
 }

@@ -1,4 +1,6 @@
 import { AtlasEngine } from './atlas-engine.js';
+import { TemporalLab } from './temporal-lab.js';
+import {ensureTimeline, syncEra, switchEra, cloneEra, writeEraNote} from './temporal-model.js';
 import { StrategicStudio } from './strategic-studio.js';
 import { NetworkLab } from './network-lab.js';
 import { SpatialStudio } from './spatial-studio.js';
@@ -14,7 +16,7 @@ const gui={
   source:$('sourceLinks'), layers:$('layerControls'), nodes:$('nodeList'), breadcrumb:$('breadcrumb'),
   form:$('objectForm'), search:$('search'), results:$('searchResults')
 };
-let state;let view={kind:'all',id:null};let engine=null;let studio=null;let strategy=null;let networkLab=null;let revision=0;let pendingRoute=null;let allVisible=true;let saveTimer=null;let history=[];
+let state;let view={kind:'all',id:null};let engine=null;let studio=null;let strategy=null;let networkLab=null;let temporal=null;let revision=0;let pendingRoute=null;let allVisible=true;let saveTimer=null;let history=[];
 function message(text,error=false){const toast=el('div','toast'+(error?' error':''),text);$('notifications').append(toast);setTimeout(()=>toast.remove(),3500);}
 function bootstrapState(){
   try{const json=localStorage.getItem(STORAGE_KEY);if(json){const data=JSON.parse(json);const errors=validateAtlas(data);if(!errors.length)return data;message('Saved draft rejected: '+errors[0],true);}}
@@ -22,13 +24,14 @@ function bootstrapState(){
   return seedAtlas();
 }
 state=bootstrapState();
+ensureTimeline(state);
 function persist(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{
   try{state.updatedAt=new Date().toISOString();localStorage.setItem(STORAGE_KEY,JSON.stringify(state));$('savedStatus').textContent='DRAFT SAVED';}
   catch(e){$('savedStatus').textContent='EXPORT REQUIRED';message('Storage blocked. Export your draft.',true);}
 },250);}
 function change(mutator,{geometry=true}={}){
   const prior=JSON.stringify(state);
-  try{mutator();const errors=validateAtlas(state);if(errors.length)throw new Error(errors[0]);}
+  try{mutator();syncEra(state);const errors=validateAtlas(state);if(errors.length)throw new Error(errors[0]);}
   catch(e){state=JSON.parse(prior);message('Change rejected: '+e.message,true);return false;}
   history.push(prior);if(history.length>30)history.shift();revision++;
   if(geometry)engine?.setState(state,view);else engine?.updateLabels();
@@ -151,9 +154,15 @@ function updateSources(){const frag=document.createDocumentFragment();const n=no
 function updateCounts(){ $('countGalaxy').textContent=String(state.nodes.filter(n=>n.kind==='galaxy').length).padStart(2,'0');
   $('countSystems').textContent=String(state.nodes.filter(n=>n.kind==='system').length).padStart(2,'0');
 }
+function activateEra(id){
+  if(id===state.epoch)return;
+  studio?.cancel();studio?.routeStop();pendingRoute=null;strategy?.close();networkLab?.close();
+  const accepted=change(()=>switchEra(state,id));
+  if(accepted){if(view.id&&!nodeById(state,view.id))enter('all',null);message('Switched independent provisional draft to '+EPOCHS.find(e=>e.id===id)?.title+'.');}
+}
 function updateEpoch(){const current=EPOCHS.find(x=>x.id===state.epoch);
   $('eraLabel').textContent=current.title.toUpperCase();const frag=document.createDocumentFragment();
-  for(const e of EPOCHS){const b=button('', 'era-btn'+(e.id===state.epoch?' active':''),()=>change(()=>{state.epoch=e.id;}));
+  for(const e of EPOCHS){const b=button('', 'era-btn'+(e.id===state.epoch?' active':''),()=>activateEra(e.id));
     b.append(el('b','',e.title.toUpperCase()),el('span','',e.id==='war'?'BLOOD RINGS':e.id==='locking'?'CONTAINMENT':'ARCHIVE / SURVEY'));
     b.title=e.note;b.setAttribute('aria-pressed',e.id===state.epoch?'true':'false');frag.append(b);
   }
@@ -185,7 +194,7 @@ function exportPlannerHandoff(){
 }
 function updateUI(){updateBreadcrumb();updateLayers();updateNodeList();updateRoutes();fillInspector();updateSources();updateCounts();updateEpoch();updateHandoff();
   $('quality').value=state.quality;$('motionBtn').textContent=state.motion?'MOTION ON':'MOTION OFF';
-  studio?.sync();strategy?.sync();networkLab?.sync();
+  studio?.sync();strategy?.sync();networkLab?.sync();temporal?.sync();
 }
 function focusSearch(){gui.search.focus();if(innerWidth<=620)gui.left.classList.add('expanded');}
 function showSearch(){const q=gui.search.value.toLowerCase().trim();const frag=document.createDocumentFragment();if(q){
@@ -235,13 +244,13 @@ function commitNetworkLink({from,to,kind}){
     state.routes.push({id,from,to,kind,status:'draft'});
   });
 }
-function exportAtlas(){const data={...state,selected:null,updatedAt:new Date().toISOString()};const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});
+function exportAtlas(){syncEra(state);const data={...state,selected:null,updatedAt:new Date().toISOString()};const blob=new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'});
   const url=URL.createObjectURL(blob);const a=el('a');a.href=url;a.download='starsilk-map-of-the-all-draft-v'+VERSION+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);message('JSON atlas exported. No canon has been changed.');
 }
-async function importAtlas(file){if(!file)return;if(file.size>800000){message('JSON exceeds 800 KB import limit.',true);return;}
+async function importAtlas(file){if(!file)return;if(file.size>1200000){message('JSON exceeds 800 KB import limit.',true);return;}
   try{const contents=await file.text();const parsed=sanitizeAtlas(JSON.parse(contents));const previous=JSON.stringify(state);
     strategy?.cancelGesture();strategy?.cancelDrawing();
-    studio?.cancel();studio?.routeStop();state=parsed;history.push(previous);view={kind:'all',id:null};pendingRoute=null;engine?.setState(state,view);engine?.setView(view);updateUI();persist();message('Imported as draft: source status intentionally demoted.');
+    studio?.cancel();studio?.routeStop();state=parsed;ensureTimeline(state);history.push(previous);view={kind:'all',id:null};pendingRoute=null;engine?.setState(state,view);engine?.setView(view);updateUI();persist();message('Imported as draft: source status intentionally demoted.');
   }catch(e){message('Import refused: '+e.message,true);}
 }
 function undo(){if(!history.length){message('No changes to undo.');return;}strategy?.cancelGesture();strategy?.cancelDrawing();studio?.cancel();studio?.routeStop();pendingRoute=null;state=JSON.parse(history.pop());
@@ -250,8 +259,9 @@ function undo(){if(!history.length){message('No changes to undo.');return;}strat
 function resetCamera(){engine?.setView(view);}
 function toggleFocus(){gui.atlas.classList.toggle('focus-view');if(!gui.atlas.classList.contains('focus-view'))gui.right.classList.remove('mobile-open');}
 function bind(){
-  $('strategyOpen').addEventListener('click',()=>{if(!strategy)return;networkLab?.close();studio?.setMode('orbit');strategy.open();});
-  $('networkOpen').addEventListener('click',()=>{if(!networkLab)return;studio?.setMode('orbit');strategy?.close();networkLab.open();});
+  $('temporalOpen').addEventListener('click',()=>{networkLab?.close();strategy?.close();studio?.setMode('orbit');temporal?.open();});
+  $('strategyOpen').addEventListener('click',()=>{if(!strategy)return;temporal?.close();networkLab?.close();studio?.setMode('orbit');strategy.open();});
+  $('networkOpen').addEventListener('click',()=>{if(!networkLab)return;temporal?.close();studio?.setMode('orbit');strategy?.close();networkLab.open();});
   $('objectForm').addEventListener('submit',saveInspector);
   $('closeMobileInspector').addEventListener('click',()=>gui.right.classList.remove('mobile-open'));
   $('enterBtn').addEventListener('click',enterSelected);$('focusBtn').addEventListener('click',focusSelected);
@@ -296,7 +306,12 @@ function init(){updateUI();bind();
     networkLab=new NetworkLab({canvas:gui.canvas,atlas:gui.atlas,panel:$('networkPanel'),
       getState:()=>state,getView:()=>view,onCommit:commitNetworkLink,message,
       isOtherEditorActive:()=>!!(strategy?.opened&&strategy.mode!=='pan')||['move','label'].includes(studio?.mode)});
-    networkLab.attachEngine(engine);updateUI();
+    networkLab.attachEngine(engine);
+    temporal=new TemporalLab({canvas:gui.canvas,atlas:gui.atlas,panel:$('temporalPanel'),getState:()=>state,getView:()=>view,
+      message,onSwitch:activateEra,
+      onCopy:(from,to)=>{if(change(()=>cloneEra(state,from,to)))message('Copied current draft into '+EPOCHS.find(e=>e.id===to)?.title+'. Undo is available.');},
+      onNote:(era,note)=>{if(change(()=>writeEraNote(state,era,note),{geometry:false}))message('Era note saved as editorial draft.');}});
+    temporal.attachEngine(engine);updateUI();
     $('loading').style.opacity='0';setTimeout(()=>$('loading').remove(),900);
     setInterval(()=>{if(engine&&document.visibilityState==='visible')$('drawCalls').textContent=String(engine.info().drawCalls).padStart(2,'0');},1000);
     message('The All is ready. All starting coordinates remain provisional.');

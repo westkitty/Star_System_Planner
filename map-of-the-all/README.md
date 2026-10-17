@@ -113,3 +113,13 @@ Open **NETWORK LAB** in the header at the All, galaxy or system tier. Select a c
 The **COMMIT ONE DRAFT CORRIDOR** button is optional and writes **only a new draft** route through the existing editor validation/Undo ledger. Canonical WorldsVault relationships cannot be navigated or edited as transport corridors. No new saved data fields, metric weights, servers, dependencies or second render loop.
 
 See [Phase 5 architecture, comparison and acceptance criteria](docs/PHASE5_NETWORK_INTELLIGENCE.md). Model tests: `node --test map-of-the-all/tests/*.node-check.mjs`. The real Chromium route journey is checked by `scripts/phase5-browser-ci.mjs` on feature-branch CI.
+
+## Phase 6: Independent era snapshots, comparison, and Pages launch
+
+The footer **EDIT / COMPARE ✧** opens the **Temporal Atlas**. It provides three independently editable editorial eras, an accessible three-position scrubber, per-era notes, draft snapshot comparison and 3D-projected change trails. Existing node positions, star systems, corridors, regions, layer toggles and saved labels are preserved independently per era. A named historical category is **not** a source-authored cosmic coordinate or timestamp.
+
+The `version:1` JSON and existing storage key remain compatible. Old saves without a timeline are expanded to separate equal draft snapshots. Snapshot copy into another era requires an explicit confirmation and creates one Undo step; comparison never changes saved data. On importing JSON, source-identity claims are demoted across every era.
+
+See [Phase 6 design, safeguards and release checks](docs/PHASE6_TEMPORAL_CARTOGRAPHY.md). Run all Atlas tests with `node --test map-of-the-all/tests/*.node-check.mjs`. Browser acceptance lives in `scripts/phase6-browser-ci.mjs`.
+
+**After main deployment:** [System Planner](https://westkitty.github.io/Star_System_Planner/) · [Map of the All](https://westkitty.github.io/Star_System_Planner/map-of-the-all/). These addresses must be verified after the deployment job succeeds; source code alone does not establish publication.

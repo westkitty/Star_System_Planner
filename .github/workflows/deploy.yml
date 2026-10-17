@@ -21,38 +21,54 @@ jobs:
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
-
       - name: Install Dependencies
         run: npm ci
-
       - name: TypeScript Typecheck
         run: npm run typecheck
-
-      - name: Run Test Suite
+      - name: Run Planner Test Suite
         run: npm run test
-
+      - name: Atlas Schema and Temporal Canon-Safety Tests
+        run: node --test map-of-the-all/tests/*.node-check.mjs
       - name: Build Production Distribution
         run: npm run build
-
       - name: Bundle Budget + PWA Artifact Gate
         run: npm run bundle:report
-
+      - name: Install CI-only Browser Driver
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit playwright-core@1.56.1
+      - name: Validate Spatial Studio in Chromium
+        run: node scripts/spatial-studio-browser-ci.mjs
+      - name: Validate Strategic Region Studio in Chromium
+        run: node scripts/phase4-browser-ci.mjs
+      - name: Validate Network Intelligence in Chromium
+        run: node scripts/phase5-browser-ci.mjs
+      - name: Validate Temporal Cartography in Chromium
+        run: node scripts/phase6-browser-ci.mjs
+      - name: Preserve Atlas Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-pages-release-qa
+          path: atlas-qa-evidence/*.png
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Verify Dual HTML Entrypoints Before Publication
+        run: |
+          test -f dist/index.html
+          test -f dist/map-of-the-all/index.html
+          grep -q 'id="temporalPanel"' dist/map-of-the-all/index.html
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
-
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
-
   deploy:
     environment:
       name: github-pages
@@ -63,3 +79,15 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify Published Planner and Map of the All
+        env:
+          PAGES_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          BASE="${PAGES_URL%/}"
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 5 --retry-all-errors --max-time 30 "$BASE/" -o /tmp/planner-public.html
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 5 --retry-all-errors --max-time 30 "$BASE/map-of-the-all/?verify=${GITHUB_SHA}" -o /tmp/atlas-public.html
+          grep -q 'id="root"' /tmp/planner-public.html
+          grep -q 'id="temporalPanel"' /tmp/atlas-public.html
+          grep -q 'THE MAP OF THE ALL' /tmp/atlas-public.html
+          printf 'PAGES_PUBLICATION_VERIFIED planner=%s/ atlas=%s/map-of-the-all/ sha=%s\n' "$BASE" "$BASE" "$GITHUB_SHA"
