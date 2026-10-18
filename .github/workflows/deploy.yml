@@ -42,6 +42,10 @@ jobs:
         run: npm install --no-save --no-package-lock --ignore-scripts --no-audit playwright-core@1.56.1
       - name: Verify Visible Universe and Collapsed Pull-Down Controls in Chromium
         run: node scripts/atlas-focus-browser-ci.mjs
+      - name: Validate Cinematic Atlas Across Zoom Tiers, Eras and Phone
+        run: node scripts/atlas-cinematic-browser-ci.mjs
+      - name: Validate Zoomable 3D Star Systems in Chromium
+        run: node scripts/system-zoom-browser-ci.mjs
       - name: Validate Spatial Studio in Chromium
         run: node scripts/spatial-studio-browser-ci.mjs
       - name: Validate Strategic Region Studio in Chromium

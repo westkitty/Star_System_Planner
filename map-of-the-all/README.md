@@ -31,13 +31,38 @@ Running `index.html` via `file://` is unsupported; Vite resolves the local `thre
 ## Interactions
 
 - Drag / pointer orbit, wheel or pinch zoom, two-finger pan, hover-free selection, double-click to dive; 3D hit testing and clickable DOM-projected labels.
-- All → galaxy → stellar system → labelled planets and editable annotations. Breadcrumbs, Home/Escape, search, focus, top-down and reset cameras.
+- All → galaxy → **zoomable stellar systems** → labelled, editable planets and annotations. Select a system to center it, then scroll inward or spread two fingers to cross into its orbital view; alternatively double-click or select ENTER SYSTEM. Inside, double-click a planet (or press F) for a tracking close-up, use OVERVIEW for all orbits, or ← GALAXY to return. Breadcrumbs, Home/Escape, search, focus and reset cameras remain available.
 - Eleven independently switchable layers: galactic structure, stellar detail, Hookshot corridors, azure Starsilk filaments, territory overlays, the Siege Wall absence, Blood Rings, WorldsVault references, annotations, typography and coordinate guides.
 - Three temporal lenses: Blood Eclipse War, Siege Wall locking, post-Siege. **Visual filters only**, not computed historical census or epoch-specific correct positions.
 - Inspect and edit provisional object names, descriptive annotations, X/Y/Z *display* coordinates, colors, size, label colors, typeface and font size.
 - Create galaxies, systems, planets, and annotations. Select CONNECT ROUTE then select another object on the same tier to make a corridor; change corridor type between provisional Hookshot and azure via `H`/`S` and remove with `×` in the route list.
 - Auto-save to browser-local `localStorage`; JSON export/import, bounded schema validation, 30-step Undo (`Ctrl/Cmd+Z`). Import demotes incoming canon claims, rather than granting source authority.
 - Tablet-aware layout, optional cinematic quality, reduced-motion respect, capped DPR, bounded star particle counts, one render loop, DOM label reuse and GPU resource disposal during view changes.
+
+## Star-system orbital exploration
+
+Every editable Atlas system opens a **real** Three.js stellar scene. The existing draft planets
+retain their saved IDs, editable positions, label identity, coloring and Planet/Planner
+handoff. A primary star, planet-orbit guides, 3D planet surfaces, atmospheric shells,
+rotating clouds and rings are visible in the system view. New display-only moons,
+quality-scaled instanced asteroid fields, an illustrative comet and occasional secondary
+stellar body add orbital depth. These are **visual hypotheses, not authoritative celestial
+bodies or physical n-body simulations**, and are never saved to JSON or Dossier canon.
+
+Within a galaxy, click a system marker to center it and reveal **ENTER SYSTEM**; wheel
+inward or spread two fingers near the selected object to cross the scale boundary.
+Double-click the system marker to enter immediately. Inside, click a planet to inspect
+its saved Atlas record, and double-click it or press F for a tracking close-up.
+The contextual floating **← GALAXY** and **OVERVIEW** controls return to the parent
+galaxy or reset the system camera, respectively. Physical distances and orbital
+periods are not inferred from the display coordinates.
+
+The browser uses one existing render loop and the existing quality settings.
+Asteroids are a single GPU-instanced batch; moons and comets use bounded 3D groups.
+Illustrative orbital scenery can be removed by turning off the STARS layer.
+Battery mode reduces geometry and avoids optional comet/cloud/atmospheric layers.
+
+See `docs/SYSTEM_SCALE_ZOOM_2026-10-17.md` for architecture, validation and limits.
 
 ## Preservation and integration
 
