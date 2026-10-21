@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "productionTarget": "westkitty/Star_System_Planner",
+  "retiredEntry": "map-of-the-all/index.html",
+  "storageKey": "starsilk.map-of-the-all.draft.v1",
+  "draftVersion": 1,
+  "proofs": {
+    "owner_backup_restore": {
+      "status": "blocked",
+      "receipt": null
+    },
+    "retired_writer_and_stale_tabs": {
+      "status": "blocked",
+      "receipt": null
+    },
+    "legacy_v1_cross_import": {
+      "status": "blocked",
+      "receipt": null
+    },
+    "independent_planner_browser": {
+      "status": "blocked",
+      "receipt": null
+    },
+    "rollback_rehearsal": {
+      "status": "blocked",
+      "receipt": null
+    },
+    "canon_era_integrity": {
+      "status": "blocked",
+      "receipt": null
+    }
+  }
+}
