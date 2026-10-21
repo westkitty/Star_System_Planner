@@ -26,13 +26,17 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
+      - name: Refuse retirement release without verified recovery and owner exact-SHA approval
+        env:
+          LEGACY_RETIRE_APPROVED_SHA: ${{ vars.LEGACY_RETIRE_APPROVED_SHA }}
+        run: node scripts/legacy-retirement-release-gate.mjs
       - name: Install Dependencies
         run: npm ci
       - name: TypeScript Typecheck
         run: npm run typecheck
       - name: Run Planner Test Suite
         run: npm run test
-      - name: Atlas Schema and Temporal Canon-Safety Tests
+      - name: Retained Atlas Schema and Temporal Canon-Safety Tests
         run: node --test map-of-the-all/tests/*.node-check.mjs
       - name: Build Production Distribution
         run: npm run build
@@ -40,20 +44,8 @@ jobs:
         run: npm run bundle:report
       - name: Install CI-only Browser Driver
         run: npm install --no-save --no-package-lock --ignore-scripts --no-audit playwright-core@1.56.1
-      - name: Verify Visible Universe and Collapsed Pull-Down Controls in Chromium
-        run: node scripts/atlas-focus-browser-ci.mjs
-      - name: Validate Cinematic Atlas Across Zoom Tiers, Eras and Phone
-        run: node scripts/atlas-cinematic-browser-ci.mjs
-      - name: Validate Zoomable 3D Star Systems in Chromium
-        run: node scripts/system-zoom-browser-ci.mjs
-      - name: Validate Spatial Studio in Chromium
-        run: node scripts/spatial-studio-browser-ci.mjs
-      - name: Validate Strategic Region Studio in Chromium
-        run: node scripts/phase4-browser-ci.mjs
-      - name: Validate Network Intelligence in Chromium
-        run: node scripts/phase5-browser-ci.mjs
-      - name: Validate Temporal Cartography in Chromium
-        run: node scripts/phase6-browser-ci.mjs
+      - name: Verify Read-Only Legacy Atlas Retirement and Independent Root Planner in Chromium
+        run: node scripts/legacy-retirement-browser-ci.mjs
       - name: Preserve Atlas Screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -66,8 +58,12 @@ jobs:
         run: |
           test -f dist/index.html
           test -f dist/map-of-the-all/index.html
-          grep -q 'id="temporalPanel"' dist/map-of-the-all/index.html
-          grep -q 'atlas-minimal' dist/map-of-the-all/index.html
+          grep -q 'id="exportRawDraft"' dist/map-of-the-all/index.html
+          grep -q 'READ-ONLY LEGACY ENTRY' dist/map-of-the-all/index.html
+          if grep -q 'src="./main.js"' dist/map-of-the-all/index.html; then
+            echo 'Legacy editable Atlas JS is still referenced by retired entry' >&2
+            exit 1
+          fi
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
@@ -95,6 +91,6 @@ jobs:
           curl --fail --silent --show-error --location --retry 8 --retry-delay 5 --retry-all-errors --max-time 30 "$BASE/" -o /tmp/planner-public.html
           curl --fail --silent --show-error --location --retry 8 --retry-delay 5 --retry-all-errors --max-time 30 "$BASE/map-of-the-all/?verify=${GITHUB_SHA}" -o /tmp/atlas-public.html
           grep -q 'id="root"' /tmp/planner-public.html
-          grep -q 'id="temporalPanel"' /tmp/atlas-public.html
-          grep -q 'THE MAP OF THE ALL' /tmp/atlas-public.html
+          grep -q 'id="exportRawDraft"' /tmp/atlas-public.html
+          grep -q 'READ-ONLY LEGACY ENTRY' /tmp/atlas-public.html
           printf 'PAGES_PUBLICATION_VERIFIED planner=%s/ atlas=%s/map-of-the-all/ sha=%s\n' "$BASE" "$BASE" "$GITHUB_SHA"
