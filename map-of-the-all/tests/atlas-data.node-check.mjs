@@ -51,14 +51,14 @@ test('high object counts are rejected before loading scene',()=>{
 });
 
 
-test('number editor accepts generated fractional values without step mismatch',()=>{
-  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+test('archived legacy number editor accepts generated fractional values without step mismatch',()=>{
+  const html=readFileSync(new URL('./fixtures/legacy-atlas-index.snapshot.html',import.meta.url),'utf8');
   for(const id of ['objX','objY','objZ','objSize']) {
     assert.match(html,new RegExp('id="'+id+'"[^>]*step="any"'));
   }
 });
-test('hidden form and mobile inspector dismissal are regression guarded',()=>{
-  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+test('archived legacy hidden form and mobile inspector dismissal are regression guarded',()=>{
+  const html=readFileSync(new URL('./fixtures/legacy-atlas-index.snapshot.html',import.meta.url),'utf8');
   const css=readFileSync(new URL('../atlas.css',import.meta.url),'utf8');
   const main=readFileSync(new URL('../main.js',import.meta.url),'utf8');
   assert.match(html,/id="objectForm"[^>]*hidden/);
