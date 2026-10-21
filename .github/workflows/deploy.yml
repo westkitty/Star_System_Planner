@@ -27,6 +27,8 @@ jobs:
           node-version: 22
           cache: 'npm'
       - name: Refuse retirement release without verified recovery and owner exact-SHA approval
+        env:
+          LEGACY_RETIRE_APPROVED_SHA: ${{ vars.LEGACY_RETIRE_APPROVED_SHA }}
         run: node scripts/legacy-retirement-release-gate.mjs
       - name: Install Dependencies
         run: npm ci
