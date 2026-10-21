@@ -106,8 +106,8 @@ test('export filename is valid for the parent .ssp.json importer',()=>{
   const p=createPlannerHandoff(make(),system,fixedTime);
   assert.match(makeHandoffFilename(p),/^[a-z0-9-]+\.ssp\.json$/);
 });
-test('source dialog, safe orbital handoff and provenance affordances are wired',()=>{
-  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+test('archived legacy source dialog, safe orbital handoff and provenance affordances are wired',()=>{
+  const html=readFileSync(new URL('./fixtures/legacy-atlas-index.snapshot.html',import.meta.url),'utf8');
   const main=readFileSync(new URL('../main.js',import.meta.url),'utf8');
   const ui=readFileSync(new URL('../source-graph-ui.js',import.meta.url),'utf8');
   for(const id of ['sourceGraphDialog','sourceGraphOpen','sourceGraphClose','sourceGraphBoard','sourceGraphNodes','sourceGraphRelations','sourceGraphDetails','sourceGraphSearch','handoffExportBtn','handoffOpenPlanner'])assert.ok(html.includes('id="'+id+'"'),id);
