@@ -1,0 +1,62 @@
+name: Planner Legacy Atlas Retirement - PR Verification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feature/legacy-atlas-readonly-cutover-20261021]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: planner-retirement-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Validate standalone Planner and read-only legacy route
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout candidate (no publishing)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Independent Planner tests, TypeScript, build, PWA and bundle checks
+        run: npm run check
+      - name: Retain archived Atlas schema checks
+        run: node --test map-of-the-all/tests/*.node-check.mjs
+      - name: Check retirement browser and release-gate script syntax
+        run: |
+          node --check scripts/legacy-retirement-browser-ci.mjs
+          node --check scripts/legacy-retirement-release-gate.mjs
+      - name: Prove release is default-denied with missing owner evidence
+        run: |
+          set -eu
+          if GITHUB_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa LEGACY_RETIRE_APPROVED_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa node scripts/legacy-retirement-release-gate.mjs > /tmp/gate.log 2>&1; then
+            echo 'Unsafe: release gate unexpectedly accepted synthetic approval' >&2
+            exit 1
+          fi
+          grep -q 'LEGACY_ATLAS_RELEASE_BLOCKED' /tmp/gate.log
+          grep -q 'owner_backup_restore' /tmp/gate.log
+          echo 'LEGACY_RETIREMENT_RELEASE_GATE_DEFAULT_DENY_PASS'
+      - name: Install CI-only browser driver
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit playwright-core@1.56.1
+      - name: Prove retired route read-only, raw recovery and Planner runtime in Chromium
+        run: node scripts/legacy-retirement-browser-ci.mjs
+      - name: Upload browser proof images on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: planner-retirement-browser-proof
+          path: atlas-qa-evidence/*.png
+          if-no-files-found: ignore
+          retention-days: 7
