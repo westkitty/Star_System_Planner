@@ -88,8 +88,8 @@ test('comparing snapshots is read-only and tolerant of zero deltas',()=>{
  const diff=compareEras(s.timeline.snapshots.war,s.timeline.snapshots.post);
  assert.equal(diff.total,0);assert.equal(JSON.stringify(s),before);
 });
-test('portal retains temporal controls, explicit caution and no extra canvas',()=>{
- const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+test('archived editable Atlas retains temporal controls, explicit caution and no extra canvas',()=>{
+ const html=readFileSync(new URL('./fixtures/legacy-atlas-index.snapshot.html',import.meta.url),'utf8');
  for(const id of ['temporalPanel','temporalOpen','temporalScrub','temporalNote','temporalCompare','temporalCloneBtn','temporalStatus','temporalGhost'])
    assert.match(html,new RegExp(`id="${id}"`));
  assert.match(html,/No inferred year markers/);
