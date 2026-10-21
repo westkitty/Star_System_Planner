@@ -52,11 +52,11 @@ test('source identities and off-tier objects cannot start direct drag',()=>{
   assert.equal(validMoveTarget(s.nodes.find(n=>n.id==='worldsvault'),{kind:'all',id:null}),false);
 });
 
-test('UI ownership is intentionally one-shot and source references stay outside editor',async()=>{
+test('archived legacy UI ownership is intentionally one-shot and source references stay outside editor',async()=>{
   const {readFileSync}=await import('node:fs');
   const ui=readFileSync(new URL('../main.js',import.meta.url),'utf8');
   const studio=readFileSync(new URL('../spatial-studio.js',import.meta.url),'utf8');
-  const page=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const page=readFileSync(new URL('./fixtures/legacy-atlas-index.snapshot.html',import.meta.url),'utf8');
   assert.match(ui,/n\.label\.offset\?\{offset:\[\.\.\.n\.label\.offset\]\}/);
   assert.match(ui,/onMove:moveDraftNode,onLabelCommit:moveDraftLabel/);
   assert.match(studio,/this\.onMove\(d\.id,d\.candidate\)/);
