@@ -141,3 +141,15 @@ Environment notes (honest):
 - **Boundary:** no ADB, cross-repository changes, source canon writes, new dependencies or arbitrary placeholder asset promotions.
 
 See \`QUALITY_UPLIFT_2026-10-17.md\` for the complete 25-dimension before/after scorecard, intervention ledger, nonregression contract, uncertainty, and remaining work. The historical September sections above remain intact.
+
+---
+
+## 2026-10-21 — Legacy Atlas retirement candidate, NOT PUBLISHED
+
+- The independent root orbital Planner remains the protected application in `westkitty/Star_System_Planner`. Candidate work is confined to `map-of-the-all/index.html`, a separate legacy retirement CI/release script, GitHub workflows, and this evidence ledger; **the root `index.html`, physics, root persistence and canon source are not edited**.
+- Dedicated Atlas authority: `westkitty/Starsilk_Map_of_the_All`. The legacy embedded Atlas entry is replaced *on this draft branch only* by an accessible, non-writing portal. It exports exact saved browser JSON bytes on a user-initiated click, leaves the shared localStorage key unchanged, and links to the dedicated Atlas and the independent Planner. Cached/open old editor JavaScript may still write.
+- Historical hazard evidence: the dedicated Atlas Phase 6 real two-client Chromium replay proved old editor writes can remove a modern galaxy name and Post-era suppression with accepted JSON v1. Dedicated Atlas PR #15 exact-head GitHub Actions run 39571696119 was verified SUCCESS for both normal acceptance and independent compiled legacy retirement preview; this is not current Planner branch proof.
+- This branch adds `scripts/legacy-retirement-browser-ci.mjs` and a read-only PR CI workflow to test raw byte download, malformed/empty profile behavior, modern standalone link, mobile bounds, no old editor controls, and the root Planner DOM mount. Existing archived Atlas schema tests remain historical read-only tests; obsolete browser tests of the retired writable route are not valid publication gates.
+- `docs/LEGACY_ATLAS_CUTOVER_READINESS.json` and `scripts/legacy-retirement-release-gate.mjs` default-deny all Pages publication until separately verified owner backup/restore, old-tab retirement evidence, v1 import, root Planner verification, safe rollback, canon/era review and exact merge-SHA approval via `LEGACY_RETIRE_APPROVED_SHA`. **A passing PR CI does not authorize deployment**.
+- **Evidence status for this candidate:** implementation pushed to an isolated branch, GitHub CI/PWA/browser proof pending exact-head results. No real user browser data, independent app saved state, Dossier file, or production `main` changed. See `docs/LEGACY_ATLAS_CUTOVER_RUNBOOK.md`.
+
