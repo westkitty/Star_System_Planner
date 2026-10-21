@@ -48,6 +48,17 @@ jobs:
           grep -q 'LEGACY_ATLAS_RELEASE_BLOCKED' /tmp/gate.log
           grep -q 'owner_backup_restore' /tmp/gate.log
           echo 'LEGACY_RETIREMENT_RELEASE_GATE_DEFAULT_DENY_PASS'
+      - name: Prove owner waiver permits only an exact read-only main release
+        run: |
+          set -eu
+          GITHUB_SHA="$(git rev-parse HEAD)" GITHUB_REF=refs/heads/main GITHUB_REPOSITORY=westkitty/Star_System_Planner GITHUB_EVENT_NAME=push node scripts/legacy-retirement-release-gate.mjs > /tmp/approved-cutover.log 2>&1
+          grep -q 'LEGACY_ATLAS_DISPOSABLE_DRAFT_RELEASE_AUTHORIZED' /tmp/approved-cutover.log
+          if GITHUB_SHA="$(git rev-parse HEAD)" GITHUB_REF=refs/heads/feature/unauthorized GITHUB_REPOSITORY=westkitty/Star_System_Planner GITHUB_EVENT_NAME=push node scripts/legacy-retirement-release-gate.mjs > /tmp/unsafe-cutover.log 2>&1; then
+            echo 'Unsafe: discard waiver worked outside main' >&2
+            exit 1
+          fi
+          grep -q 'LEGACY_ATLAS_RELEASE_BLOCKED' /tmp/unsafe-cutover.log
+          echo 'LEGACY_RETIREMENT_DISPOSABLE_WAIVER_SCOPE_PASS'
       - name: Install CI-only browser driver
         run: npm install --no-save --no-package-lock --ignore-scripts --no-audit playwright-core@1.56.1
       - name: Prove retired route read-only, raw recovery and Planner runtime in Chromium
