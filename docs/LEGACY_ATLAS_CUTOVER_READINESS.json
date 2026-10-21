@@ -29,5 +29,14 @@
       "status": "blocked",
       "receipt": null
     }
+  },
+  "disposableDraftCutover": {
+    "authorization": "Owner instruction in current project chat on 2026-10-21: Ignore the previous data in the atlas. This was purely a draft. Nothing important was put there. Stage commit push merge onto main. Update pages.",
+    "scope": "Discard of pre-cutover legacy Atlas browser draft state only; no authority to delete source, canonical lore, or independent Planner user projects",
+    "acceptedRisk": "Already-open, PWA-cached legacy editor tabs might still write the old shared-origin localStorage key. Existing draft data is intentionally not preserved.",
+    "retiredEntrypointBlob": "0b9f96f7f90c893fa3e8ee1c706c7e1af2646ef8",
+    "releaseWindowEndUTC": "2026-10-23T00:00:00Z",
+    "rollback": "Restore prior compiled root Planner as needed, but keep embedded Atlas route non-writing; never reinstall the old writer as rollback.",
+    "mode": "temporary-disposable-draft-release"
   }
 }
