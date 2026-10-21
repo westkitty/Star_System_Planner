@@ -1,5 +1,6 @@
 # Legacy Map of the All — Owner Backup and Cutover Runbook
 
+> **Owner decision — 2026-10-21:** Prior Atlas browser data was explicitly declared disposable; no important draft work needs preservation. For this one cutover, owner-authorized **loss of pre-cutover browser drafts** supersedes the historical mandatory personal-backup prerequisite. Existing code/canon and the independent root Planner remain protected. Do not erase browser localStorage in the release pipeline; the waiver is permission to publish without recovery, not permission to delete files. Stale PWA tabs may still write and should be closed after publication. The temporary cutover gate is main-only, validates the exact read-only portal blob, expires 2026-10-23 UTC, and still runs all native/Chromium/Pages checks. The historical individual proof fields remain BLOCKED rather than mislabeled VERIFIED. This temporary exception is not standing authority for later releases.\n\n
 **State:** candidate only. The root Star System Planner remains the orbital simulator. The retired Atlas route is a read-only portal to `https://westkitty.github.io/Starsilk_Map_of_the_All/`.
 
 ## Why this is required
