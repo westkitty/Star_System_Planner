@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {findSystemZoomTarget,closePlanetCameraDistance,SYSTEM_ZOOM_RADIUS} from '../system-zoom.js';
+import {findGalaxyZoomTarget,findSystemZoomTarget,findPlanetZoomTarget,shouldAscendZoom,tierEntryScale,smoothZoomProgress,closePlanetCameraDistance,SYSTEM_ZOOM_RADIUS} from '../system-zoom.js';
 import {planSystemDetails,makeSystemDressing,makePlanetMoons} from '../system-orbit-details.js';
 
 const planets=[
@@ -69,4 +69,43 @@ test('absurd input cannot silently create unbounded orbital meshes',()=>{
   assert.ok(plan.beltRadius<=140);
   assert.ok(plan.moons.length<=10);
   assert.ok(plan.asteroidCount<=620);
+});
+
+test('continuous semantic zoom can enter galaxy, system and planet without false positives',()=>{
+  const galaxy={id:'g',kind:'galaxy',distance:45,screenX:0,screenY:0};
+  const system={id:'s',kind:'system',distance:12,screenX:0,screenY:0};
+  const planet={id:'p',kind:'planet',distance:8,screenX:0,screenY:0};
+  assert.equal(findGalaxyZoomTarget({viewKind:'all',zooming:true,candidates:[galaxy]}),'g');
+  assert.equal(findGalaxyZoomTarget({viewKind:'galaxy',zooming:true,candidates:[galaxy]}),null);
+  assert.equal(findGalaxyZoomTarget({viewKind:'all',zooming:true,blocked:true,candidates:[galaxy]}),null);
+  assert.equal(findGalaxyZoomTarget({viewKind:'all',zooming:true,candidates:[{...galaxy,screenY:1.0}]}),null);
+  assert.equal(findSystemZoomTarget({viewKind:'galaxy',zooming:true,candidates:[system]}),'s');
+  assert.equal(findPlanetZoomTarget({viewKind:'system',zooming:true,candidates:[planet]}),'p');
+  assert.equal(findPlanetZoomTarget({viewKind:'system',zooming:true,blocked:true,candidates:[planet]}),null);
+  assert.equal(findPlanetZoomTarget({viewKind:'system',zooming:true,candidates:[{...planet,distance:20}]}),null);
+});
+test('outward camera distance reversibly ascends only from a valid tier',()=>{
+  assert.equal(shouldAscendZoom({viewKind:'system',zoomingOut:true,distance:230}),true);
+  assert.equal(shouldAscendZoom({viewKind:'galaxy',zoomingOut:true,distance:290}),true);
+  assert.equal(shouldAscendZoom({viewKind:'all',zoomingOut:true,distance:900}),false);
+  assert.equal(shouldAscendZoom({viewKind:'system',zoomingOut:false,distance:280}),false);
+  assert.equal(shouldAscendZoom({viewKind:'system',zoomingOut:true,blocked:true,distance:280}),false);
+  assert.equal(shouldAscendZoom({viewKind:'system',zoomingOut:true,distance:NaN}),false);
+});
+test('scene scale easing is finite, bounded, reversible and never alters saved node positions',()=>{
+  for(const n of [-2,0,.1,.5,.9,1,2,Infinity,NaN]){
+    const eased=smoothZoomProgress(n);
+    assert.ok(Number.isFinite(eased)&&eased>=0&&eased<=1);
+  }
+  assert.equal(smoothZoomProgress(0),0);
+  assert.equal(smoothZoomProgress(1),1);
+  assert.equal(smoothZoomProgress(.5),.5);
+  for(const n of [.5,1,1.4]){
+    const into=tierEntryScale('all','galaxy',n);
+    const out=tierEntryScale('galaxy','all',n);
+    assert.ok(into>0&&Number.isFinite(into));
+    assert.ok(Math.abs(into*out-1)<1e-10);
+  }
+  assert.equal(tierEntryScale('galaxy','system'),.25);
+  assert.equal(tierEntryScale('system','galaxy'),4);
 });
