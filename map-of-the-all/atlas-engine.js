@@ -5,7 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { childNodes, nodeById } from './atlas-data.js';
 import { makePlanetVisual, makeAtmosphere, makeSelectionReticle } from './visual-fidelity.js';
 import { planSystemDetails, makeSystemDressing, makePlanetMoons } from './system-orbit-details.js';
-import { findSystemZoomTarget, closePlanetCameraDistance } from './system-zoom.js';
+import { findGalaxyZoomTarget, findSystemZoomTarget, findPlanetZoomTarget, shouldAscendZoom, tierEntryScale, smoothZoomProgress, closePlanetCameraDistance } from './system-zoom.js';
 
 const V = (p) => new THREE.Vector3(p[0],p[1],p[2]);
 const PALETTE = {azure:0x49dfff, gold:0xffd5a2, void:0x01040b};
@@ -68,7 +68,8 @@ export class AtlasEngine {
     this.view={kind:'all',id:null};this.state=null;this.resizeObserver=new ResizeObserver(()=>this.resize());
     this.resizeObserver.observe(canvas.parentElement);
     this.pointerStart=null;this.focusedPlanetId=null;this.focusLastPosition=null;
-    this._lastDollyDistance=null;this._dollyIntentUntil=0;this.systemDressingStats=null;
+    this._lastDollyDistance=null;this._dollyIntentUntil=0;this._dollyOutUntil=0;this.systemDressingStats=null;
+    this.tierTransition=null;this.cameraFlight=null;
     canvas.addEventListener('pointerdown',this._down=(ev)=>{this.pointerStart=[ev.clientX,ev.clientY];});
     canvas.addEventListener('pointerup',this._up=(ev)=>{if(!this.pointerStart||Math.hypot(ev.clientX-this.pointerStart[0],ev.clientY-this.pointerStart[1])>8)return;this.pick(ev);this.pointerStart=null;});
     canvas.addEventListener('dblclick',this._double=(ev)=>{this.pick(ev,true);});
@@ -140,15 +141,97 @@ export class AtlasEngine {
     this.camera.updateProjectionMatrix();
   }
   setState(state,view=this.view){this.state=state;this.view=view;this.resize();this.rebuild();this.camera.updateMatrixWorld();this.updateLabels();}
-  setView(view){
+  /**
+   * One render owner, two brief representations. The old hierarchy stays at
+   * its existing world location while the new tier expands from the selected
+   * anchor. This is a camera/LOD flight, not a migration of saved coordinates.
+   */
+  setView(view,{instant=false}={}){
+    const previous=this.view,oldGroup=this.group;
+    const changingTier=previous.kind!==view.kind||previous.id!==view.id;
+    const oldNode=changingTier&&this.state?nodeById(this.state,
+      previous.kind==='all'?view.id:previous.kind==='galaxy'&&view.kind==='system'?view.id:previous.id):null;
+    const anchor=oldNode?V(oldNode.position):new THREE.Vector3();
+    this.cancelFlight();
+    const canAnimate=changingTier&&!instant&&!this.reducedMotion&&
+      Boolean(this.state)&&oldNode&&
+      (previous.kind==='all'&&view.kind==='galaxy'||
+       previous.kind==='galaxy'&&view.kind==='system'||
+       previous.kind==='system'&&view.kind==='galaxy'||
+       previous.kind==='galaxy'&&view.kind==='all');
+    const startCamera=this.camera.position.clone();
+    const startTarget=this.controls.target.clone();
     this.view=view;this.focusedPlanetId=null;this.focusLastPosition=null;
-    this._dollyIntentUntil=0;this.controls.zoomToCursor=true;
+    this._dollyIntentUntil=0;this._dollyOutUntil=0;
+    this.controls.zoomToCursor=true;
+    if(canAnimate){
+      this.group=new THREE.Group();this.scene.add(this.group);
+    }
     this.rebuild();
-    const camera=this.cameraPreset(view);
-    this.controls.target.set(0,0,0);this.camera.position.set(...camera);this.controls.update();
+    const preset=new THREE.Vector3(...this.cameraPreset(view));
+    if(canAnimate){
+      // Preserve the incoming source position, not a synthetic metric distance.
+      const entryScale=tierEntryScale(previous.kind,view.kind,oldNode.size)||.25;
+      const inward=previous.kind==='all'||previous.kind==='galaxy'&&view.kind==='system';
+      const fromScale=inward?Math.min(.7,entryScale):Math.max(1.2,entryScale);
+      this.group.position.copy(anchor);
+      this.group.scale.setScalar(fromScale);
+      const wasEnabled=this.controls.enabled;
+      this.controls.enabled=false;
+      this.tierTransition={
+        oldGroup,anchor,fromScale,startCamera,startTarget,
+        endCamera:preset,endTarget:new THREE.Vector3(),
+        start:performance.now(),duration:850,wasEnabled
+      };
+      // Preserve camera exactly for the first transition frame.
+      this.camera.position.copy(startCamera);
+      this.controls.target.copy(startTarget);
+    }else{
+      this.controls.target.set(0,0,0);
+      this.camera.position.copy(preset);this.controls.update();
+    }
     this._lastDollyDistance=this.controls.getDistance();
     this.camera.updateMatrixWorld();this.updateLabels();
     this.callbacks.onViewChanged?.(view);
+  }
+  cancelFlight(){
+    if(this.tierTransition){
+      const flight=this.tierTransition;
+      this.group.position.set(0,0,0);this.group.scale.setScalar(1);
+      this.scene.remove(flight.oldGroup);disposeTree(flight.oldGroup);
+      this.controls.enabled=flight.wasEnabled;
+      this.tierTransition=null;
+    }
+    this.cameraFlight=null;
+  }
+  updateCameraFlight(now){
+    if(this.tierTransition){
+      const f=this.tierTransition;
+      const u=smoothZoomProgress((now-f.start)/f.duration);
+      this.group.position.copy(f.anchor).multiplyScalar(1-u);
+      this.group.scale.setScalar(f.fromScale+(1-f.fromScale)*u);
+      f.oldGroup.position.copy(f.anchor).multiplyScalar(u*.85);
+      f.oldGroup.scale.setScalar(1-u*.82);
+      this.camera.position.copy(f.startCamera).lerp(f.endCamera,u);
+      this.controls.target.copy(f.startTarget).lerp(f.endTarget,u);
+      if(u>=1){
+        this.scene.remove(f.oldGroup);disposeTree(f.oldGroup);
+        this.group.position.set(0,0,0);this.group.scale.setScalar(1);
+        this.controls.enabled=f.wasEnabled;
+        this.tierTransition=null;
+        this._lastDollyDistance=this.controls.getDistance();
+      }
+    }else if(this.cameraFlight){
+      const f=this.cameraFlight;
+      const u=smoothZoomProgress((now-f.start)/f.duration);
+      this.camera.position.copy(f.startCamera).lerp(f.endCamera,u);
+      this.controls.target.copy(f.startTarget).lerp(f.endTarget,u);
+      if(u>=1){
+        this.controls.enabled=f.wasEnabled;
+        this.cameraFlight=null;
+        this._lastDollyDistance=this.controls.getDistance();
+      }
+    }
   }
   rebuild(){if(!this.state)return;
     disposeTree(this.group);this.glowTextures.clear();this.dynamicMaterials=[];this.routeParticlePositions=null;
@@ -529,8 +612,17 @@ export class AtlasEngine {
     const towards=this.camera.position.clone().sub(this.controls.target).normalize();
     const isPlanet=this.view.kind==='system'&&node.kind==='planet';
     const distance=isPlanet?closePlanetCameraDistance(node.size):this.controls.getDistance();
-    this.camera.position.copy(target).addScaledVector(towards,distance);
-    this.controls.target.copy(target);
+    const endCamera=target.clone().addScaledVector(towards,distance);
+    this.cameraFlight=null;
+    if(isPlanet&&!this.reducedMotion&&!this.tierTransition){
+      this.cameraFlight={start:performance.now(),duration:650,
+        startCamera:this.camera.position.clone(),startTarget:this.controls.target.clone(),
+        endCamera,endTarget:target.clone(),wasEnabled:this.controls.enabled};
+      this.controls.enabled=false;
+    }else{
+      this.camera.position.copy(endCamera);
+      this.controls.target.copy(target);
+    }
     this.focusedPlanetId=isPlanet?node.id:null;
     this.focusLastPosition=isPlanet?target.clone():null;
     this._dollyIntentUntil=0; // Selecting a different object is not a new zoom gesture.
@@ -593,7 +685,7 @@ export class AtlasEngine {
     }
     if(motion)for(const material of this.dynamicMaterials)material.uniforms.time.value=this.elapsed/1000;
     // Follow a zoomed planet's 3D orbit without stealing scroll, orbit, or pan input.
-    if(this.focusedPlanetId&&this.view.kind==='system'){
+    if(this.focusedPlanetId&&this.view.kind==='system'&&!this.cameraFlight&&!this.tierTransition){
       const planet=this.labelItems.find(i=>i.node.id===this.focusedPlanetId);
       if(planet){
         const position=new THREE.Vector3();planet.obj.getWorldPosition(position);
@@ -604,22 +696,44 @@ export class AtlasEngine {
         this.focusLastPosition=position;
       }
     }
-    this.controls.update();
+    if(!this.tierTransition&&!this.cameraFlight)this.controls.update();
+    this.updateCameraFlight(now);
     const distance=this.controls.getDistance();
-    if(this._lastDollyDistance!==null&&distance<this._lastDollyDistance-.012)
-      this._dollyIntentUntil=now+600;
+    if(!this.tierTransition&&!this.cameraFlight){
+      if(this._lastDollyDistance!==null&&distance<this._lastDollyDistance-.012)
+        this._dollyIntentUntil=now+600;
+      if(this._lastDollyDistance!==null&&distance>this._lastDollyDistance+.012)
+        this._dollyOutUntil=now+600;
+    }
     this._lastDollyDistance=distance;
-    if(this.view.kind==='galaxy'&&this._dollyIntentUntil>=now){
-      const candidates=this.labelItems.filter(i=>i.node.kind==='system').map(i=>{
+    if(!this.tierTransition&&!this.cameraFlight&&
+      ['all','galaxy','system'].includes(this.view.kind)&&this._dollyIntentUntil>=now){
+      const kind=this.view.kind==='all'?'galaxy':this.view.kind==='galaxy'?'system':'planet';
+      const candidates=this.labelItems.filter(i=>i.node.kind===kind).map(i=>{
         const wp=new THREE.Vector3();i.obj.getWorldPosition(wp);
         const projected=wp.clone().project(this.camera);
         return {id:i.node.id,kind:i.node.kind,distance:wp.distanceTo(this.camera.position),
           screenX:projected.x,screenY:projected.y,visible:projected.z>=-1&&projected.z<=1};
       });
-      const id=findSystemZoomTarget({viewKind:this.view.kind,zooming:true,
+      const query={viewKind:this.view.kind,zooming:true,
         blocked:this.callbacks.canDollyEnter?!this.callbacks.canDollyEnter():false,
-        candidates,selectedId:this.state?.selected});
-      if(id){this._dollyIntentUntil=0;this.callbacks.onDollyEnter?.(id);}
+        candidates,selectedId:this.state?.selected};
+      const id=this.view.kind==='all'?findGalaxyZoomTarget(query):
+        this.view.kind==='galaxy'?findSystemZoomTarget(query):findPlanetZoomTarget(query);
+      if(id){
+        this._dollyIntentUntil=0;
+        if(this.view.kind==='galaxy')this.callbacks.onDollyEnter?.(id);
+        else if(this.view.kind==='all')this.callbacks.onScaleNavigate?.('galaxy',id);
+        else{
+          const planet=nodeById(this.state,id);
+          if(planet){this.callbacks.onSelect?.(id,false);this.focusOn(planet);}
+        }
+      }
+    }
+    if(!this.tierTransition&&!this.cameraFlight&&this._dollyOutUntil>=now&&
+       shouldAscendZoom({viewKind:this.view.kind,zoomingOut:true,
+         blocked:this.callbacks.canDollyEnter?!this.callbacks.canDollyEnter():false,distance})){
+      this._dollyOutUntil=0;this.callbacks.onScaleAscend?.();
     }
     const selected=this.state?.selected;
     const target=selected?this.pickables.find(o=>o.userData.atlasId===selected):null;
@@ -637,5 +751,5 @@ export class AtlasEngine {
     if(++this.frame%5===0)this.updateLabels();
   }
   info(){return {drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,geometries:this.renderer.info.memory.geometries,textures:this.renderer.info.memory.textures,systemDetails:this.systemDressingStats,focusedPlanetId:this.focusedPlanetId,cameraDistance:this.controls.getDistance()};}
-  dispose(){this.disposed=true;this.renderer.setAnimationLoop(null);this.resizeObserver.disconnect();this.canvas.removeEventListener('pointerdown',this._down);this.canvas.removeEventListener('pointerup',this._up);this.canvas.removeEventListener('dblclick',this._double);this.controls.dispose();disposeTree(this.group);disposeTree(this.bg);disposeTree(this.selectionReticle);this.scene.remove(this.selectionReticle);this.glowTextures.clear();this.renderer.dispose();this.renderer.forceContextLoss();this.labelsRoot.replaceChildren();this.labelNodes.clear();}
+  dispose(){this.disposed=true;this.cancelFlight();this.renderer.setAnimationLoop(null);this.resizeObserver.disconnect();this.canvas.removeEventListener('pointerdown',this._down);this.canvas.removeEventListener('pointerup',this._up);this.canvas.removeEventListener('dblclick',this._double);this.controls.dispose();disposeTree(this.group);disposeTree(this.bg);disposeTree(this.selectionReticle);this.scene.remove(this.selectionReticle);this.glowTextures.clear();this.renderer.dispose();this.renderer.forceContextLoss();this.labelsRoot.replaceChildren();this.labelNodes.clear();}
 }
