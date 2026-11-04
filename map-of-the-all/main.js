@@ -389,7 +389,12 @@ function init(){updateUI();bind();
       canDollyEnter,onDollyEnter:id=>{
         const n=nodeById(state,id);
         if(view.kind==='galaxy'&&n?.kind==='system'&&n.parentId===view.id)enter('system',id);
-      }});engine.setState(state,view);
+      },
+      onScaleNavigate:(kind,id)=>{
+        const n=nodeById(state,id);
+        if(view.kind==='all'&&kind==='galaxy'&&n?.kind==='galaxy')enter(kind,id);
+      },
+      onScaleAscend:()=>up()});engine.setState(state,view);
     studio=new SpatialStudio({canvas:gui.canvas,labelsRoot:gui.labels,atlas:gui.atlas,panel:$('studioPanel'),
       getState:()=>state,getView:()=>view,onMove:moveDraftNode,onLabelCommit:moveDraftLabel,
       onRouteCancel:()=>{pendingRoute=null;},
